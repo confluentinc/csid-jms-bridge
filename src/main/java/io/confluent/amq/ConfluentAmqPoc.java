@@ -4,41 +4,42 @@
 
 package io.confluent.amq;
 
-import org.jboss.logging.Logger;
-
 import java.nio.file.Files;
 import java.util.Properties;
+import org.jboss.logging.Logger;
 
 public class ConfluentAmqPoc {
-    private static final Logger logger = Logger.getLogger(ConfluentAmqPoc.class);
 
-    public static void main(String ...args) throws Exception {
+  private static final Logger logger = Logger.getLogger(ConfluentAmqPoc.class);
 
-       try {
-           final ServerOptions serverOptions = ServerOptions.parse(args);
-           if (serverOptions == null) {
-               return;
-           }
+  public static void main(String... args) throws Exception {
 
-           Properties serverProps = new Properties();
+    try {
+      final ServerOptions serverOptions = ServerOptions.parse(args);
+      if (serverOptions == null) {
+        return;
+      }
 
-           serverProps.load(Files.newInputStream(serverOptions.getPropertiesFile().toPath()));
+      Properties serverProps = new Properties();
 
-           ConfluentEmbeddedAmq embeddedAmqServer = new ConfluentEmbeddedAmq.Builder(serverProps).build();
+      serverProps.load(Files.newInputStream(serverOptions.getPropertiesFile().toPath()));
 
-           Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-               try {
-                   embeddedAmqServer.stop();
-               } catch (Exception e) {
-                   throw new RuntimeException(e);
-               }
-           }));
+      ConfluentEmbeddedAmq embeddedAmqServer = new ConfluentEmbeddedAmq.Builder(serverProps)
+          .build();
 
-           embeddedAmqServer.start();
+      Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+        try {
+          embeddedAmqServer.stop();
+        } catch (Exception e) {
+          throw new RuntimeException(e);
+        }
+      }));
 
-       } catch(final Exception e) {
-           logger.error("Failed to start JMS-Bridge Server", e);
-           System.exit(-1);
-       }
+      embeddedAmqServer.start();
+
+    } catch (final Exception e) {
+      logger.error("Failed to start JMS-Bridge Server", e);
+      System.exit(-1);
     }
+  }
 }

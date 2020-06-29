@@ -1,0 +1,15 @@
+<!--
+  ~ Copyright 2020 Confluent Inc.
+  -->
+
+<!-- Findbugs filtering.
+Findbugs is a static code analysis tool run as part of the "check" phase of the build.
+This file dictates which categories of bugs and individual false positives that we supress.
+For a detailed description of findbugs bug categories, see http://findbugs.sourceforge.net/bugDescriptions.html
+-->
+<FindBugsFilter>
+  <!--
+    DO NOT USE THIS EXCLUSION FILE FOR NON-GENERATED CODE
+    If you really MUST suppress an error warning, do so using the @SuppressFBWarnings annotation.
+-->
+</FindBugsFilter>

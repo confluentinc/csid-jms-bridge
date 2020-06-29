@@ -3,43 +3,47 @@
   -->
 
 <configuration xmlns="urn:activemq">
-    <jms xmlns="urn:activemq:jms">
-        <queue name="DLQ"/>
-        <queue name="ExpiryQueue"/>
-    </jms>
-    <core xmlns="urn:activemq:core">
-        <paging-directory>./target/paging</paging-directory>
+  <jms xmlns="urn:activemq:jms">
+    <queue name="DLQ"/>
+    <queue name="ExpiryQueue"/>
+  </jms>
+  <core xmlns="urn:activemq:core">
+    <paging-directory>./target/paging</paging-directory>
 
-        <bindings-directory>./target/bindings</bindings-directory>
+    <bindings-directory>./target/bindings</bindings-directory>
 
-        <journal-directory>./target/journal</journal-directory>
+    <journal-directory>./target/journal</journal-directory>
 
-        <journal-min-files>2</journal-min-files>
+    <journal-min-files>2</journal-min-files>
 
-        <large-messages-directory>./target/large-messages</large-messages-directory>
+    <large-messages-directory>./target/large-messages</large-messages-directory>
 
-        <connectors>
-            <!-- Default Connector.  Returned to clients during broadcast and distributed around cluster.  See broadcast and discovery-groups -->
-            <connector name="activemq">tcp://${activemq.remoting.default.host:localhost}:${activemq.remoting.default.port:61616}</connector>
-        </connectors>
+    <connectors>
+      <!-- Default Connector.  Returned to clients during broadcast and distributed around cluster.  See broadcast and discovery-groups -->
+      <connector name="activemq">
+        tcp://${activemq.remoting.default.host:localhost}:${activemq.remoting.default.port:61616}
+      </connector>
+    </connectors>
 
-        <acceptors>
-            <!-- Default ActiveMQ Artemis Acceptor.  Multi-protocol adapter.  Currently supports Core, OpenWire, Stomp and AMQP. -->
-            <acceptor name="activemq">tcp://${activemq.remoting.default.host:localhost}:${activemq.remoting.default.port:61616}</acceptor>
-        </acceptors>
+    <acceptors>
+      <!-- Default ActiveMQ Artemis Acceptor.  Multi-protocol adapter.  Currently supports Core, OpenWire, Stomp and AMQP. -->
+      <acceptor name="activemq">
+        tcp://${activemq.remoting.default.host:localhost}:${activemq.remoting.default.port:61616}
+      </acceptor>
+    </acceptors>
 
-        <security-enabled>false</security-enabled>
+    <security-enabled>false</security-enabled>
 
-        <address-settings>
-            <!--default for catch all-->
-            <address-setting match="#">
-                <dead-letter-address>DLQ</dead-letter-address>
-                <expiry-address>ExpiryQueue</expiry-address>
-                <redelivery-delay>0</redelivery-delay>
-                <max-size-bytes>10Mb</max-size-bytes>
-                <message-counter-history-day-limit>10</message-counter-history-day-limit>
-                <address-full-policy>BLOCK</address-full-policy>
-            </address-setting>
-        </address-settings>
-    </core>
+    <address-settings>
+      <!--default for catch all-->
+      <address-setting match="#">
+        <dead-letter-address>DLQ</dead-letter-address>
+        <expiry-address>ExpiryQueue</expiry-address>
+        <redelivery-delay>0</redelivery-delay>
+        <max-size-bytes>10Mb</max-size-bytes>
+        <message-counter-history-day-limit>10</message-counter-history-day-limit>
+        <address-full-policy>BLOCK</address-full-policy>
+      </address-setting>
+    </address-settings>
+  </core>
 </configuration>
