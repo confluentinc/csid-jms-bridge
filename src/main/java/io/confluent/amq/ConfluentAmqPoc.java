@@ -1,58 +1,40 @@
 package io.confluent.amq;
 
-import org.apache.activemq.artemis.api.core.QueueConfiguration;
-import org.apache.activemq.artemis.api.core.RoutingType;
-import org.apache.activemq.artemis.api.core.SimpleString;
-import org.apache.activemq.artemis.api.core.client.*;
+import org.jboss.logging.Logger;
 
+import java.nio.file.Files;
 import java.util.Properties;
 
 public class ConfluentAmqPoc {
+    private static final Logger logger = Logger.getLogger(ConfluentAmqPoc.class);
 
     public static void main(String ...args) throws Exception {
-       Properties kafkaProps = new Properties();
 
-       ConfluentEmbeddedActiveMQ embeddedAmqServer = new ConfluentEmbeddedActiveMQ.Builder(kafkaProps).build();
-
-       Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-           try {
-               embeddedAmqServer.stop();
-           } catch(Exception e) {
-               throw new RuntimeException(e);
+       try {
+           final ServerOptions serverOptions = ServerOptions.parse(args);
+           if (serverOptions == null) {
+               return;
            }
-       }));
 
-       embeddedAmqServer.start();
+           Properties serverProps = new Properties();
 
-        ServerLocator serverLocator = ActiveMQClient.createServerLocator("tcp://localhost:61616");
-        ClientSessionFactory factory =  serverLocator.createSessionFactory();
+           serverProps.load(Files.newInputStream(serverOptions.getPropertiesFile().toPath()));
 
-        ClientSession session = factory.createSession();
+           ConfluentEmbeddedActiveMQ embeddedAmqServer = new ConfluentEmbeddedActiveMQ.Builder(serverProps).build();
 
+           Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+               try {
+                   embeddedAmqServer.stop();
+               } catch (Exception e) {
+                   throw new RuntimeException(e);
+               }
+           }));
 
-        session.createAddress(new SimpleString("example2"), RoutingType.MULTICAST, true);
-        session.createQueue(new QueueConfiguration("example").setAddress("example2").setDurable(true));
+           embeddedAmqServer.start();
 
-        ClientProducer producer = session.createProducer("example2");
-
-        ClientMessage message = session.createMessage(true);
-
-        message.getBodyBuffer().writeString("Hello");
-
-        producer.send(message);
-
-        session.start();
-
-        ClientConsumer consumer = session.createConsumer("example");
-
-        ClientMessage msgReceived = consumer.receive();
-
-        System.out.println("message = " + msgReceived.getBodyBuffer().readString());
-
-        consumer.close();
-        session.deleteQueue("example");
-
-        session.close();
-        embeddedAmqServer.stop();
+       } catch(final Exception e) {
+           logger.error("Failed to start JMS-Bridge Server", e);
+           System.exit(-1);
+       }
     }
 }

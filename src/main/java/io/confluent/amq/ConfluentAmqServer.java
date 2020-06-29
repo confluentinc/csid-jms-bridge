@@ -2,18 +2,13 @@ package io.confluent.amq;
 
 import io.confluent.amq.persistence.kafka.KafkaJournalStorageManager;
 import org.apache.activemq.artemis.core.config.Configuration;
-import org.apache.activemq.artemis.core.config.StoreConfiguration;
 import org.apache.activemq.artemis.core.persistence.StorageManager;
-import org.apache.activemq.artemis.core.persistence.impl.journal.JDBCJournalStorageManager;
-import org.apache.activemq.artemis.core.persistence.impl.journal.JournalStorageManager;
-import org.apache.activemq.artemis.core.persistence.impl.nullpm.NullStorageManager;
 import org.apache.activemq.artemis.core.server.ActiveMQServer;
 import org.apache.activemq.artemis.core.server.ServiceRegistry;
 import org.apache.activemq.artemis.core.server.impl.ActiveMQServerImpl;
 import org.apache.activemq.artemis.spi.core.security.ActiveMQSecurityManager;
 
 import javax.management.MBeanServer;
-import java.util.Map;
 import java.util.Properties;
 
 public class ConfluentAmqServer extends ActiveMQServerImpl {

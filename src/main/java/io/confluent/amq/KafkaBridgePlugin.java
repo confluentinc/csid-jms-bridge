@@ -21,12 +21,14 @@ import org.jboss.logging.Logger;
 
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 public class KafkaBridgePlugin implements ActiveMQServerPlugin, KafkaIO.MessageAdapter {
     private static final Logger logger = Logger.getLogger(KafkaBridgePlugin.class);
     private Properties kafkaProps;
     private KafkaIO kafkaIO;
+    private ConcurrentHashMap<String, Integer> topicHashes = new ConcurrentHashMap<>();
     private volatile ActiveMQServer server;
 
     public KafkaBridgePlugin(Properties kafkaProps) {
@@ -35,23 +37,15 @@ public class KafkaBridgePlugin implements ActiveMQServerPlugin, KafkaIO.MessageA
 
     @Override
     public void registered(ActiveMQServer server) {
-        logger.info("###### Registered called");
-
+        logger.info("Starting the kafka bridge");
         this.kafkaIO = new KafkaIO(this.kafkaProps);
         this.kafkaIO.start();
-
         this.server = server;
     }
 
     @Override
-    public void init(Map<String, String> properties) {
-        logger.info("###### Init Called");
-
-    }
-
-    @Override
     public void unregistered(ActiveMQServer server) {
-        logger.info("###### unregistered called");
+        logger.info("Shutting down the kafka bridge");
         if(this.kafkaIO != null) {
             try {
                 this.kafkaIO.stop();
@@ -64,7 +58,9 @@ public class KafkaBridgePlugin implements ActiveMQServerPlugin, KafkaIO.MessageA
     @Override
     public void receive(Message message) {
         try {
-            logger.info("Received message from kafka topic: " + message);
+            if(logger.isDebugEnabled()) {
+                logger.info("Received message from kafka topic: " + message);
+            }
             server.getPostOffice().route(message, false);
         } catch(Exception e) {
             throw new RuntimeException(e);
@@ -74,6 +70,19 @@ public class KafkaBridgePlugin implements ActiveMQServerPlugin, KafkaIO.MessageA
     @Override
     public Message transform(ConsumerRecord<byte[], byte[]> kafkaRecord) {
 
+        try {
+            long id = createIdForRecord(kafkaRecord);
+            CoreMessage message = new CoreMessage(id, kafkaRecord.value().length + 50);
+            BytesMessageUtil.bytesWriteBytes(message.getBodyBuffer(), kafkaRecord.value());
+            message.setDurable(true);
+            return message;
+        } catch(Exception e) {
+            logger.error(e);
+            return null;
+        }
+    }
+
+    private long createIdForRecord(ConsumerRecord<byte[], byte[]> kafkaRecord) {
         ByteBuffer buffer = ByteBuffer.allocate(8);
         buffer.putInt((int)kafkaRecord.offset());
         buffer.putShort((short) kafkaRecord.partition());
@@ -81,12 +90,7 @@ public class KafkaBridgePlugin implements ActiveMQServerPlugin, KafkaIO.MessageA
         buffer.putShort((short) hashedTopic);
         buffer.flip();
         long id = buffer.getLong();
-
-
-        CoreMessage message = new CoreMessage(id, kafkaRecord.value().length);
-        BytesMessageUtil.bytesWriteBytes(message.getBodyBuffer(), kafkaRecord.value());
-        message.setDurable(true);
-        return message;
+        return id;
     }
 
     private void updateKafkaSubscriptions() {
@@ -96,7 +100,7 @@ public class KafkaBridgePlugin implements ActiveMQServerPlugin, KafkaIO.MessageA
                 .filter(knownTopics::contains)
                 .collect(Collectors.toList());
         if(subTopics.size() > 0) {
-            logger.info("###### Updating kafka topics being consumed to: " + String.join(", ", subTopics));
+            logger.info("Updating kafka topics being consumed to: " + String.join(", ", subTopics));
             kafkaIO.readTopics(subTopics, this);
         }
     }
@@ -125,6 +129,6 @@ public class KafkaBridgePlugin implements ActiveMQServerPlugin, KafkaIO.MessageA
 
     @Override
     public void afterMessageRoute(Message message, RoutingContext context, boolean direct, boolean rejectDuplicates, RoutingStatus result) throws ActiveMQException {
-        logTextMessage("after message route", message);
+        logger.info("##### Routing result: " + result.toString());
     }
 }

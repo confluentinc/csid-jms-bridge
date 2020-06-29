@@ -3,7 +3,6 @@ package io.confluent.amq.persistence.kafka;
 import org.apache.activemq.artemis.api.core.ICoreMessage;
 import org.apache.activemq.artemis.api.core.Message;
 import org.apache.activemq.artemis.api.core.SimpleString;
-import org.apache.activemq.artemis.core.message.impl.CoreMessage;
 import org.apache.activemq.artemis.reader.BytesMessageUtil;
 import org.apache.activemq.artemis.reader.TextMessageUtil;
 import org.apache.kafka.clients.admin.AdminClient;
@@ -30,6 +29,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class KafkaIO {
+    public static final boolean isKafkaMessage(ICoreMessage message) {
+        return message.getPropertyNames().contains(KafkaRef.HEADER);
+    }
+
     private static final Logger logger = Logger.getLogger(KafkaJournalStorageManager.class);
     private final static Set<Byte> SUPPORT_MSG_TYPES = new HashSet<>(Arrays.asList(Message.TEXT_TYPE, Message.BYTES_TYPE));
 
@@ -109,8 +112,10 @@ public class KafkaIO {
     protected Optional<Message> filterAndTransformRecord(ConsumerRecord<byte[], byte[]> record) {
         KafkaRef kref = new KafkaRef(record.topic(), record.partition(), record.offset());
         for(Header hdr: record.headers()) {
-            if("KAFKA_REF".equals(hdr.key())) {
-                logger.info("Skipping message with KAFKA_REF header: " + kref.asString());
+            if(KafkaRef.HEADER.equals(hdr.key())) {
+                if(logger.isDebugEnabled()) {
+                    logger.info("Skipping message with " + KafkaRef.HEADER + " header: " + kref.asString());
+                }
                 return Optional.empty();
             }
         }
@@ -160,17 +165,21 @@ public class KafkaIO {
 
         final CompletableFuture<KafkaRef> future = new CompletableFuture<>();
         KafkaRef kafkaRef = null;
-        if (coreMessage.getType() > 1) {
-            logger.info("Writing message to kafka: " + message);
+        byte[] value = null;
+        if (coreMessage.getType() == Message.TEXT_TYPE) {
+            value = TextMessageUtil.readBodyText(coreMessage.getBodyBuffer()).toString().getBytes(StandardCharsets.UTF_8);
+        } else if (coreMessage.getType() == Message.BYTES_TYPE) {
+            value = new byte[coreMessage.getBodyBufferSize()];
+            BytesMessageUtil.bytesReadBytes(coreMessage.getReadOnlyBodyBuffer(), value);
+        }
+
+        if(value != null) {
+            if(logger.isDebugEnabled()) {
+                logger.debug("Writing message to kafka: " + message);
+            }
             String correlationId = Objects.toString(message.getCorrelationID());
             String topic = message.getAddress();
-            byte[] value = null;
-            if (coreMessage.getType() == Message.TEXT_TYPE) {
-                value = TextMessageUtil.readBodyText(coreMessage.getBodyBuffer()).toString().getBytes(StandardCharsets.UTF_8);
-            } else if (coreMessage.getType() == Message.BYTES_TYPE) {
-                value = new byte[coreMessage.getBodyBufferSize()];
-                BytesMessageUtil.bytesReadBytes(coreMessage.getReadOnlyBodyBuffer(), value);
-            }
+
             ProducerRecord<byte[], byte[]> krecord = null;
             if(correlationId != null) {
                 krecord = new ProducerRecord<>(topic, correlationId.getBytes(), value);
@@ -196,6 +205,7 @@ public class KafkaIO {
                         if(! propname.contains("KAFKA")) {
                             propname = "jms." + propname;
                         }
+                        logger.warn("Setting header: " + propname);
                         RecordHeader kheader = new RecordHeader(propname, propdata);
                         krecord.headers().add(kheader);
                     }
@@ -206,7 +216,9 @@ public class KafkaIO {
                 if(err != null) {
                     future.completeExceptionally(err);
                 } else {
-                    logger.info("Published kafka record metadata is: " + meta);
+                    if(logger.isDebugEnabled()) {
+                        logger.info("Published kafka record metadata is: " + meta);
+                    }
                     future.complete(new KafkaRef(meta.topic(), meta.partition(), meta.offset()));
                 }
             });
@@ -239,6 +251,8 @@ public class KafkaIO {
     }
 
     public static class KafkaRef {
+        public static final String HEADER = "KAFKA_REF";
+
         private final String topic;
         private final int partition;
         private final long offset;
@@ -279,6 +293,7 @@ public class KafkaIO {
             return topic + '|' + partition + '|' + offset;
         }
 
+        @Override
         public String toString() {
             return asString();
         }

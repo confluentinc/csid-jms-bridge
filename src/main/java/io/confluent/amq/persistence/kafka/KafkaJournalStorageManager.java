@@ -90,12 +90,8 @@ public class KafkaJournalStorageManager extends JournalStorageManager {
     @Override
     public void storeMessage(Message message) throws Exception {
         ICoreMessage coreMessage =  message.toCore();
-        if(message.getAnnotation(SimpleString.toSimpleString("KAFKA_REF")) == null) {
-            if (message.toCore().getType() > 1) {
-                coreMessage = message.copy().toCore();
-                TextMessageUtil.writeBodyText(coreMessage.getBodyBuffer(), SimpleString.toSimpleString("KAFKA"));
-            }
-
+        if(! KafkaIO.isKafkaMessage(coreMessage)) {
+            message.toCore().setAnnotation(SimpleString.toSimpleString("KAFKA_REF"), "TBD");
             KafkaIO.KafkaRef kafkaRef = kafkaIO.writeMessage(message).get();
             message.toCore().setAnnotation(SimpleString.toSimpleString("KAFKA_REF"), kafkaRef.asString());
         }

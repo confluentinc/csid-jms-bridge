@@ -135,6 +135,40 @@ public class ConfluentAmqServerTests {
     }
 
     @Test
+    public void demo() throws Exception {
+        System.out.println("Kafka bootstrap: " + kafkaContainer.getBootstrapServers());
+        String topicName = "jms-to-kafka";
+        createKafkaTopic(topicName, 1);
+
+        Session session = amqConnection.createSession(false, Session.AUTO_ACKNOWLEDGE);
+        Topic topic = session.createTopic(topicName);
+        MessageProducer producer = session.createProducer(topic);
+
+        //without a consumer the message isn't routable so it will never be stored
+        //It also must be targetting a durable queue
+        MessageConsumer consumer = session.createDurableConsumer(topic, "test-subscriber");
+
+        TextMessage message = session.createTextMessage("Hello Kafka");
+        message.setJMSCorrelationID("yo-correlate-man");
+        //Exceptions in bridges do bubble up to the client.
+        producer.send(message);
+
+
+        try {
+            Message received = consumer.receive(100);
+            while(true) {
+                Thread.sleep(60000);
+            }
+        } finally {
+            producer.close();
+            consumer.close();
+            session.close();
+        }
+    }
+
+
+
+    @Test
     public void jmsPublishKafkaConsumeTopic() throws Exception {
         String topicName = "jms-to-kafka";
         createKafkaTopic(topicName, 1);
@@ -152,6 +186,7 @@ public class ConfluentAmqServerTests {
         //Exceptions in bridges do bubble up to the client.
         producer.send(message);
 
+        Thread.sleep(1000);
 
         try {
             Message received = consumer.receive(100);
@@ -197,4 +232,5 @@ public class ConfluentAmqServerTests {
 
 
     }
+
 }
