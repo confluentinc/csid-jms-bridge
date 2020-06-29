@@ -1,3 +1,7 @@
+/*
+ * Copyright 2020 Confluent Inc.
+ */
+
 package io.confluent.amq.cli;
 
 import com.github.rvesse.airline.annotations.Cli;

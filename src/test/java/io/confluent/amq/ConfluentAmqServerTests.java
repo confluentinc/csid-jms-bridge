@@ -1,3 +1,7 @@
+/*
+ * Copyright 2020 Confluent Inc.
+ */
+
 package io.confluent.amq;
 
 import org.apache.activemq.artemis.api.jms.ActiveMQJMSClient;

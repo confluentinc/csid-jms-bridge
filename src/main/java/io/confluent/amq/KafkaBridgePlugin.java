@@ -1,3 +1,7 @@
+/*
+ * Copyright 2020 Confluent Inc.
+ */
+
 package io.confluent.amq;
 
 import io.confluent.amq.persistence.kafka.KafkaIO;
