@@ -9,10 +9,10 @@ import java.util.Arrays;
 @Cli(name = "JMS",
         description = "Execute basic JMS commands",
         commands = { SendCommand.class, ReceiveCommand.class })
-public class JMSClient {
+public class JmsClient {
 
     public static void main(String[] args) throws Exception {
-        com.github.rvesse.airline.Cli<Runnable> cli = new com.github.rvesse.airline.Cli<>(JMSClient.class);
+        com.github.rvesse.airline.Cli<Runnable> cli = new com.github.rvesse.airline.Cli<>(JmsClient.class);
 
         try {
             // Parse with a result to allow us to inspect the results of parsing

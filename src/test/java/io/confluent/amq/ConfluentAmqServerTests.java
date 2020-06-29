@@ -2,7 +2,6 @@ package io.confluent.amq;
 
 import org.apache.activemq.artemis.api.jms.ActiveMQJMSClient;
 import org.apache.activemq.artemis.core.config.Configuration;
-import org.apache.activemq.artemis.jms.client.ActiveMQConnectionFactory;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
@@ -32,7 +31,7 @@ public class ConfluentAmqServerTests {
     public static KafkaContainer kafkaContainer = new KafkaContainer("5.4.0").withEnv("KAFKA_DELETE_TOPIC_ENABLE", "true").withEnv("KAFKA_AUTO_CREATE_TOPICS_ENABLE", "false");
     static AdminClient kafkaAdminClient;
     static KafkaProducer<byte[], byte[]> kafkaProducer;
-    static ConfluentEmbeddedActiveMQ amqServer;
+    static ConfluentEmbeddedAmq amqServer;
 
     @ClassRule
     public static TemporaryFolder amqDataDir = new TemporaryFolder();
@@ -48,7 +47,7 @@ public class ConfluentAmqServerTests {
 
         kafkaAdminClient = AdminClient.create(kafkaProps);
         kafkaProducer = new KafkaProducer<>(kafkaProps, new ByteArraySerializer(), new ByteArraySerializer());
-        amqServer = new ConfluentEmbeddedActiveMQ.Builder(kafkaProps).build();
+        amqServer = new ConfluentEmbeddedAmq.Builder(kafkaProps).build();
 
         Configuration amqConf = amqServer.getAmq().getConfiguration();
         amqConf.setBindingsDirectory(amqDataDir.newFolder("bindings").getAbsolutePath());

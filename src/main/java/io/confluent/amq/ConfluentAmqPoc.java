@@ -20,7 +20,7 @@ public class ConfluentAmqPoc {
 
            serverProps.load(Files.newInputStream(serverOptions.getPropertiesFile().toPath()));
 
-           ConfluentEmbeddedActiveMQ embeddedAmqServer = new ConfluentEmbeddedActiveMQ.Builder(serverProps).build();
+           ConfluentEmbeddedAmq embeddedAmqServer = new ConfluentEmbeddedAmq.Builder(serverProps).build();
 
            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
                try {

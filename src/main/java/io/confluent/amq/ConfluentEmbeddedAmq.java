@@ -16,13 +16,13 @@ import java.util.concurrent.TimeUnit;
 
 import static java.lang.String.format;
 
-public class ConfluentEmbeddedActiveMQ {
-    private static final Logger logger = Logger.getLogger(ConfluentEmbeddedActiveMQ.class);
+public class ConfluentEmbeddedAmq {
+    private static final Logger logger = Logger.getLogger(ConfluentEmbeddedAmq.class);
 
     private InternalEmbedded embeddedActiveMQ;
     private Properties kafkaProps;
 
-    protected ConfluentEmbeddedActiveMQ(Configuration configuration, Properties kafkaProps, MBeanServer mBeanServer, ActiveMQSecurityManager securityManager) {
+    protected ConfluentEmbeddedAmq(Configuration configuration, Properties kafkaProps, MBeanServer mBeanServer, ActiveMQSecurityManager securityManager) {
         this.kafkaProps = kafkaProps;
         this.embeddedActiveMQ = new InternalEmbedded();
         this.embeddedActiveMQ.setSecurityManager(securityManager)
@@ -40,12 +40,12 @@ public class ConfluentEmbeddedActiveMQ {
         return embeddedActiveMQ.getActiveMQServer();
     }
 
-    public ConfluentEmbeddedActiveMQ start() throws Exception {
+    public ConfluentEmbeddedAmq start() throws Exception {
         embeddedActiveMQ.start();
         return this;
     }
 
-    public ConfluentEmbeddedActiveMQ stop() throws Exception {
+    public ConfluentEmbeddedAmq stop() throws Exception {
         embeddedActiveMQ.stop();
         return this;
     }
@@ -120,8 +120,8 @@ public class ConfluentEmbeddedActiveMQ {
             return this;
         }
 
-        public ConfluentEmbeddedActiveMQ build() {
-            return new ConfluentEmbeddedActiveMQ(this.configuration, this.kafkaProps, this.mbeanServer, this.securityManager);
+        public ConfluentEmbeddedAmq build() {
+            return new ConfluentEmbeddedAmq(this.configuration, this.kafkaProps, this.mbeanServer, this.securityManager);
         }
     }
 }

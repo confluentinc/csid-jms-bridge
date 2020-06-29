@@ -13,7 +13,7 @@ import java.util.Scanner;
 public class SendCommand implements Runnable {
 
     @Inject
-    JMSClientOptions jmsClientOptions = new JMSClientOptions();
+    JmsClientOptions jmsClientOptions = new JmsClientOptions();
 
     @Option(name = {"--topic"}, arity = 1, description = "The topic to send the text message to.")
     String topic;

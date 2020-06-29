@@ -5,13 +5,12 @@ import com.github.rvesse.airline.annotations.Option;
 
 import javax.inject.Inject;
 import javax.jms.*;
-import java.util.Scanner;
 
 @Command(name="receive", description="receive text messages from a JMS topic")
 public class ReceiveCommand implements Runnable {
 
     @Inject
-    JMSClientOptions jmsClientOptions = new JMSClientOptions();
+    JmsClientOptions jmsClientOptions = new JmsClientOptions();
 
     @Option(name = {"--topic"}, arity = 1, description = "The topic to receive the text messages from.")
     String topic;

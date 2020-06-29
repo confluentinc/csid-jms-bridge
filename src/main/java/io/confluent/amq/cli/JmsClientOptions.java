@@ -13,7 +13,7 @@ import java.net.InetSocketAddress;
 import java.util.UUID;
 import java.util.function.Consumer;
 
-public class JMSClientOptions {
+public class JmsClientOptions {
 
     @Option(name = { "-U", "--url"}, arity = 1, description = "The connection URL to the broker")
     protected String brokerUrl = "tcp://localhost:61616";
