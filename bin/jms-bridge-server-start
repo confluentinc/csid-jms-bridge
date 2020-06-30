@@ -1,0 +1,32 @@
+#!/bin/bash
+# Copyright 2020 Confluent, Inc.
+
+#
+# Use shellcheck to lint this file
+#
+
+if [ $# -lt 1 ];
+then
+    echo "USAGE: $0 [-daemon] jms-bridge.properties"
+    exit 1
+fi
+
+base_dir=$( cd "$( dirname "${BASH_SOURCE[0]}" )/.." && pwd )
+: "${JMS_BRIDGE_CONFIG_DIR:="$base_dir/etc/jms-bridge"}"
+
+: "${JMS_BRIDGE_LOG4J_OPTS:=""}"
+if [ -z "$JMS_BRIDGE_LOG4J_OPTS" ] && [ -e "$JMS_BRIDGE_CONFIG_DIR/log4j-rolling.properties" ]; then
+  export JMS_BRIDGE_LOG4J_OPTS="-Dlog4j.configuration=file:$JMS_BRIDGE_CONFIG_DIR/log4j-rolling.properties"
+fi
+
+EXTRA_ARGS="-name jms-bridge -loggc"
+
+if [ -z "$JMS_BRIDGE_OPTS" ]; then
+  JMS_BRIDGE_OPTS=-Dksql.server.install.dir=$base_dir
+else
+  JMS_BRIDGE_OPTS="${JMS_BRIDGE_OPTS} -Djms-bridge.server.install.dir=$base_dir"
+fi
+
+export JMS_BRIDGE_OPTS
+
+exec "$base_dir"/bin/jms-bridge-run-class io.confluent.amq.JmsBridgeMain $EXTRA_ARGS "$@"

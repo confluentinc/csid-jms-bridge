@@ -10,6 +10,8 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -39,16 +41,12 @@ import org.apache.kafka.common.serialization.LongSerializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.jboss.logging.Logger;
 
+@SuppressWarnings("checkstyle:ClassDataAbstractionCoupling")
 public class KafkaIO {
 
-  public static final boolean isKafkaMessage(ICoreMessage message) {
-    return message.getPropertyNames().contains(KafkaRef.HEADER);
-  }
-
   private static final Logger logger = Logger.getLogger(KafkaJournalStorageManager.class);
-  private final static Set<Byte> SUPPORT_MSG_TYPES = new HashSet<>(
+  private static final Set<Byte> SUPPORT_MSG_TYPES = new HashSet<>(
       Arrays.asList(Message.TEXT_TYPE, Message.BYTES_TYPE));
-
   private static final MessageAdapter NOP_MSG_ADAPTER = new MessageAdapter() {
     @Override
     public void receive(Message message) { /*nuthing*/ }
@@ -58,17 +56,15 @@ public class KafkaIO {
       return null;
     }
   };
-
+  private final SynchronousQueue<Collection<String>> topicReadQueue = new SynchronousQueue<>();
+  private final Properties kafkaProps;
+  private final Thread consumerThread;
   private volatile boolean run = false;
   private KafkaProducer<byte[], byte[]> kafkaProducer;
   private KafkaConsumer<byte[], byte[]> kafkaConsumer;
   private AdminClient adminClient;
   private StringSerializer stringSerializer = new StringSerializer();
   private LongSerializer longSerializer = new LongSerializer();
-
-  private final SynchronousQueue<Collection<String>> topicReadQueue = new SynchronousQueue<>();
-  private final Properties kafkaProps;
-  private final Thread consumerThread;
   private Set<String> knownTopics;
   private AtomicReference<MessageAdapter> messageReciver = new AtomicReference<>(NOP_MSG_ADAPTER);
 
@@ -79,6 +75,10 @@ public class KafkaIO {
     consumerThread = new Thread(this::consumerThread);
     consumerThread.setDaemon(true);
     consumerThread.setName("KafkaIO-Consumer-Thread");
+  }
+
+  public static boolean isKafkaMessage(ICoreMessage message) {
+    return message.getPropertyNames().contains(KafkaRef.SS_HEADER);
   }
 
   public synchronized void start() {
@@ -175,7 +175,9 @@ public class KafkaIO {
 
   public void readTopics(Collection<String> topics, MessageAdapter receiver) {
     messageReciver.set(receiver);
-    topicReadQueue.offer(topics);
+    if (! topicReadQueue.offer(topics)) {
+      logger.warn("AMQ Topic consumer did not respond to updated topics list.");
+    }
   }
 
 
@@ -197,40 +199,18 @@ public class KafkaIO {
       if (logger.isDebugEnabled()) {
         logger.debug("Writing message to kafka: " + message);
       }
-      String correlationId = Objects.toString(message.getCorrelationID());
+      String correlationId = Objects.toString(message.getCorrelationID(), null);
       String topic = message.getAddress();
 
       ProducerRecord<byte[], byte[]> krecord = null;
       if (correlationId != null) {
-        krecord = new ProducerRecord<>(topic, correlationId.getBytes(), value);
+        krecord = new ProducerRecord<>(
+            topic, correlationId.getBytes(StandardCharsets.UTF_8), value);
       } else {
         krecord = new ProducerRecord<>(topic, value);
       }
 
-      byte[] msgId = longSerializer.serialize("", message.getMessageID());
-      krecord.headers().add("jms.MessageID", msgId);
-
-      for (SimpleString hdrname : coreMessage.getPropertyNames()) {
-        if (!hdrname.toString().startsWith("_")) {
-          Object property = coreMessage.getBrokerProperty(hdrname);
-          String propname = hdrname.toString();
-          byte[] propdata = null;
-          if (property instanceof byte[]) {
-            propdata = (byte[]) property;
-          } else if (property != null) {
-            propdata = stringSerializer.serialize("", property.toString());
-          }
-
-          if (propdata != null) {
-            if (!propname.contains("KAFKA")) {
-              propname = "jms." + propname;
-            }
-            logger.warn("Setting header: " + propname);
-            RecordHeader kheader = new RecordHeader(propname, propdata);
-            krecord.headers().add(kheader);
-          }
-        }
-      }
+      convertHeaders(coreMessage).forEach(krecord.headers()::add);
 
       kafkaProducer.send(krecord, (meta, err) -> {
         if (err != null) {
@@ -247,6 +227,35 @@ public class KafkaIO {
     }
 
     return future;
+  }
+
+  private List<RecordHeader> convertHeaders(ICoreMessage message) {
+    final List<RecordHeader> kheaders = new LinkedList<>();
+    byte[] msgId = longSerializer.serialize("", message.getMessageID());
+    kheaders.add(new RecordHeader("jms.MessageID", msgId));
+
+    for (SimpleString hdrname : message.getPropertyNames()) {
+      if (!hdrname.toString().startsWith("_")) {
+        Object property = message.getBrokerProperty(hdrname);
+        String propname = hdrname.toString();
+        byte[] propdata = null;
+        if (property instanceof byte[]) {
+          propdata = (byte[]) property;
+        } else if (property != null) {
+          propdata = stringSerializer.serialize("", property.toString());
+        }
+
+        if (propdata != null) {
+          if (!propname.contains("KAFKA")) {
+            propname = "jms." + propname;
+          }
+          logger.warn("Setting header: " + propname);
+          kheaders.add(new RecordHeader(propname, propdata));
+        }
+      }
+    }
+
+    return kheaders;
   }
 
   public void stop() throws Exception {
@@ -275,6 +284,7 @@ public class KafkaIO {
   public static class KafkaRef {
 
     public static final String HEADER = "KAFKA_REF";
+    public static final SimpleString SS_HEADER = SimpleString.toSimpleString(HEADER);
 
     private final String topic;
     private final int partition;

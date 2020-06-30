@@ -5,9 +5,9 @@
 package io.confluent.amq.cli;
 
 import com.github.rvesse.airline.annotations.Option;
+import com.github.rvesse.airline.annotations.restrictions.Once;
 import java.net.InetAddress;
 import java.util.UUID;
-import java.util.function.Consumer;
 import javax.jms.Connection;
 import javax.jms.ConnectionFactory;
 import javax.jms.Session;
@@ -15,11 +15,12 @@ import org.apache.activemq.artemis.api.jms.ActiveMQJMSClient;
 
 public class JmsClientOptions {
 
-  @Option(name = {"-U", "--url"}, arity = 1, description = "The connection URL to the broker")
+  @Option(name = "--url", description = "The connection URL to the broker")
+  @Once
   protected String brokerUrl = "tcp://localhost:61616";
 
-  @Option(name = {
-      "--client-id"}, arity = 1, description = "The client id to use for the connection")
+  @Option(name = "--client-id", description = "Specify the client id to use for the connection")
+  @Once
   protected String clientId;
 
   public Connection openConnection() throws Exception {
@@ -34,7 +35,8 @@ public class JmsClientOptions {
       }
     }
 
-    ConnectionFactory cf = ActiveMQJMSClient.createConnectionFactory(brokerUrl, "jms-client-cli");
+    ConnectionFactory cf = ActiveMQJMSClient
+        .createConnectionFactory(brokerUrl, "jms-client-cli");
     Connection amqConnection = cf.createConnection();
     amqConnection.setClientID(clientId);
     amqConnection.start();
@@ -45,11 +47,17 @@ public class JmsClientOptions {
     return connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
   }
 
-  public void doWithSession(Consumer<Session> sessionConsumer) throws Exception {
+  public void doWithSession(SessionAction sessionAction) throws Exception {
     try (Connection connection = openConnection()) {
       try (Session session = openSession(connection)) {
-        sessionConsumer.accept(session);
+        sessionAction.withSession(session);
       }
     }
+  }
+
+  @FunctionalInterface
+  interface SessionAction {
+
+    void withSession(Session session) throws Exception;
   }
 }

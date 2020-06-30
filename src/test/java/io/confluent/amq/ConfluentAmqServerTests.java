@@ -44,10 +44,13 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.testcontainers.containers.KafkaContainer;
 
+@Ignore
+@SuppressWarnings("checkstyle:ClassDataAbstractionCoupling")
 public class ConfluentAmqServerTests {
 
   static final Serde<String> stringSerde = Serdes.String();

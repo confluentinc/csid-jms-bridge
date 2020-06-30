@@ -28,42 +28,44 @@ import org.apache.activemq.artemis.core.server.impl.JournalLoader;
 import org.apache.activemq.artemis.core.transaction.ResourceManager;
 import org.apache.activemq.artemis.utils.ExecutorFactory;
 import org.apache.activemq.artemis.utils.critical.CriticalAnalyzer;
-import org.apache.kafka.common.serialization.StringSerializer;
 import org.jboss.logging.Logger;
 
 public class KafkaJournalStorageManager extends JournalStorageManager {
 
   private static final Logger logger = Logger.getLogger(KafkaJournalStorageManager.class);
 
-  private Properties kafkaProps;
+  private final Properties kafkaProps;
   private KafkaIO kafkaIO;
-  private StringSerializer stringSerializer = new StringSerializer();
 
-  public KafkaJournalStorageManager(Configuration config, CriticalAnalyzer analyzer,
+  public KafkaJournalStorageManager(Properties kafkaProps, Configuration config,
+      CriticalAnalyzer analyzer,
       ExecutorFactory executorFactory, ScheduledExecutorService scheduledExecutorService,
       ExecutorFactory ioExecutors) {
     super(config, analyzer, executorFactory, scheduledExecutorService, ioExecutors);
+    this.kafkaProps = kafkaProps;
   }
 
-  public KafkaJournalStorageManager(Configuration config, CriticalAnalyzer analyzer,
+  public KafkaJournalStorageManager(Properties kafkaProps, Configuration config,
+      CriticalAnalyzer analyzer,
       ExecutorFactory executorFactory, ExecutorFactory ioExecutors) {
     super(config, analyzer, executorFactory, ioExecutors);
+    this.kafkaProps = kafkaProps;
   }
 
-  public KafkaJournalStorageManager(Configuration config, CriticalAnalyzer analyzer,
+  public KafkaJournalStorageManager(Properties kafkaProps, Configuration config,
+      CriticalAnalyzer analyzer,
       ExecutorFactory executorFactory, ScheduledExecutorService scheduledExecutorService,
       ExecutorFactory ioExecutors, IOCriticalErrorListener criticalErrorListener) {
     super(config, analyzer, executorFactory, scheduledExecutorService, ioExecutors,
         criticalErrorListener);
+    this.kafkaProps = kafkaProps;
   }
 
-  public KafkaJournalStorageManager(Configuration config, CriticalAnalyzer analyzer,
+  public KafkaJournalStorageManager(Properties kafkaProps, Configuration config,
+      CriticalAnalyzer analyzer,
       ExecutorFactory executorFactory, ExecutorFactory ioExecutors,
       IOCriticalErrorListener criticalErrorListener) {
     super(config, analyzer, executorFactory, ioExecutors, criticalErrorListener);
-  }
-
-  public void setKafkaProps(Properties kafkaProps) {
     this.kafkaProps = kafkaProps;
   }
 
@@ -73,7 +75,6 @@ public class KafkaJournalStorageManager extends JournalStorageManager {
     kafkaIO = new KafkaIO(kafkaProps);
     kafkaIO.start();
   }
-
 
   @Override
   public void stop() throws Exception {
@@ -102,9 +103,10 @@ public class KafkaJournalStorageManager extends JournalStorageManager {
       Map<SimpleString, List<Pair<byte[], Long>>> duplicateIDMap,
       Set<Pair<Long, Long>> pendingLargeMessages, List<PageCountPending> pendingNonTXPageCounter,
       JournalLoader journalLoader) throws Exception {
-    JournalLoadInformation loadInfo = super
-        .loadMessageJournal(postOffice, pagingManager, resourceManager, queueInfos, duplicateIDMap,
-            pendingLargeMessages, pendingNonTXPageCounter, journalLoader);
+
+    final JournalLoadInformation loadInfo = super.loadMessageJournal(postOffice, pagingManager,
+        resourceManager, queueInfos, duplicateIDMap, pendingLargeMessages,
+        pendingNonTXPageCounter, journalLoader);
 
     logger.info("###### LoadMessageJournal completed.");
     String delim = "    " + System.lineSeparator();

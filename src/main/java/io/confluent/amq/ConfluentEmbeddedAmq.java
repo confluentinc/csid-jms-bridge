@@ -27,11 +27,11 @@ public class ConfluentEmbeddedAmq {
   private Properties kafkaProps;
 
   protected ConfluentEmbeddedAmq(Configuration configuration, Properties kafkaProps,
-      MBeanServer mBeanServer, ActiveMQSecurityManager securityManager) {
+      MBeanServer mbeanServer, ActiveMQSecurityManager securityManager) {
     this.kafkaProps = kafkaProps;
     this.embeddedActiveMQ = new InternalEmbedded();
     this.embeddedActiveMQ.setSecurityManager(securityManager)
-        .setMbeanServer(mBeanServer)
+        .setMbeanServer(mbeanServer)
         .setConfiguration(configuration);
 
     this.embeddedActiveMQ.prepare();
@@ -56,37 +56,10 @@ public class ConfluentEmbeddedAmq {
     return this;
   }
 
-  private class InternalEmbedded extends EmbeddedActiveMQ {
-
-    protected void prepare() {
-      this.configuration.registerBrokerPlugin(new KafkaBridgePlugin(kafkaProps));
-      if (this.securityManager == null) {
-        this.securityManager = new ActiveMQJAASSecurityManager();
-      }
-
-      ConfluentAmqServer amqServer = null;
-
-      if (this.mbeanServer == null) {
-        amqServer = new ConfluentAmqServer(configuration, this.securityManager);
-      } else {
-        amqServer = new ConfluentAmqServer(configuration, this.mbeanServer, this.securityManager);
-      }
-      amqServer.setKafkaProps(kafkaProps);
-      this.activeMQServer = amqServer;
-    }
-
-    @Override
-    protected void initStart() throws Exception {
-      //do nothing, see prepare
-    }
-  }
-
   public static class Builder {
 
     private ActiveMQSecurityManager securityManager;
-    private String configResourcePath = null;
     private Configuration configuration;
-    private ActiveMQServer activeMQServer;
     private MBeanServer mbeanServer;
     private Properties kafkaProps;
 
@@ -107,8 +80,8 @@ public class ConfluentEmbeddedAmq {
     private Configuration loadConfigResource(String resourcePath) {
       FileDeploymentManager deploymentManager = new FileDeploymentManager(resourcePath);
       FileConfiguration config = new FileConfiguration();
-      LegacyJMSConfiguration legacyJMSConfiguration = new LegacyJMSConfiguration(config);
-      deploymentManager.addDeployable(config).addDeployable(legacyJMSConfiguration);
+      LegacyJMSConfiguration legacyJmsConfiguration = new LegacyJMSConfiguration(config);
+      deploymentManager.addDeployable(config).addDeployable(legacyJmsConfiguration);
       try {
         deploymentManager.readConfiguration();
       } catch (Exception e) {
@@ -132,6 +105,31 @@ public class ConfluentEmbeddedAmq {
     public ConfluentEmbeddedAmq build() {
       return new ConfluentEmbeddedAmq(this.configuration, this.kafkaProps, this.mbeanServer,
           this.securityManager);
+    }
+  }
+
+  private class InternalEmbedded extends EmbeddedActiveMQ {
+
+    protected void prepare() {
+      this.configuration.registerBrokerPlugin(new KafkaBridgePlugin(kafkaProps));
+      if (this.securityManager == null) {
+        this.securityManager = new ActiveMQJAASSecurityManager();
+      }
+
+      ConfluentAmqServer amqServer = null;
+
+      if (this.mbeanServer == null) {
+        amqServer = new ConfluentAmqServer(configuration, this.securityManager);
+      } else {
+        amqServer = new ConfluentAmqServer(configuration, this.mbeanServer, this.securityManager);
+      }
+      amqServer.setKafkaProps(kafkaProps);
+      this.activeMQServer = amqServer;
+    }
+
+    @Override
+    protected void initStart() throws Exception {
+      //do nothing, see prepare
     }
   }
 }

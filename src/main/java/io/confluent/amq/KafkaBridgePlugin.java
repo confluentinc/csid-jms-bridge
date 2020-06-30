@@ -6,6 +6,7 @@ package io.confluent.amq;
 
 import io.confluent.amq.persistence.kafka.KafkaIO;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.List;
 import java.util.Properties;
@@ -92,7 +93,7 @@ public class KafkaBridgePlugin implements ActiveMQServerPlugin, KafkaIO.MessageA
     ByteBuffer buffer = ByteBuffer.allocate(8);
     buffer.putInt((int) kafkaRecord.offset());
     buffer.putShort((short) kafkaRecord.partition());
-    int hashedTopic = Utils.murmur2(kafkaRecord.topic().getBytes());
+    int hashedTopic = Utils.murmur2(kafkaRecord.topic().getBytes(StandardCharsets.UTF_8));
     buffer.putShort((short) hashedTopic);
     buffer.flip();
     long id = buffer.getLong();

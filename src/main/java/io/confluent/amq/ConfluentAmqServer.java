@@ -21,39 +21,40 @@ public class ConfluentAmqServer extends ActiveMQServerImpl {
   public ConfluentAmqServer() {
   }
 
-  public ConfluentAmqServer(Configuration configuration) {
+  public ConfluentAmqServer(final Configuration configuration) {
     super(configuration);
   }
 
-  public ConfluentAmqServer(Configuration configuration, ActiveMQServer parentServer) {
+  public ConfluentAmqServer(final Configuration configuration, final ActiveMQServer parentServer) {
     super(configuration, parentServer);
   }
 
-  public ConfluentAmqServer(Configuration configuration, MBeanServer mbeanServer) {
+  public ConfluentAmqServer(final Configuration configuration, final MBeanServer mbeanServer) {
     super(configuration, mbeanServer);
   }
 
-  public ConfluentAmqServer(Configuration configuration, ActiveMQSecurityManager securityManager) {
+  public ConfluentAmqServer(final Configuration configuration,
+      final ActiveMQSecurityManager securityManager) {
     super(configuration, securityManager);
   }
 
-  public ConfluentAmqServer(Configuration configuration, MBeanServer mbeanServer,
-      ActiveMQSecurityManager securityManager) {
+  public ConfluentAmqServer(final Configuration configuration, final MBeanServer mbeanServer,
+      final ActiveMQSecurityManager securityManager) {
     super(configuration, mbeanServer, securityManager);
   }
 
-  public ConfluentAmqServer(Configuration configuration, MBeanServer mbeanServer,
-      ActiveMQSecurityManager securityManager, ActiveMQServer parentServer) {
+  public ConfluentAmqServer(final Configuration configuration, final MBeanServer mbeanServer,
+      final ActiveMQSecurityManager securityManager, final ActiveMQServer parentServer) {
     super(configuration, mbeanServer, securityManager, parentServer);
   }
 
-  public ConfluentAmqServer(Configuration configuration, MBeanServer mbeanServer,
-      ActiveMQSecurityManager securityManager, ActiveMQServer parentServer,
-      ServiceRegistry serviceRegistry) {
+  public ConfluentAmqServer(final Configuration configuration, final MBeanServer mbeanServer,
+      final ActiveMQSecurityManager securityManager, final ActiveMQServer parentServer,
+      final ServiceRegistry serviceRegistry) {
     super(configuration, mbeanServer, securityManager, parentServer, serviceRegistry);
   }
 
-  public void setKafkaProps(Properties kafkaProps) {
+  public void setKafkaProps(final Properties kafkaProps) {
     this.kafkaProps = kafkaProps;
   }
 
@@ -64,11 +65,12 @@ public class ConfluentAmqServer extends ActiveMQServerImpl {
       throw new IllegalStateException("KafkaProps must be set before starting the server.");
     }
 
-    Configuration configuration = getConfiguration();
-    KafkaJournalStorageManager journal = new KafkaJournalStorageManager(configuration,
-        getCriticalAnalyzer(), executorFactory, scheduledPool, ioExecutorFactory,
-        shutdownOnCriticalIO);
-    journal.setKafkaProps(kafkaProps);
+    final Configuration configuration = getConfiguration();
+
+    final KafkaJournalStorageManager journal = new KafkaJournalStorageManager(
+        kafkaProps, configuration, getCriticalAnalyzer(), executorFactory, scheduledPool,
+        ioExecutorFactory, shutdownOnCriticalIO);
+
     this.getCriticalAnalyzer().add(journal);
     return journal;
   }
