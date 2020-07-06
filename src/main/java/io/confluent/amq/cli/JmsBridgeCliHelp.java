@@ -8,6 +8,9 @@ import com.github.rvesse.airline.help.Help;
 
 public class JmsBridgeCliHelp extends Help<Runnable> implements BaseCommand {
 
+  public JmsBridgeCliHelp() {
+  }
+
   @Override
   public int execute() throws Exception {
     super.run();

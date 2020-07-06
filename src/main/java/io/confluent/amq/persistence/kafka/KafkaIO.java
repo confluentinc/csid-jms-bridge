@@ -39,12 +39,13 @@ import org.apache.kafka.common.serialization.ByteArrayDeserializer;
 import org.apache.kafka.common.serialization.ByteArraySerializer;
 import org.apache.kafka.common.serialization.LongSerializer;
 import org.apache.kafka.common.serialization.StringSerializer;
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @SuppressWarnings("checkstyle:ClassDataAbstractionCoupling")
 public class KafkaIO {
+  private static final Logger LOGGER = LoggerFactory.getLogger(KafkaIO.class);
 
-  private static final Logger logger = Logger.getLogger(KafkaJournalStorageManager.class);
   private static final Set<Byte> SUPPORT_MSG_TYPES = new HashSet<>(
       Arrays.asList(Message.TEXT_TYPE, Message.BYTES_TYPE));
   private static final MessageAdapter NOP_MSG_ADAPTER = new MessageAdapter() {
@@ -106,6 +107,7 @@ public class KafkaIO {
         try {
           newTopics = topicReadQueue.poll(100, TimeUnit.MILLISECONDS);
         } catch (InterruptedException e) {
+          LOGGER.error("Exception occurred while polling kafka topics.", e);
           //go around again
         }
       } else {
@@ -113,7 +115,7 @@ public class KafkaIO {
       }
 
       if (newTopics != null) {
-        logger.info("###### Subscribing to topics: " + String.join(", ", newTopics));
+        LOGGER.info("###### Subscribing to topics: " + String.join(", ", newTopics));
         kafkaConsumer.subscribe(newTopics);
         topics = newTopics;
       }
@@ -131,8 +133,8 @@ public class KafkaIO {
     KafkaRef kref = new KafkaRef(record.topic(), record.partition(), record.offset());
     for (Header hdr : record.headers()) {
       if (KafkaRef.HEADER.equals(hdr.key())) {
-        if (logger.isDebugEnabled()) {
-          logger.info("Skipping message with " + KafkaRef.HEADER + " header: " + kref.asString());
+        if (LOGGER.isDebugEnabled()) {
+          LOGGER.info("Skipping message with " + KafkaRef.HEADER + " header: " + kref.asString());
         }
         return Optional.empty();
       }
@@ -176,7 +178,7 @@ public class KafkaIO {
   public void readTopics(Collection<String> topics, MessageAdapter receiver) {
     messageReciver.set(receiver);
     if (! topicReadQueue.offer(topics)) {
-      logger.warn("AMQ Topic consumer did not respond to updated topics list.");
+      LOGGER.warn("AMQ Topic consumer did not respond to updated topics list.");
     }
   }
 
@@ -196,8 +198,8 @@ public class KafkaIO {
     }
 
     if (value != null) {
-      if (logger.isDebugEnabled()) {
-        logger.debug("Writing message to kafka: " + message);
+      if (LOGGER.isDebugEnabled()) {
+        LOGGER.debug("Writing message to kafka: " + message);
       }
       String correlationId = Objects.toString(message.getCorrelationID(), null);
       String topic = message.getAddress();
@@ -216,8 +218,8 @@ public class KafkaIO {
         if (err != null) {
           future.completeExceptionally(err);
         } else {
-          if (logger.isDebugEnabled()) {
-            logger.info("Published kafka record metadata is: " + meta);
+          if (LOGGER.isDebugEnabled()) {
+            LOGGER.info("Published kafka record metadata is: " + meta);
           }
           future.complete(new KafkaRef(meta.topic(), meta.partition(), meta.offset()));
         }
@@ -249,7 +251,7 @@ public class KafkaIO {
           if (!propname.contains("KAFKA")) {
             propname = "jms." + propname;
           }
-          logger.warn("Setting header: " + propname);
+          LOGGER.warn("Setting header: " + propname);
           kheaders.add(new RecordHeader(propname, propdata));
         }
       }

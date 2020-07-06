@@ -28,11 +28,12 @@ import org.apache.activemq.artemis.core.server.impl.JournalLoader;
 import org.apache.activemq.artemis.core.transaction.ResourceManager;
 import org.apache.activemq.artemis.utils.ExecutorFactory;
 import org.apache.activemq.artemis.utils.critical.CriticalAnalyzer;
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class KafkaJournalStorageManager extends JournalStorageManager {
 
-  private static final Logger logger = Logger.getLogger(KafkaJournalStorageManager.class);
+  private static final Logger LOGGER = LoggerFactory.getLogger(KafkaJournalStorageManager.class);
 
   private final Properties kafkaProps;
   private KafkaIO kafkaIO;
@@ -108,15 +109,15 @@ public class KafkaJournalStorageManager extends JournalStorageManager {
         resourceManager, queueInfos, duplicateIDMap, pendingLargeMessages,
         pendingNonTXPageCounter, journalLoader);
 
-    logger.info("###### LoadMessageJournal completed.");
+    LOGGER.info("###### LoadMessageJournal completed.");
     String delim = "    " + System.lineSeparator();
     String addresses = postOffice.getAddresses().stream().map(SimpleString::toString)
         .collect(Collectors.joining(delim));
-    logger.info("###### Known Addresses: " + delim + addresses);
+    LOGGER.info("###### Known Addresses: " + delim + addresses);
 
     String queues = queueInfos.values().stream()
         .map(qb -> qb.getAddress() + "::" + qb.getQueueName()).collect(Collectors.joining(delim));
-    logger.info("###### Known Queues: " + delim + queues);
+    LOGGER.info("###### Known Queues: " + delim + queues);
 
     return loadInfo;
   }

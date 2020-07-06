@@ -2,3 +2,4 @@ target
 .idea
 /.java-version
 /confluent-amq-poc.iml
+*.iml

@@ -4,8 +4,6 @@
 
 package io.confluent.amq;
 
-import static java.lang.String.format;
-
 import com.github.rvesse.airline.SingleCommand;
 import com.github.rvesse.airline.annotations.Arguments;
 import com.github.rvesse.airline.annotations.Command;
@@ -24,7 +22,7 @@ import org.slf4j.LoggerFactory;
 @Command(name = "jms-bridge-server-start", description = "Start the JMS Bridge server.")
 public class JmsBridgeMain {
 
-  private static final Logger logger = LoggerFactory.getLogger(JmsBridgeMain.class);
+  private static final Logger LOGGER = LoggerFactory.getLogger(JmsBridgeMain.class);
 
   @Option(name = "--broker-xml", hidden = true)
   protected String brokerXml;
@@ -33,15 +31,59 @@ public class JmsBridgeMain {
   protected String propertiesPath;
 
   public static void main(final String[] args) {
+    final JmsBridgeMain jmsBridgeMain = new JmsBridgeMain();
+    final int status = jmsBridgeMain.execute(args, JmsBridgeMain.class);
+    System.exit(status);
+  }
 
-    SingleCommand<JmsBridgeMain> parser = SingleCommand.singleCommand(JmsBridgeMain.class);
-    JmsBridgeMain cmd = parser.parse(args);
+  protected <T extends JmsBridgeMain> int execute(final String[] args, final Class<T> cmdClazz) {
+
+    final SingleCommand<T> parser = SingleCommand.singleCommand(cmdClazz);
+    final JmsBridgeMain cmd = parser.parse(args);
     try {
       cmd.run();
     } catch (Throwable t) {
-      logger.error("Failed to start JMS-Bridge.", t);
-      Runtime.getRuntime().exit(1);
+      LOGGER.error("Failed to start JMS-Bridge.", t);
+      return 1;
     }
+    return 0;
+  }
+
+  protected String brokerXmlPath(final File propFile, final String brokerXmlOpt) {
+    if (brokerXmlOpt == null) {
+      try {
+        final Path brokerXmlPath = propFile.toPath().resolveSibling("broker.xml");
+        return brokerXmlPath.toString();
+      } catch (InvalidPathException e) {
+        //not found there
+      }
+    }
+    return brokerXmlOpt;
+  }
+
+  protected ConfluentEmbeddedAmq loadServer(final Properties serverProps, final String brokerXmlPath) {
+    //for now start the default implementation
+    final ConfluentEmbeddedAmq confluentEmbeddedAmq = defaultEmbeddedServer(brokerXmlPath);
+    //final ConfluentEmbeddedAmq embeddedAmqServer = new ConfluentEmbeddedAmq.Builder(serverProps)
+    //  .build();
+    return confluentEmbeddedAmq;
+  }
+
+  private ConfluentEmbeddedAmq defaultEmbeddedServer(final String brokerXmlPath) {
+    final EmbeddedActiveMQ embeddedAmqServer = new EmbeddedActiveMQ();
+    embeddedAmqServer.setConfigResourcePath(brokerXmlPath);
+    return new ConfluentEmbeddedAmq() {
+      @Override
+      public void start() throws Exception {
+        embeddedAmqServer.start();
+      }
+
+      @Override
+      public void stop() throws Exception {
+        embeddedAmqServer.stop();
+      }
+    };
+
   }
 
   public void run() {
@@ -52,40 +94,26 @@ public class JmsBridgeMain {
     try (InputStream props = Files.newInputStream(propFile.toPath())) {
       serverProps.load(props);
     } catch (IOException e) {
-      logger.error(format(
-          "Failed to load JMS Bridge properties file from '%s'", propertiesPath), e);
+      LOGGER.error("Failed to load JMS Bridge properties file from '{}'", propertiesPath, e);
       throw new RuntimeException(e);
     }
 
-    if (brokerXml == null) {
-
-      try {
-        Path brokerXmlPath = propFile.toPath().resolveSibling("broker.xml");
-        brokerXml = brokerXmlPath.toString();
-      } catch (InvalidPathException e) {
-        //not found there
-      }
-    }
-
-    //for now start the default implementation
-    final EmbeddedActiveMQ embeddedAmqServer = new EmbeddedActiveMQ();
-    embeddedAmqServer.setConfigResourcePath(brokerXml);
-    //final ConfluentEmbeddedAmq embeddedAmqServer = new ConfluentEmbeddedAmq.Builder(serverProps)
-    //  .build();
+    final String brokerXmlPath = brokerXmlPath(propFile, brokerXml);
+    final ConfluentEmbeddedAmq embeddedActiveMQ = loadServer(serverProps, brokerXmlPath);
 
     Runtime.getRuntime().addShutdownHook(new Thread(() -> {
       try {
-        embeddedAmqServer.stop();
+        embeddedActiveMQ.stop();
       } catch (Exception e) {
-        logger.error("Exception occurred during JMS Bridge server stop.", e);
+        LOGGER.error("Exception occurred during JMS Bridge server stop.", e);
         throw new RuntimeException(e);
       }
     }));
 
     try {
-      embeddedAmqServer.start();
+      embeddedActiveMQ.start();
     } catch (Throwable t) {
-      logger.error("Exception occurred during JMS Bridge server startup.", t);
+      LOGGER.error("Exception occurred during JMS Bridge server startup.", t);
       throw new RuntimeException(t);
     }
   }

@@ -43,6 +43,16 @@ public class ReceiveCommand implements BaseCommand {
   @Option(name = "--headers", description = "Show headers")
   boolean headers = false;
 
+  private final CommandIo io;
+
+  public ReceiveCommand(CommandIo io) {
+    this.io = io;
+  }
+
+  public ReceiveCommand() {
+    this.io = CommandIo.create();
+  }
+
   @Override
   public int execute() throws Exception {
     jmsClientOptions.doWithSession(this::receive);
