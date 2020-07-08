@@ -3,3 +3,4 @@ target
 /.java-version
 /confluent-amq-poc.iml
 *.iml
+node_modules
