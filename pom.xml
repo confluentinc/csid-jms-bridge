@@ -60,6 +60,32 @@
       </plugin>
 
       <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-dependency-plugin</artifactId>
+        <version>3.1.2</version>
+        <configuration>
+          <artifactItems>
+            <artifactItem>
+              <groupId>org.apache.activemq</groupId>
+              <artifactId>artemis-jms-client-all</artifactId>
+              <version>${activemq.version}</version>
+              <outputDirectory>${project.build.directory}/client-libs/</outputDirectory>
+              <destFileName>jms-bridge-client-all-${activemq.version}.jar</destFileName>
+            </artifactItem>
+          </artifactItems>
+        </configuration>
+        <executions>
+          <execution>
+            <goals>
+              <goal>copy</goal>
+            </goals>
+            <id>download-package-dependencies</id>
+            <phase>prepare-package</phase>
+          </execution>
+        </executions>
+      </plugin>
+
+      <plugin>
         <artifactId>maven-assembly-plugin</artifactId>
         <configuration>
           <archive>
@@ -231,6 +257,10 @@
       <groupId>org.testcontainers</groupId>
       <scope>test</scope>
       <version>1.14.3</version>
+    </dependency>
+    <dependency>
+      <groupId>com.github.spotbugs</groupId>
+      <artifactId>spotbugs-annotations</artifactId>
     </dependency>
   </dependencies>
 

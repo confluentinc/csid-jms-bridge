@@ -61,7 +61,9 @@ public class JmsBridgeMain {
     return brokerXmlOpt;
   }
 
-  protected ConfluentEmbeddedAmq loadServer(final Properties serverProps, final String brokerXmlPath) {
+  protected ConfluentEmbeddedAmq loadServer(final Properties serverProps,
+      final String brokerXmlPath) {
+
     //for now start the default implementation
     final ConfluentEmbeddedAmq confluentEmbeddedAmq = defaultEmbeddedServer(brokerXmlPath);
     //final ConfluentEmbeddedAmq embeddedAmqServer = new ConfluentEmbeddedAmq.Builder(serverProps)

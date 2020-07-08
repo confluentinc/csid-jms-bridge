@@ -22,7 +22,7 @@ fi
 EXTRA_ARGS="-name jms-bridge -loggc"
 
 if [ -z "$JMS_BRIDGE_OPTS" ]; then
-  JMS_BRIDGE_OPTS=-Dksql.server.install.dir=$base_dir
+  JMS_BRIDGE_OPTS=-Djms-bridge.server.install.dir=$base_dir
 else
   JMS_BRIDGE_OPTS="${JMS_BRIDGE_OPTS} -Djms-bridge.server.install.dir=$base_dir"
 fi

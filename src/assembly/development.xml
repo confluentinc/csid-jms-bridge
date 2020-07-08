@@ -22,6 +22,13 @@
   </dependencySets>
   <fileSets>
     <fileSet>
+      <directory>${project.basedir}/docs</directory>
+      <excludes>
+        <exclude>.*</exclude>
+      </excludes>
+      <outputDirectory>share/doc/jms-bridge/</outputDirectory>
+    </fileSet>
+    <fileSet>
       <directory>${project.basedir}</directory>
       <includes>
         <include>README*</include>
@@ -42,6 +49,13 @@
         <include>*</include>
       </includes>
       <outputDirectory>etc/jms-bridge</outputDirectory>
+    </fileSet>
+    <fileSet>
+      <directory>${project.build.directory}/client-libs</directory>
+      <includes>
+        <include>*.jar</include>
+      </includes>
+      <outputDirectory>lib/jms-bridge/client</outputDirectory>
     </fileSet>
   </fileSets>
   <formats>

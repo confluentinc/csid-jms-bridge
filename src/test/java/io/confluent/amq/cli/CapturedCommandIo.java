@@ -13,6 +13,7 @@ import java.io.OutputStreamWriter;
 import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
 import java.io.PrintStream;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.extension.BeforeEachCallback;
@@ -44,17 +45,19 @@ public class CapturedCommandIo implements
     try {
       errorInPipe = new PipedInputStream();
       errorOutPipe = new PipedOutputStream(errorInPipe);
-      errorPrinter = new PrintStream(errorOutPipe);
-      errorReader = new BufferedReader(new InputStreamReader(errorInPipe));
+      errorPrinter = new PrintStream(errorOutPipe, true, StandardCharsets.UTF_8.name());
+      errorReader = new BufferedReader(new InputStreamReader(errorInPipe, StandardCharsets.UTF_8));
 
       outputInPipe = new PipedInputStream();
       outputOutPipe = new PipedOutputStream(outputInPipe);
-      outputPrinter = new PrintStream(outputOutPipe);
-      outputReader = new BufferedReader(new InputStreamReader(outputInPipe));
+      outputPrinter = new PrintStream(outputOutPipe, true, StandardCharsets.UTF_8.name());
+      outputReader = new BufferedReader(
+          new InputStreamReader(outputInPipe, StandardCharsets.UTF_8));
 
       inputOutPipe = new PipedOutputStream();
       inputInPipe = new PipedInputStream(inputOutPipe);
-      inputWriter = new BufferedWriter(new OutputStreamWriter(inputOutPipe));
+      inputWriter = new BufferedWriter(
+          new OutputStreamWriter(inputOutPipe, StandardCharsets.UTF_8));
     } catch (Exception e) {
       throw new RuntimeException(e);
     }

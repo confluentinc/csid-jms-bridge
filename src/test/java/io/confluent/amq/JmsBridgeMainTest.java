@@ -4,26 +4,27 @@
 
 package io.confluent.amq;
 
-import static org.junit.Assert.*;
-
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.util.Properties;
-import org.apache.activemq.artemis.core.server.embedded.EmbeddedActiveMQ;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+@Disabled("Work in Progress")
 @ExtendWith(MockitoExtension.class)
 public class JmsBridgeMainTest {
   @Mock
   ConfluentEmbeddedAmq mockAmq;
-  JmsBridgeMain subject = new JmsBridgeMainSpy(mockAmq);
+  JmsBridgeMain subject;
 
-  @Test
-  public void noBrokerXml() {
-    subject.ex
-
+  @SuppressFBWarnings("URF_UNREAD_FIELD")
+  @BeforeEach
+  public void setup() {
+    subject = new JmsBridgeMainSpy(mockAmq);
   }
+
 
   public static class JmsBridgeMainSpy extends JmsBridgeMain {
     final ConfluentEmbeddedAmq mockAmq;
