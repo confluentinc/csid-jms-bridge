@@ -181,36 +181,7 @@ Testing of this will be around validating:
  2. JMS-Bridge instances can fail and resume without issue.
  3. Kafka disk usage is reclaimed over time for the JMS-Bridge message logs
 
-### Synching of Kafka Topics to JMS-Bridge Topics
-
-Upon this release a JMS client should be able to receive all data found in Kafka topics in similarily defined JMS topics.
-A configuration will be made available to setup the exposure of these topics to the JMS-Bridge with each configuration including information on the type of JMS message it should be converted to.
-
-Expected Changes:
-
- 1. Configuration, now includes topic syncing setup
- 2. Deployment, permissions must be granted to the JMS-Bridge Kafka principal to consume from all synced topics
-
-Features:
-
- 1. Integration of Kafka topics to JMS-Bridge topics as configured
- 2. Conversion of Kafka topic data to JMS message types as configured
-
-Features not included:
- * large message support
- * synchronization of message originating from JMS-Bridge to kafka topics
-
-#### Purpose
-
-To allow Kafka originating data to be used by JMS clients without code modifications.
-
-Users should validate that: 
-
- 1. message conversion works as expected and clients do not have issues with consuming them
- 2. incorrect topic sync configuration is promptly and effectively communicated
- 3. that sudden JMS-Bridge failure does cause Kafka originating messages to be missed (although duplication may occur)
-
-#### Synching of JMS-Bridge Topics to Kafka Topics
+### Synching of JMS-Bridge Topics to Kafka Topics
 
 This release will enable the ability to integrate messages originating from JMS-Bridge topics to be available to Kafka consumers.
 
@@ -240,6 +211,37 @@ Users should validate:
  1. JMS client data is available via kafka topics as configured
  2. JMS transactional data is not available until a commit has occurred
  3. Validate that messaging guarantees are being met (at-least-once)
+
+
+### Synching of Kafka Topics to JMS-Bridge Topics
+
+Upon this release a JMS client should be able to receive all data found in Kafka topics in similarily defined JMS topics.
+A configuration will be made available to setup the exposure of these topics to the JMS-Bridge with each configuration including information on the type of JMS message it should be converted to.
+
+Expected Changes:
+
+ 1. Configuration, now includes topic syncing setup
+ 2. Deployment, permissions must be granted to the JMS-Bridge Kafka principal to consume from all synced topics
+
+Features:
+
+ 1. Integration of Kafka topics to JMS-Bridge topics as configured
+ 2. Conversion of Kafka topic data to JMS message types as configured
+
+Features not included:
+ * large message support
+ * synchronization of message originating from JMS-Bridge to kafka topics
+
+#### Purpose
+
+To allow Kafka originating data to be used by JMS clients without code modifications.
+
+Users should validate that: 
+
+ 1. message conversion works as expected and clients do not have issues with consuming them
+ 2. incorrect topic sync configuration is promptly and effectively communicated
+ 3. that sudden JMS-Bridge failure does cause Kafka originating messages to be missed (although duplication may occur)
+
 
 ### Clustering
 

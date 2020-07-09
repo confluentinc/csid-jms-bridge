@@ -1,6 +1,6 @@
 <!-- docs/_sidebar.md -->
 
-* [Overview](overview.md)
+* [Home](README.md)
 * [Installation](install.md)
 * [Quick Start](quick-start.md)
 * [Client Integration](clients.md)

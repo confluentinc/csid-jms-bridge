@@ -6,15 +6,10 @@
   xmlns="http://maven.apache.org/plugins/maven-assembly-plugin/assembly/1.1.2"
   xsi:schemaLocation="http://maven.apache.org/plugins/maven-assembly-plugin/assembly/1.1.2
           http://maven.apache.org/xsd/assembly-1.1.2.xsd">
-  <!-- Assembles a package that can run the ksql cli given dependency packages. This is used to
-       construct packages OS packages where underlying libraries can be shared
-       -->
+  <!-- Assembles all dependencies in target/ directory so scripts can easily run in a development
+       environment -->
   <dependencySets>
     <dependencySet>
-      <excludes>
-        <exclude>io.confluent:common-*</exclude>
-        <exclude>com.google.guava:guava</exclude>
-      </excludes>
       <outputDirectory>share/java/jms-bridge</outputDirectory>
       <!-- Warning: Enabling useTransitiveFiltering is potentially unsafe,
            cf. https://github.com/miguno/maven-assembly-transitive-deps-woes
@@ -27,30 +22,44 @@
   </dependencySets>
   <fileSets>
     <fileSet>
-      <directory>${project.parent.basedir}</directory>
+      <directory>${project.basedir}/docs</directory>
+      <excludes>
+        <exclude>.*</exclude>
+      </excludes>
+      <outputDirectory>share/doc/jms-bridge/</outputDirectory>
+    </fileSet>
+    <fileSet>
+      <directory>${project.basedir}</directory>
       <includes>
-        <include>version.txt</include>
+        <include>README*</include>
         <include>COPYRIGHT*</include>
       </includes>
       <outputDirectory>share/doc/jms-bridge/</outputDirectory>
     </fileSet>
     <fileSet>
-      <directory>${project.parent.basedir}</directory>
+      <directory>${project.basedir}</directory>
       <includes>
         <include>bin/*</include>
       </includes>
       <outputDirectory></outputDirectory>
     </fileSet>
     <fileSet>
-      <directory>${project.parent.basedir}/config</directory>
+      <directory>${project.basedir}/config</directory>
       <includes>
         <include>*</include>
       </includes>
       <outputDirectory>etc/jms-bridge</outputDirectory>
     </fileSet>
+    <fileSet>
+      <directory>${project.build.directory}/client-libs</directory>
+      <includes>
+        <include>*.jar</include>
+      </includes>
+      <outputDirectory>lib/jms-bridge/client</outputDirectory>
+    </fileSet>
   </fileSets>
   <formats>
-    <format>dir</format>
+    <format>zip</format>
   </formats>
   <id>package</id>
   <includeBaseDirectory>false</includeBaseDirectory>
