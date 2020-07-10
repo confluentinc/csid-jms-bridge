@@ -14,6 +14,7 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
+import java.util.Objects;
 import java.util.Properties;
 import org.apache.activemq.artemis.core.server.embedded.EmbeddedActiveMQ;
 import org.slf4j.Logger;
@@ -24,8 +25,10 @@ public class JmsBridgeMain {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(JmsBridgeMain.class);
 
-  @Option(name = "--m0", hidden = true)
-  protected boolean useMilestoneZero = false;
+  @Option(name = "--vanilla",
+      hidden = true,
+      description = "Startup a vanilla embedded AMQ server instead of the JMS-Bridge")
+  protected boolean useVanilla = false;
 
   @Option(name = "--broker-xml", hidden = true)
   protected String brokerXml;
@@ -58,7 +61,7 @@ public class JmsBridgeMain {
     if (brokerXmlOpt == null) {
       try {
         final Path brokerXmlPath = propFile.toPath().resolveSibling("broker.xml");
-        return brokerXmlPath.toString();
+        return brokerXmlPath.toUri().toString();
       } catch (InvalidPathException e) {
         //not found there
       }
@@ -69,11 +72,11 @@ public class JmsBridgeMain {
   protected ConfluentEmbeddedAmq loadServer(final Properties serverProps,
       final String brokerXmlPath) {
 
-    if (useMilestoneZero) {
-      LOGGER.info("Starting Milestone ZER0 of the bridge");
+    if (!useVanilla) {
       return new ConfluentEmbeddedAmqImpl
           .Builder(brokerXmlPath, serverProps).build();
     } else {
+      LOGGER.info("Starting vanilla embedded AMQ server. No JMS-Bridge functionality included.");
       return defaultEmbeddedServer(brokerXmlPath);
     }
   }
@@ -100,6 +103,13 @@ public class JmsBridgeMain {
     final Properties serverProps = new Properties();
 
     final File propFile = new File(propertiesPath);
+    if (!propFile.exists()) {
+      throw new RuntimeException(
+          "Properties file path does not exist: " + propertiesPath);
+    } else {
+      LOGGER.debug("Loading properties file: " + propertiesPath);
+    }
+
     try (InputStream props = Files.newInputStream(propFile.toPath())) {
       serverProps.load(props);
     } catch (IOException e) {

@@ -1,0 +1,42 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "io.confluent.amq.persistence.kafka";
+option java_outer_classname = "JournalRecordProto";
+option objc_class_prefix = "KJR";
+
+package kafkajournal;
+
+message JournalRecord {
+  int64 id = 1;
+  int32 userRecordType = 2;
+  bytes data = 3;
+  enum JournalRecordType {
+    UNKNOWN = 0;
+    ADD_RECORD = 11;
+    UPDATE_RECORD = 12;
+    ADD_RECORD_TX = 13;
+    UPDATE_RECORD_TX = 14;
+    DELETE_RECORD_TX = 15;
+    DELETE_RECORD = 16;
+    PREPARE_RECORD = 17;
+    COMMIT_RECORD = 18;
+    ROLLBACK_RECORD = 19;
+  }
+  JournalRecordType recordType = 4;
+
+  int64 txId = 5;
+  bytes txData = 6;
+  int32 txRecordCount = 7;
+
+  int32 compactCount = 16;
+}
+
+message JournalRecordKey {
+  int64 txId = 1;
+  int64 id = 2;
+}
+
+message JournalPartitionKey {
+  int64 id = 1;
+}

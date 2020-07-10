@@ -40,6 +40,24 @@
       </plugin>
 
       <plugin>
+        <groupId>org.xolstice.maven.plugins</groupId>
+        <artifactId>protobuf-maven-plugin</artifactId>
+        <version>0.6.1</version>
+        <configuration>
+          <protocArtifact>com.google.protobuf:protoc:${protobuf.version}:exe:${os.detected.classifier}</protocArtifact>
+          <pluginId>grpc-java</pluginId>
+        </configuration>
+        <executions>
+          <execution>
+            <goals>
+              <goal>compile</goal>
+              <goal>test-compile</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+
+      <plugin>
         <artifactId>maven-checkstyle-plugin</artifactId>
         <configuration>
           <propertiesLocation>checkstyle/checkstyle.properties</propertiesLocation>
@@ -190,10 +208,22 @@
 
   <dependencies>
 
+
     <dependency>
       <artifactId>airline</artifactId>
       <groupId>com.github.rvesse</groupId>
       <version>${airline.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.inferred</groupId>
+      <artifactId>freebuilder</artifactId>
+      <version>2.6.0</version>
+      <optional>true</optional>
+    </dependency>
+    <dependency>
+      <groupId>com.google.guava</groupId>
+      <artifactId>guava</artifactId>
+      <version>29.0-jre</version>
     </dependency>
 
     <!-- Logging -->
@@ -246,6 +276,16 @@
       <artifactId>kafka-clients</artifactId>
       <groupId>org.apache.kafka</groupId>
       <version>2.5.0</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.kafka</groupId>
+      <artifactId>kafka-streams</artifactId>
+      <version>2.5.0</version>
+    </dependency>
+    <dependency>
+      <groupId>com.google.protobuf</groupId>
+      <artifactId>protobuf-java</artifactId>
+      <version>${protobuf.version}</version>
     </dependency>
 
 
@@ -330,6 +370,7 @@
     <compile.warnings-flag>-Werror</compile.warnings-flag>
     <git-commit-id-plugin.version>2.2.6</git-commit-id-plugin.version>
     <main-class>io.confluent.amq.cli.JmsBridgeCli</main-class>
+    <protobuf.version>3.12.2</protobuf.version>
   </properties>
 
   <repositories>

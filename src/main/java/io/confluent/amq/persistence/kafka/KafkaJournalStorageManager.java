@@ -4,28 +4,24 @@
 
 package io.confluent.amq.persistence.kafka;
 
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
-import java.util.Set;
+import io.confluent.amq.JmsBridgeConfiguration;
+import io.confluent.amq.persistence.kafka.journal.impl.KafkaJournal;
+import java.nio.ByteBuffer;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.stream.Collectors;
-import org.apache.activemq.artemis.api.core.ICoreMessage;
+import org.apache.activemq.artemis.api.core.ActiveMQBuffer;
+import org.apache.activemq.artemis.api.core.ActiveMQException;
 import org.apache.activemq.artemis.api.core.Message;
-import org.apache.activemq.artemis.api.core.Pair;
 import org.apache.activemq.artemis.api.core.SimpleString;
 import org.apache.activemq.artemis.core.config.Configuration;
 import org.apache.activemq.artemis.core.io.IOCriticalErrorListener;
-import org.apache.activemq.artemis.core.journal.JournalLoadInformation;
+import org.apache.activemq.artemis.core.io.SequentialFile;
+import org.apache.activemq.artemis.core.io.nio.NIOSequentialFileFactory;
+import org.apache.activemq.artemis.core.paging.PagedMessage;
 import org.apache.activemq.artemis.core.paging.PagingManager;
-import org.apache.activemq.artemis.core.persistence.AddressBindingInfo;
-import org.apache.activemq.artemis.core.persistence.GroupingInfo;
-import org.apache.activemq.artemis.core.persistence.QueueBindingInfo;
-import org.apache.activemq.artemis.core.persistence.impl.PageCountPending;
 import org.apache.activemq.artemis.core.persistence.impl.journal.JournalStorageManager;
-import org.apache.activemq.artemis.core.postoffice.PostOffice;
-import org.apache.activemq.artemis.core.server.impl.JournalLoader;
-import org.apache.activemq.artemis.core.transaction.ResourceManager;
+import org.apache.activemq.artemis.core.replication.ReplicationManager;
+import org.apache.activemq.artemis.core.server.LargeServerMessage;
+import org.apache.activemq.artemis.core.server.files.FileStoreMonitor;
 import org.apache.activemq.artemis.utils.ExecutorFactory;
 import org.apache.activemq.artemis.utils.critical.CriticalAnalyzer;
 import org.slf4j.Logger;
@@ -34,105 +30,163 @@ import org.slf4j.LoggerFactory;
 public class KafkaJournalStorageManager extends JournalStorageManager {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(KafkaJournalStorageManager.class);
+  private static final String BINDINGS_NAME = "bindings";
+  private static final String MESSAGES_NAME = "messages";
 
-  private final Properties kafkaProps;
   private KafkaIO kafkaIO;
 
-  public KafkaJournalStorageManager(Properties kafkaProps, Configuration config,
-      CriticalAnalyzer analyzer,
-      ExecutorFactory executorFactory, ScheduledExecutorService scheduledExecutorService,
-      ExecutorFactory ioExecutors) {
-    super(config, analyzer, executorFactory, scheduledExecutorService, ioExecutors);
-    this.kafkaProps = kafkaProps;
+  public KafkaJournalStorageManager(
+      JmsBridgeConfiguration config,
+      CriticalAnalyzer analyzer, ExecutorFactory executorFactory,
+      ScheduledExecutorService scheduledExecutorService,
+      ExecutorFactory ioExecutorFactory) {
+
+    this(config, analyzer, executorFactory, scheduledExecutorService, ioExecutorFactory,
+        null);
   }
 
-  public KafkaJournalStorageManager(Properties kafkaProps, Configuration config,
-      CriticalAnalyzer analyzer,
-      ExecutorFactory executorFactory, ExecutorFactory ioExecutors) {
-    super(config, analyzer, executorFactory, ioExecutors);
-    this.kafkaProps = kafkaProps;
-  }
-
-  public KafkaJournalStorageManager(Properties kafkaProps, Configuration config,
-      CriticalAnalyzer analyzer,
-      ExecutorFactory executorFactory, ScheduledExecutorService scheduledExecutorService,
-      ExecutorFactory ioExecutors, IOCriticalErrorListener criticalErrorListener) {
-    super(config, analyzer, executorFactory, scheduledExecutorService, ioExecutors,
-        criticalErrorListener);
-    this.kafkaProps = kafkaProps;
-  }
-
-  public KafkaJournalStorageManager(Properties kafkaProps, Configuration config,
-      CriticalAnalyzer analyzer,
-      ExecutorFactory executorFactory, ExecutorFactory ioExecutors,
+  public KafkaJournalStorageManager(
+      JmsBridgeConfiguration config,
+      CriticalAnalyzer analyzer, ExecutorFactory executorFactory,
+      ScheduledExecutorService scheduledExecutorService,
+      ExecutorFactory ioExecutorFactory,
       IOCriticalErrorListener criticalErrorListener) {
-    super(config, analyzer, executorFactory, ioExecutors, criticalErrorListener);
-    this.kafkaProps = kafkaProps;
+
+    super(config, analyzer, executorFactory, scheduledExecutorService, ioExecutorFactory,
+        criticalErrorListener);
+
+
   }
 
   @Override
-  public synchronized void start() throws Exception {
-    super.start();
-    kafkaIO = new KafkaIO(kafkaProps);
-    kafkaIO.start();
-  }
+  protected void init(Configuration config, IOCriticalErrorListener criticalErrorListener) {
+    //need to create these journals
 
-  @Override
-  public void stop() throws Exception {
-    super.stop();
-    if (kafkaIO != null) {
-      kafkaIO.stop();
+    JmsBridgeConfiguration jbConfig = (JmsBridgeConfiguration) config;
+
+    if (!jbConfig.getJmsBridgeProperties().containsKey("bridge.id")) {
+      throw new IllegalStateException("A bridge id is required for using the Kafka Journal");
     }
+    String bridgeId = jbConfig.getJmsBridgeProperties().getProperty("bridge.id");
+
+    this.kafkaIO = new KafkaIO(jbConfig.getJmsBridgeProperties());
+    this.kafkaIO.start();
+
+    this.bindingsJournal = new KafkaJournal(kafkaIO, bridgeId, BINDINGS_NAME,
+        criticalErrorListener);
+    this.messageJournal = new KafkaJournal(kafkaIO, bridgeId, MESSAGES_NAME,
+        criticalErrorListener);
+
   }
 
   @Override
-  public void storeMessage(Message message) throws Exception {
-    ICoreMessage coreMessage = message.toCore();
-    if (!KafkaIO.isKafkaMessage(coreMessage)) {
-      message.toCore().setAnnotation(SimpleString.toSimpleString("KAFKA_REF"), "TBD");
-      KafkaIO.KafkaRef kafkaRef = kafkaIO.writeMessage(message).get();
-      message.toCore().setAnnotation(SimpleString.toSimpleString("KAFKA_REF"), kafkaRef.asString());
-    }
-    super.storeMessage(coreMessage);
+  public void stop(boolean ioCriticalError, boolean sendFailover) throws Exception {
+    super.stop(ioCriticalError, sendFailover);
+    this.kafkaIO.stop();
+  }
+
+  @Override
+  public ByteBuffer allocateDirectBuffer(int size) {
+    return NIOSequentialFileFactory.allocateDirectByteBuffer(size);
+  }
+
+  @Override
+  public void freeDirectBuffer(ByteBuffer buffer) {
+    //nop
+  }
+
+  //////////////////
+  // BELOW ARE NOT REQUIRED TO BE IMPLEMENTED
+  //////////////////
+
+  @Override
+  protected void beforeStart() throws Exception {
+  }
+
+  @Override
+  protected void beforeStop() throws Exception {
+  }
+
+  @Override
+  public void pageClosed(SimpleString storeName, int pageNumber) {
+    //pages are basically offset ranges
+    super.pageClosed(storeName, pageNumber);
+
+  }
+
+  @Override
+  public void pageDeleted(SimpleString storeName, int pageNumber) {
+    //pages are basically offset ranges
+    super.pageDeleted(storeName, pageNumber);
+  }
+
+  @Override
+  public void pageWrite(PagedMessage message, int pageNumber) {
+    //pages are basically offset ranges
+    super.pageWrite(message, pageNumber);
   }
 
 
   @Override
-  public JournalLoadInformation loadMessageJournal(PostOffice postOffice,
-      PagingManager pagingManager, ResourceManager resourceManager,
-      Map<Long, QueueBindingInfo> queueInfos,
-      Map<SimpleString, List<Pair<byte[], Long>>> duplicateIDMap,
-      Set<Pair<Long, Long>> pendingLargeMessages, List<PageCountPending> pendingNonTXPageCounter,
-      JournalLoader journalLoader) throws Exception {
+  public void injectMonitor(FileStoreMonitor monitor) throws Exception {
 
-    final JournalLoadInformation loadInfo = super.loadMessageJournal(postOffice, pagingManager,
-        resourceManager, queueInfos, duplicateIDMap, pendingLargeMessages,
-        pendingNonTXPageCounter, journalLoader);
+  }
 
-    LOGGER.info("###### LoadMessageJournal completed.");
-    String delim = "    " + System.lineSeparator();
-    String addresses = postOffice.getAddresses().stream().map(SimpleString::toString)
-        .collect(Collectors.joining(delim));
-    LOGGER.info("###### Known Addresses: " + delim + addresses);
+  /*
+   * Methods Below may not need to be implemented
+   */
 
-    String queues = queueInfos.values().stream()
-        .map(qb -> qb.getAddress() + "::" + qb.getQueueName()).collect(Collectors.joining(delim));
-    LOGGER.info("###### Known Queues: " + delim + queues);
-
-    return loadInfo;
+  @Override
+  protected LargeServerMessage parseLargeMessage(ActiveMQBuffer buff) throws Exception {
+    throw new UnsupportedOperationException();
   }
 
   @Override
-  public JournalLoadInformation loadBindingJournal(List<QueueBindingInfo> queueBindingInfos,
-      List<GroupingInfo> groupingInfos, List<AddressBindingInfo> addressBindingInfos)
+  protected void performCachedLargeMessageDeletes() {
+    //not supporting large messages
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
+  public LargeServerMessage createLargeMessage() {
+    //not supported
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
+  public LargeServerMessage createLargeMessage(long id, Message message) throws Exception {
+    //not supported
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
+  public LargeServerMessage largeMessageCreated(long id, LargeServerMessage largeMessage)
       throws Exception {
-    return super.loadBindingJournal(queueBindingInfos, groupingInfos, addressBindingInfos);
+    //not supported
+    throw new UnsupportedOperationException();
   }
 
   @Override
-  public JournalLoadInformation[] loadInternalOnly() throws Exception {
-    return super.loadInternalOnly();
+  public SequentialFile createFileForLargeMessage(long messageID, LargeMessageExtension extension) {
+    throw new UnsupportedOperationException();
   }
 
+  @Override
+  public void deleteLargeMessageBody(LargeServerMessage largeServerMessage)
+      throws ActiveMQException {
+    throw new UnsupportedOperationException();
 
+  }
+
+  @Override
+  public void startReplication(ReplicationManager replicationManager, PagingManager pagingManager,
+      String nodeID, boolean autoFailBack, long initialReplicationSyncTimeout) throws Exception {
+    //unnecessary
+
+  }
+
+  @Override
+  public void stopReplication() {
+    //unnecessary
+  }
 }

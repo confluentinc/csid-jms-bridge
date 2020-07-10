@@ -4,24 +4,19 @@
 
 package io.confluent.amq.persistence.kafka;
 
+import io.confluent.amq.persistence.kafka.ConsumerThread.Builder;
+import io.confluent.amq.persistence.kafka.journal.KafkaJournalRecord;
 import java.nio.charset.StandardCharsets;
-import java.time.Duration;
-import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.SynchronousQueue;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import org.apache.activemq.artemis.api.core.ICoreMessage;
 import org.apache.activemq.artemis.api.core.Message;
 import org.apache.activemq.artemis.api.core.SimpleString;
@@ -29,62 +24,48 @@ import org.apache.activemq.artemis.reader.BytesMessageUtil;
 import org.apache.activemq.artemis.reader.TextMessageUtil;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.NewTopic;
-import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;
-import org.apache.kafka.common.header.Header;
 import org.apache.kafka.common.header.internals.RecordHeader;
-import org.apache.kafka.common.serialization.ByteArrayDeserializer;
 import org.apache.kafka.common.serialization.ByteArraySerializer;
 import org.apache.kafka.common.serialization.LongSerializer;
 import org.apache.kafka.common.serialization.StringSerializer;
+import org.apache.kafka.common.utils.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 @SuppressWarnings("checkstyle:ClassDataAbstractionCoupling")
 public class KafkaIO {
+
   private static final Logger LOGGER = LoggerFactory.getLogger(KafkaIO.class);
 
-  private static final Set<Byte> SUPPORT_MSG_TYPES = new HashSet<>(
-      Arrays.asList(Message.TEXT_TYPE, Message.BYTES_TYPE));
-  private static final MessageAdapter NOP_MSG_ADAPTER = new MessageAdapter() {
-    @Override
-    public void receive(Message message) { /*nuthing*/ }
+  private static final ThreadGroup THREAD_GROUP;
 
-    @Override
-    public Message transform(ConsumerRecord<byte[], byte[]> kafkaRecord) {
-      return null;
-    }
-  };
-  private final SynchronousQueue<Collection<String>> topicReadQueue = new SynchronousQueue<>();
+  static {
+    THREAD_GROUP = new ThreadGroup("kafkaIo-consumers");
+    THREAD_GROUP.setDaemon(true);
+  }
+
   private final Properties kafkaProps;
-  private final Thread consumerThread;
-  private volatile boolean run = false;
+
   private KafkaProducer<byte[], byte[]> kafkaProducer;
-  private KafkaConsumer<byte[], byte[]> kafkaConsumer;
   private AdminClient adminClient;
   private StringSerializer stringSerializer = new StringSerializer();
   private LongSerializer longSerializer = new LongSerializer();
-  private Set<String> knownTopics;
-  private AtomicReference<MessageAdapter> messageReciver = new AtomicReference<>(NOP_MSG_ADAPTER);
-
-  public KafkaIO(Properties kafkaProps) {
-    this.kafkaProps = kafkaProps;
-    this.knownTopics = new HashSet<>();
-
-    consumerThread = new Thread(this::consumerThread);
-    consumerThread.setDaemon(true);
-    consumerThread.setName("KafkaIO-Consumer-Thread");
-  }
 
   public static boolean isKafkaMessage(ICoreMessage message) {
     return message.getPropertyNames().contains(KafkaRef.SS_HEADER);
   }
 
+  public KafkaIO(Properties kafkaProps) {
+    this.kafkaProps = kafkaProps;
+  }
+
+  public Properties getKafkaProps() {
+    return kafkaProps;
+  }
+
   public synchronized void start() {
-    kafkaConsumer = new KafkaConsumer<>(kafkaProps, new ByteArrayDeserializer(),
-        new ByteArrayDeserializer());
     kafkaProducer = new KafkaProducer<>(kafkaProps, new ByteArraySerializer(),
         new ByteArraySerializer());
     adminClient = AdminClient.create(kafkaProps);
@@ -92,80 +73,56 @@ public class KafkaIO {
       kafkaProducer.close();
       adminClient.close();
     }));
-
-    run = true;
-    consumerThread.start();
-
-    refreshTopics();
   }
 
-  private void consumerThread() {
-    Collection<String> topics = Collections.emptyList();
-    while (run) {
-      Collection<String> newTopics = null;
-      if (topics.isEmpty()) {
-        try {
-          newTopics = topicReadQueue.poll(100, TimeUnit.MILLISECONDS);
-        } catch (InterruptedException e) {
-          LOGGER.error("Exception occurred while polling kafka topics.", e);
-          //go around again
-        }
-      } else {
-        newTopics = topicReadQueue.poll();
-      }
+  /**
+   * Creates a new consumer thread and starts it.
+   * It does not manage any more of it's lifecycle past that point and is up to the caller
+   * to ensure it is stopped properly.
+   */
+  public <K, V> ConsumerThread<K, V> startConsumerThread(Consumer<Builder<K, V>> spec) {
+    ConsumerThread.Builder<K, V> builder = ConsumerThread.newBuilder();
+    kafkaProps.forEach((k, v) -> builder.putConsumerProps(k.toString(), v));
+    spec.accept(builder);
 
-      if (newTopics != null) {
-        LOGGER.info("###### Subscribing to topics: " + String.join(", ", newTopics));
-        kafkaConsumer.subscribe(newTopics);
-        topics = newTopics;
-      }
+    ConsumerThread<K, V> consumerThread = builder.build();
 
-      if (!topics.isEmpty()) {
-        kafkaConsumer.poll(Duration.ofMillis(100)).forEach(r -> {
-          filterAndTransformRecord(r).ifPresent(m -> messageReciver.get().receive(m));
-        });
-      }
-    }
-    kafkaConsumer.close();
+    Thread thread = new Thread(THREAD_GROUP, consumerThread,
+        "kafka-consumer-" + consumerThread.groupId());
+
+    thread.start();
+    return consumerThread;
   }
 
-  protected Optional<Message> filterAndTransformRecord(ConsumerRecord<byte[], byte[]> record) {
-    KafkaRef kref = new KafkaRef(record.topic(), record.partition(), record.offset());
-    for (Header hdr : record.headers()) {
-      if (KafkaRef.HEADER.equals(hdr.key())) {
-        if (LOGGER.isDebugEnabled()) {
-          LOGGER.info("Skipping message with " + KafkaRef.HEADER + " header: " + kref.asString());
-        }
-        return Optional.empty();
-      }
-    }
-
-    Message message = messageReciver.get().transform(record);
-    if (message == null) {
-      return Optional.empty();
-    }
-
-    message.setAddress(record.topic());
-    message.toCore().setType(Message.BYTES_TYPE);
-    message.setCorrelationID(record.key());
-    message.putStringProperty("KAFKA_REF", kref.asString());
-    return Optional.of(message);
-  }
-
-  public void refreshTopics() {
+  public Set<String> listTopics() {
     try {
-      knownTopics.addAll(adminClient.listTopics().names().get());
+      return adminClient.listTopics().names().get();
     } catch (ExecutionException | InterruptedException e) {
       throw new RuntimeException(e);
     }
   }
 
-  public Collection<String> getKnownTopics() {
-    return knownTopics;
+  /**
+   * Create the topic unless it already exists, if it does exist then do nothing.
+   *
+   * @return true if the topic was created false if it already exists
+   */
+  public boolean createTopicIfNotExists(String name, int partitions, int replication,
+      Map<String, String> options) {
+
+    if (listTopics().contains(name)) {
+      return false;
+    } else {
+      createTopic(name, partitions, replication, options);
+      return true;
+    }
   }
 
   public void createTopic(String name, int partitions, int replication,
       Map<String, String> options) {
+
+    LOGGER.info("Creating kafka topic {}", name);
+
     NewTopic topic = new NewTopic(name, partitions, (short) replication);
     topic.configs(options);
     try {
@@ -175,13 +132,33 @@ public class KafkaIO {
     }
   }
 
-  public void readTopics(Collection<String> topics, MessageAdapter receiver) {
-    messageReciver.set(receiver);
-    if (! topicReadQueue.offer(topics)) {
-      LOGGER.warn("AMQ Topic consumer did not respond to updated topics list.");
-    }
-  }
+  public void writeJournalRecord(KafkaJournalRecord record) {
+    int pcount = kafkaProducer.partitionsFor(record.getDestTopic()).size();
+    byte[] partitionKey = record.getKafkaPartitionKey().toByteArray();
+    int partition = Utils.toPositive(Utils.murmur2(partitionKey)) % pcount;
 
+    ProducerRecord<byte[], byte[]> producerRecord = new ProducerRecord<>(
+        record.getDestTopic(),
+        partition,
+        record.getKafkaMessageKey().toByteArray(),
+        record.getRecord().toByteArray());
+
+    kafkaProducer.send(producerRecord, (meta, err) -> {
+      if (err != null) {
+        if (record.getIoCompletion() != null) {
+          record.getIoCompletion().onError(500, err.getMessage());
+        }
+        LOGGER.error("Publishing of journal data to kafka failed.", err);
+      } else {
+        if (LOGGER.isDebugEnabled()) {
+          LOGGER.info("Published kafka record metadata is: " + meta);
+        }
+        if (record.getIoCompletion() != null) {
+          record.getIoCompletion().done();
+        }
+      }
+    });
+  }
 
   public CompletableFuture<KafkaRef> writeMessage(Message message) {
     ICoreMessage coreMessage = message.toCore();
@@ -261,11 +238,6 @@ public class KafkaIO {
   }
 
   public void stop() throws Exception {
-    run = false;
-    consumerThread.join();
-    if (kafkaConsumer != null) {
-      kafkaConsumer.close();
-    }
 
     if (kafkaProducer != null) {
       kafkaProducer.close();
@@ -274,13 +246,6 @@ public class KafkaIO {
     if (adminClient != null) {
       adminClient.close();
     }
-  }
-
-  public interface MessageAdapter {
-
-    void receive(Message message);
-
-    Message transform(ConsumerRecord<byte[], byte[]> kafkaRecord);
   }
 
   public static class KafkaRef {
@@ -308,7 +273,8 @@ public class KafkaIO {
         this.partition = Integer.parseInt(parts[1]);
         this.offset = Long.parseLong(parts[2]);
       } catch (NumberFormatException e) {
-        throw new IllegalArgumentException("Invalid KafkaRef String: '" + asStringOutput + "'", e);
+        throw new IllegalArgumentException("Invalid KafkaRef String: '" + asStringOutput + "'",
+            e);
       }
     }
 

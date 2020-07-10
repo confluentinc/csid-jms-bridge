@@ -9,7 +9,6 @@ import static java.lang.String.format;
 import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 import javax.management.MBeanServer;
-import org.apache.activemq.artemis.core.config.Configuration;
 import org.apache.activemq.artemis.core.config.FileDeploymentManager;
 import org.apache.activemq.artemis.core.config.impl.FileConfiguration;
 import org.apache.activemq.artemis.core.config.impl.LegacyJMSConfiguration;
@@ -25,11 +24,10 @@ public class ConfluentEmbeddedAmqImpl implements ConfluentEmbeddedAmq {
   private static final Logger LOGGER = LoggerFactory.getLogger(ConfluentEmbeddedAmqImpl.class);
 
   private InternalEmbedded embeddedActiveMQ;
-  private Properties kafkaProps;
 
-  protected ConfluentEmbeddedAmqImpl(Configuration configuration, Properties kafkaProps,
+  protected ConfluentEmbeddedAmqImpl(JmsBridgeConfiguration configuration,
       MBeanServer mbeanServer, ActiveMQSecurityManager securityManager) {
-    this.kafkaProps = kafkaProps;
+
     this.embeddedActiveMQ = new InternalEmbedded();
     this.embeddedActiveMQ.setSecurityManager(securityManager)
         .setMbeanServer(mbeanServer)
@@ -58,25 +56,24 @@ public class ConfluentEmbeddedAmqImpl implements ConfluentEmbeddedAmq {
   public static class Builder {
 
     private ActiveMQSecurityManager securityManager;
-    private Configuration configuration;
+    private JmsBridgeConfiguration configuration;
     private MBeanServer mbeanServer;
-    private Properties kafkaProps;
 
     public Builder(Properties kafkaProps) {
       this("/broker.xml", kafkaProps);
     }
 
-    public Builder(String configResourcePath, Properties kafkaProps) {
-      this.configuration = loadConfigResource(configResourcePath);
-      this.kafkaProps = kafkaProps;
+    public Builder(String configResourcePath, Properties jmsBridgeProps) {
+      this.configuration = loadConfigResource(configResourcePath, jmsBridgeProps);
     }
 
-    public Builder(Configuration configuration, Properties kafkaProps) {
+    public Builder(JmsBridgeConfiguration configuration) {
       this.configuration = configuration;
-      this.kafkaProps = kafkaProps;
     }
 
-    private Configuration loadConfigResource(String resourcePath) {
+    private JmsBridgeConfiguration loadConfigResource(
+        String resourcePath, Properties jmsBridgeProps) {
+
       FileDeploymentManager deploymentManager = new FileDeploymentManager(resourcePath);
       FileConfiguration config = new FileConfiguration();
       LegacyJMSConfiguration legacyJmsConfiguration = new LegacyJMSConfiguration(config);
@@ -85,9 +82,9 @@ public class ConfluentEmbeddedAmqImpl implements ConfluentEmbeddedAmq {
         deploymentManager.readConfiguration();
       } catch (Exception e) {
         throw new RuntimeException(
-            format("Failed to read configuration resource '%s'", resourcePath));
+            format("Failed to read configuration resource '%s'", resourcePath), e);
       }
-      return config;
+      return new JmsBridgeConfiguration(config, jmsBridgeProps);
     }
 
     public Builder setSecurityManager(ActiveMQSecurityManager securityManager) {
@@ -102,28 +99,37 @@ public class ConfluentEmbeddedAmqImpl implements ConfluentEmbeddedAmq {
     }
 
     public ConfluentEmbeddedAmqImpl build() {
-      return new ConfluentEmbeddedAmqImpl(this.configuration, this.kafkaProps, this.mbeanServer,
+      return new ConfluentEmbeddedAmqImpl(this.configuration, this.mbeanServer,
           this.securityManager);
     }
   }
 
-  private class InternalEmbedded extends EmbeddedActiveMQ {
+  private static class InternalEmbedded extends EmbeddedActiveMQ {
 
     protected void prepare() {
-      this.configuration.registerBrokerPlugin(new KafkaBridgePlugin(kafkaProps));
+      //this.configuration.registerBrokerPlugin(new KafkaBridgePlugin(kafkaProps));
       if (this.securityManager == null) {
         this.securityManager = new ActiveMQJAASSecurityManager();
       }
 
       ConfluentAmqServer amqServer = null;
+      JmsBridgeConfiguration jmsBridgeConfiguration = (JmsBridgeConfiguration) configuration;
 
       if (this.mbeanServer == null) {
-        amqServer = new ConfluentAmqServer(configuration, this.securityManager);
+        amqServer = new ConfluentAmqServer(jmsBridgeConfiguration, this.securityManager);
       } else {
-        amqServer = new ConfluentAmqServer(configuration, this.mbeanServer, this.securityManager);
+        amqServer = new ConfluentAmqServer(
+            jmsBridgeConfiguration, this.mbeanServer, this.securityManager);
       }
-      amqServer.setKafkaProps(kafkaProps);
       this.activeMQServer = amqServer;
+      this.activeMQServer.registerActivationFailureListener((e) -> {
+        LOGGER.error("Shutting down JMS-Bridge due to unrecoverable failures.");
+        try {
+          this.activeMQServer.stop(true, true);
+        } catch (Exception ex) {
+          LOGGER.error("Failed to gracefully shutdown JMS-Bridge", ex);
+        }
+      });
     }
 
     @Override

@@ -41,6 +41,7 @@
     <paging-directory>${jms-bridge.data.dir:./data}/paging</paging-directory>
 
     <security-enabled>false</security-enabled>
+
   </core>
   <jms xmlns="urn:activemq:jms">
     <queue name="DLQ"/>
