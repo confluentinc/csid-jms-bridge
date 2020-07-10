@@ -24,6 +24,9 @@ public class JmsBridgeMain {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(JmsBridgeMain.class);
 
+  @Option(name = "--m0", hidden = true)
+  protected boolean useMilestoneZero = false;
+
   @Option(name = "--broker-xml", hidden = true)
   protected String brokerXml;
 
@@ -33,7 +36,9 @@ public class JmsBridgeMain {
   public static void main(final String[] args) {
     final JmsBridgeMain jmsBridgeMain = new JmsBridgeMain();
     final int status = jmsBridgeMain.execute(args, JmsBridgeMain.class);
-    System.exit(status);
+    if (status != 0) {
+      System.exit(status);
+    }
   }
 
   protected <T extends JmsBridgeMain> int execute(final String[] args, final Class<T> cmdClazz) {
@@ -64,11 +69,13 @@ public class JmsBridgeMain {
   protected ConfluentEmbeddedAmq loadServer(final Properties serverProps,
       final String brokerXmlPath) {
 
-    //for now start the default implementation
-    final ConfluentEmbeddedAmq confluentEmbeddedAmq = defaultEmbeddedServer(brokerXmlPath);
-    //final ConfluentEmbeddedAmq embeddedAmqServer = new ConfluentEmbeddedAmq.Builder(serverProps)
-    //  .build();
-    return confluentEmbeddedAmq;
+    if (useMilestoneZero) {
+      LOGGER.info("Starting Milestone ZER0 of the bridge");
+      return new ConfluentEmbeddedAmqImpl
+          .Builder(brokerXmlPath, serverProps).build();
+    } else {
+      return defaultEmbeddedServer(brokerXmlPath);
+    }
   }
 
   private ConfluentEmbeddedAmq defaultEmbeddedServer(final String brokerXmlPath) {

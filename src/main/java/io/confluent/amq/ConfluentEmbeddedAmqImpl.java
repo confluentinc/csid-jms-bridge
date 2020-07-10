@@ -63,7 +63,7 @@ public class ConfluentEmbeddedAmqImpl implements ConfluentEmbeddedAmq {
     private Properties kafkaProps;
 
     public Builder(Properties kafkaProps) {
-      this("broker.xml", kafkaProps);
+      this("/broker.xml", kafkaProps);
     }
 
     public Builder(String configResourcePath, Properties kafkaProps) {

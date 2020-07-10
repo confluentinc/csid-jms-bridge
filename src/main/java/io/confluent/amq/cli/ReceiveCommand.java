@@ -13,6 +13,7 @@ import com.github.rvesse.airline.annotations.Option;
 import com.github.rvesse.airline.annotations.restrictions.NotBlank;
 import com.github.rvesse.airline.annotations.restrictions.Once;
 import com.github.rvesse.airline.annotations.restrictions.Required;
+import java.nio.charset.StandardCharsets;
 import java.util.Enumeration;
 import java.util.LinkedList;
 import java.util.List;
@@ -42,6 +43,9 @@ public class ReceiveCommand implements BaseCommand {
 
   @Option(name = "--headers", description = "Show headers")
   boolean headers = false;
+
+  @Option(name = "--bin2text", description = "Treat binary messages as UTF-8 text.")
+  boolean binToText = false;
 
   private final CommandIo io;
 
@@ -85,6 +89,10 @@ public class ReceiveCommand implements BaseCommand {
     try {
       if (msg.isBodyAssignableTo(String.class)) {
         return msg.getBody(String.class);
+      }
+
+      if (msg.isBodyAssignableTo(byte[].class) && binToText) {
+        return new String(msg.getBody(byte[].class), StandardCharsets.UTF_8);
       }
     } catch (JMSException e) {
       //swallow it up
