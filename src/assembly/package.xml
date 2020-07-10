@@ -62,5 +62,5 @@
     <format>zip</format>
   </formats>
   <id>package</id>
-  <includeBaseDirectory>false</includeBaseDirectory>
+  <includeBaseDirectory>true</includeBaseDirectory>
 </assembly>
