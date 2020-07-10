@@ -17,13 +17,13 @@ Installing from the archive is a manual process and is only supported on linux b
 Once the archive is acquired you will need a place to unzip it.
 I suggest `/opt` or  `/usr/local`. 
 
-```shell script
+```shell
 cd /usr/local
 unzip jms-bridge-1.0.0-M1.zip 
 ```
 
 Once unzipped you should have a folder named `jms-bridge-<version>` and the content of that folder should look like:
-```shell script
+```shell
 jms-bridge-1.0.0-M1 $> ls
 bin   etc   share
 ```
@@ -34,7 +34,7 @@ Those directories follow the standard linux conventions for naming.
  * `share` contains libraries and jars
 
 Update the permissions appropriately
-```shell script
+```shell
 chmod -R a=rx,u+w bin/
 chmod -R a=r,u+w etc/ share/
 ```
@@ -43,18 +43,18 @@ chmod -R a=r,u+w etc/ share/
 
 To start the JMS-Bridge there is the `jms-bridge-server-start` script that can be called.
 One argument is required and that is the path to the `jms-bridge.properties` file, a default one can be found in the `etc/jms-bridge/` directory.
-```shell script
+```shell
 bin/jms-bridge-server-start etc/jms-bridge/jms-bridge.properties
 ```
 
 By default it will run in the foreground and can be killed with `^C`.
 Alternatively you can start it in the background using the `-daemon` option.
-```shell script
+```shell
 bin/jms-bridge-server-start -daemon etc/jms-bridge/jms-bridge.properties
 ```
 
 As a companion to the `jms-bridge-server-start` script there is a `jms-bridge-server-stop` script which can be used to stop the JMS-Bridge.
-```shell script
+```shell
 bin/jms-bridge-server-stop
 ```
 
@@ -98,7 +98,7 @@ Options used for setting up the JVM's JMX interface.
 Logging options, based on log4j.
 
 For example to specify a custom logging configuration file you can set this property to
-```shell script
+```shell
 export JMS_BRIDGE_LOG4J_OPTS="-Dlog4j.configuration=file:/path/to/log4j.properties"
 ```
 

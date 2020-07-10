@@ -27,7 +27,7 @@ In fact, they are the same thing.
 Just make sure to get the right version, it should match the version found in the name of the jms-bridge client jar.
 
 _maven_
-```xml maven
+```xml
 <dependency>
     <groupId>org.apache.activemq</groupId>
     <artifactId>artemis-jms-client-all</artifactId>
@@ -36,7 +36,7 @@ _maven_
 ```
 
 _gradle_
-```groovy gradle
+```groovy
 compile group: 'org.apache.activemq', name: 'artemis-jms-client-all', version: '2.13.0'
 ```
 

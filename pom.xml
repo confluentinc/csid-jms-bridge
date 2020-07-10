@@ -86,38 +86,34 @@
       </plugin>
 
       <plugin>
-        <groupId>com.github.eirslett</groupId>
-        <artifactId>frontend-maven-plugin</artifactId>
-        <version>1.10.0</version>
+        <groupId>kr.motd.maven</groupId>
+        <artifactId>sphinx-maven-plugin</artifactId>
+        <version>2.9.0</version>
         <configuration>
-          <nodeVersion>v14.5.0</nodeVersion>
+          <sourceDirectory>${project.basedir}/docs</sourceDirectory>
+          <outputDirectory>${project.build.directory}/docs</outputDirectory>
         </configuration>
         <executions>
           <execution>
-            <id>install node and npm</id>
+            <id>doc-pass-one</id>
+            <phase>prepare-package</phase>
             <goals>
-              <goal>install-node-and-npm</goal>
+              <goal>generate</goal>
             </goals>
-            <phase>generate-resources</phase>
           </execution>
-          <execution>
-            <id>npm install</id>
-            <goals>
-              <goal>npm</goal>
-            </goals>
-            <!-- optional: default phase is "generate-resources" -->
-            <phase>generate-resources</phase>
-          </execution>
-          <execution>
-            <id>npm run convert</id>
-            <goals>
-              <goal>npm</goal>
-            </goals>
-            <phase>generate-resources</phase>
-            <configuration>
-              <arguments>run convert</arguments>
-            </configuration>
-          </execution>
+<!--          <execution>-->
+<!--            <id>doc-pass-two</id>-->
+<!--            <configuration>-->
+<!--              <useDocTreeCache>true</useDocTreeCache>-->
+<!--              <doctreeCacheDir>${project.build.directory}/docs/.doctrees</doctreeCacheDir>-->
+<!--              <useMakeMode>true</useMakeMode>-->
+<!--              <builder>latexpdf</builder>-->
+<!--            </configuration>-->
+<!--            <phase>package</phase>-->
+<!--            <goals>-->
+<!--              <goal>generate</goal>-->
+<!--            </goals>-->
+<!--          </execution>-->
         </executions>
       </plugin>
 

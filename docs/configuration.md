@@ -1,4 +1,4 @@
-# Configuration Options
+# Configuration
 
 All configuration for the JMS Bridge is done via a properties file which is supplied to the `jms-bridge-server-start` script.
 An example configuration can be found in `etc/jms-bridge/jms-bridge.properties`.

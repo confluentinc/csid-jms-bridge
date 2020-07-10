@@ -15,7 +15,7 @@
 
 ## By Command
 
-```shell script
+```shell
 
 mkdir jms-bridge-qs
 cd jms-bridge-qs
@@ -28,7 +28,7 @@ bin/jms-bridge receive --url tcp://localhost:61616 --topic quick-start
 ```
 
 In a new shell from the same directory
-```shell produce
+```shell
 
 export JAVA_HOME=<java-1.8-install-dir>
 bin/jms-bridge send --url tcp://localhost:61616 --topic foo
@@ -38,7 +38,7 @@ quit
 ```
 
 In the previous shell
-```shell script
+```shell
 ^C
 bin/jms-bridge-server-stop
 ```

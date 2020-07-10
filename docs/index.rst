@@ -1,10 +1,13 @@
-# JMS-Bridge
+=============
+JMS-Bridge
+=============
 
 Connect legacy JMS based applications to the Confluent Platform without major modifications.
 
-![]( docs/_static/overview-diagram.png )
+.. image:: _static/overview-diagram.png
 
-## Overview
+Overview
+========
 
 The JMS-Bridge is a component that can be used to facilitate quicker migration from legacy JMS based systems to ones built around the Confluent Platform.
 It is quite common for enterprise systems to use JMS as a means of integrating external applications to a central system.
@@ -16,17 +19,30 @@ By providing a fully compliant JMS 2.0 implementation of the client jars and a s
 With tight integration to the Confluent Platform all JMS originated topic data will be available in Kafka and all Kafka topic data will be available in JMS topics.
 Since the JMS-Bridge is built on top of the Confluent Platform, using it as it's storage mechanism, it does not require additional disk space or SAN provisioning, if you are monitoring Kafka you are monitoring the JMS-Bridge.
 
-### Features
+Features
+--------
 
-  * Fully JMS 2.0 Compliant
-  * All data stored in Kafka
-  * Full integration of topic data between Kakfa and the JMS-Bridge
-    * publish from JMS consume from Kafka and vice-versa 
-  
-### Benefits
+* Fully JMS 2.0 Compliant
+* All data stored in Kafka
+* Full integration of topic data between Kakfa and the JMS-Bridge
+* publish from JMS consume from Kafka and vice-versa
 
- * Transition from JMS to the Confluent Platform with minor updates to existing JMS applications
-   * client jar update
- * Quickly start innovating using Kafka and the Confluent Platform
- * Allow ample time to either migrate legacy JMS applications or allow them to naturally fade away
- 
+Benefits
+--------
+
+* Transition from JMS to the Confluent Platform with minor updates to existing JMS applications
+* Quickly start innovating using Kafka and the Confluent Platform
+* Allow ample time to either migrate legacy JMS applications or allow them to naturally fade away
+
+
+Contents:
+=========
+.. toctree::
+    :maxdepth: 2
+
+    quick-start
+    install
+    clients
+    cli
+    configuration
+    
