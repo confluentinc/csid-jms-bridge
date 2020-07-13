@@ -46,10 +46,10 @@ done
 if [ -z "$JMS_BRIDGE_LOG4J_OPTS" ]; then
   # Test for files from dev -> packages so this will work as expected in dev if you have packages
   # installed
-  if [ -e "$base_dir/etc/jms-bridge/log4j.properties" ]; then # Dev environment or Simple zip
-    JMS_BRIDGE_LOG4J_OPTS="-Dlog4j.configuration=file:$base_dir/etc/jms-bridge/log4j.properties"
-  elif [ -e "/etc/jms-bridge/log4j.properties" ]; then # Normal install layout
-    JMS_BRIDGE_LOG4J_OPTS="-Dlog4j.configuration=file:/etc/jms-bridge/log4j.properties"
+  if [ -e "$base_dir/etc/jms-bridge/log4j2.xml" ]; then # Dev environment or Simple zip
+    JMS_BRIDGE_LOG4J_OPTS="-Dlog4j2.configurationFile=file:$base_dir/etc/jms-bridge/log4j2.xml"
+  elif [ -e "/etc/jms-bridge/log4j2.xml" ]; then # Normal install layout
+    JMS_BRIDGE_LOG4J_OPTS="-Dlog4j2.configurationFile=file:/etc/jms-bridge/log4j2.xml"
   fi
 fi
 

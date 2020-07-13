@@ -15,8 +15,8 @@ base_dir=$( cd "$( dirname "${BASH_SOURCE[0]}" )/.." && pwd )
 : "${JMS_BRIDGE_CONFIG_DIR:="$base_dir/etc/jms-bridge"}"
 
 : "${JMS_BRIDGE_LOG4J_OPTS:=""}"
-if [ -z "$JMS_BRIDGE_LOG4J_OPTS" ] && [ -e "$JMS_BRIDGE_CONFIG_DIR/log4j-rolling.properties" ]; then
-  export JMS_BRIDGE_LOG4J_OPTS="-Dlog4j.configuration=file:$JMS_BRIDGE_CONFIG_DIR/log4j-rolling.properties"
+if [ -z "$JMS_BRIDGE_LOG4J_OPTS" ] && [ -e "$JMS_BRIDGE_CONFIG_DIR/log4j2-rolling.xml" ]; then
+  export JMS_BRIDGE_LOG4J_OPTS="-Dlog4j2.configurationFile=file:$JMS_BRIDGE_CONFIG_DIR/log4j2-rolling.xml"
 fi
 
 EXTRA_ARGS="-name jms-bridge -loggc"

@@ -13,9 +13,9 @@ base_dir=$( cd "$( dirname "${BASH_SOURCE[0]}" )/.." && pwd )
 if [ -z "$JMS_BRIDGE_LOG4J_OPTS" ]; then
   # Test for files from dev -> packages so this will work as expected in dev if you have packages
   # installed
-  if [ -e "$base_dir/etc/jms-bridge/log4j-cli.properties" ]; then # Dev env or Simple zip file layout
+  if [ -e "$base_dir/etc/jms-bridge/log4j2-cli.xml" ]; then # Dev env or Simple zip file layout
     JMS_BRIDGE_CONFIG_DIR="$base_dir/etc/jms-bridge"
-  elif [ -e "/etc/jms-bridge/log4j-cli.properties" ]; then # Normal install layout
+  elif [ -e "/etc/jms-bridge/log4j2-cli.xml" ]; then # Normal install layout
     JMS_BRIDGE_CONFIG_DIR="/etc/jms-bridge"
   fi
 fi
@@ -26,7 +26,7 @@ fi
 
 # Use file logging by default
 if [ -z "$JMS_BRIDGE_LOG4J_OPTS" ]; then
-  export JMS_BRIDGE_LOG4J_OPTS="-Dlog4j.configuration=file:$JMS_BRIDGE_CONFIG_DIR/log4j-cli.properties"
+  export JMS_BRIDGE_LOG4J_OPTS="-Dlog4j2.configurationFile=file:$JMS_BRIDGE_CONFIG_DIR/log4j2-cli.xml"
 fi
 
 exec "$base_dir"/bin/jms-bridge-run-class io.confluent.amq.cli.JmsBridgeCli "$@"

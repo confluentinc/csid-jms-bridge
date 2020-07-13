@@ -26,7 +26,7 @@
         <artifactId>maven-compiler-plugin</artifactId>
         <configuration>
           <compilerArgs>
-            <arg>-Xlint:all,-serial,-options,-path</arg>
+            <arg>-Xlint:all,-processing,-serial,-options,-path</arg>
             <arg>-parameters</arg>
             <arg>${compile.warnings-flag}</arg>
           </compilerArgs>
@@ -52,10 +52,6 @@
         <artifactId>maven-surefire-plugin</artifactId>
         <configuration>
           <argLine>-verbose:gc -Xloggc:"${project.build.directory}/gc.log"</argLine>
-          <systemPropertyVariables>
-            <log4j.configuration>file:${project.basedir}/src/test/resources/log4j-test.properties
-            </log4j.configuration>
-          </systemPropertyVariables>
         </configuration>
         <groupId>org.apache.maven.plugins</groupId>
       </plugin>
@@ -102,19 +98,19 @@
               <goal>generate</goal>
             </goals>
           </execution>
-<!--          <execution>-->
-<!--            <id>doc-pass-two</id>-->
-<!--            <configuration>-->
-<!--              <useDocTreeCache>true</useDocTreeCache>-->
-<!--              <doctreeCacheDir>${project.build.directory}/docs/.doctrees</doctreeCacheDir>-->
-<!--              <useMakeMode>true</useMakeMode>-->
-<!--              <builder>latexpdf</builder>-->
-<!--            </configuration>-->
-<!--            <phase>package</phase>-->
-<!--            <goals>-->
-<!--              <goal>generate</goal>-->
-<!--            </goals>-->
-<!--          </execution>-->
+          <!--          <execution>-->
+          <!--            <id>doc-pass-two</id>-->
+          <!--            <configuration>-->
+          <!--              <useDocTreeCache>true</useDocTreeCache>-->
+          <!--              <doctreeCacheDir>${project.build.directory}/docs/.doctrees</doctreeCacheDir>-->
+          <!--              <useMakeMode>true</useMakeMode>-->
+          <!--              <builder>latexpdf</builder>-->
+          <!--            </configuration>-->
+          <!--            <phase>package</phase>-->
+          <!--            <goals>-->
+          <!--              <goal>generate</goal>-->
+          <!--            </goals>-->
+          <!--          </execution>-->
         </executions>
       </plugin>
 
@@ -206,9 +202,16 @@
       <groupId>org.slf4j</groupId>
     </dependency>
     <dependency>
-      <groupId>org.slf4j</groupId>
-      <artifactId>slf4j-log4j12</artifactId>
+      <groupId>org.apache.logging.log4j</groupId>
+      <artifactId>log4j-core</artifactId>
+      <version>2.13.3</version>
     </dependency>
+    <dependency>
+      <groupId>org.apache.logging.log4j</groupId>
+      <artifactId>log4j-slf4j-impl</artifactId>
+      <version>2.13.3</version>
+    </dependency>
+
 
     <!-- Core Artemis dependencies -->
     <dependency>
