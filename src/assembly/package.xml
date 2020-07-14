@@ -22,7 +22,7 @@
   </dependencySets>
   <fileSets>
     <fileSet>
-      <directory>${project.basedir}/docs</directory>
+      <directory>${project.build.directory}/docs</directory>
       <excludes>
         <exclude>.*</exclude>
       </excludes>
