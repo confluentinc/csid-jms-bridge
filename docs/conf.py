@@ -38,9 +38,10 @@ html_copy_source = False
 html_static_path = ['_static']
 htmlhelp_basename = 'Confluentdoc'
 
-# def setup(app):
-#   app.add_config_value('recommonmark_config', dict(
-#     enable_auto_toc_tree=True,
-#     auto_toc_tree_section='Contents'
-#   ), True)
-#   app.add_transform(AutoStructify)
+def setup(app):
+  app.add_config_value('recommonmark_config', dict(
+    enable_auto_toc_tree=True,
+    auto_toc_tree_section='Contents',
+    enable_eval_rst=True
+  ), True)
+  app.add_transform(AutoStructify)

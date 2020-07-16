@@ -12,10 +12,10 @@ Either one must manually build it or ask for a copy of it from a Confluent repre
 
 ## Install Archive
 
-Installing from the archive is a manual process and is only supported on linux based systems.
+Installing from the archive is a manual process and is only supported on unix based systems.
 
 Once the archive is acquired you will need a place to unzip it.
-I suggest `/opt` or  `/usr/local`. 
+I suggest `/opt` or  `/usr/local`.
 
 ```shell
 cd /usr/local
@@ -24,14 +24,15 @@ unzip jms-bridge-1.0.0-M1.zip
 
 Once unzipped you should have a folder named `jms-bridge-<version>` and the content of that folder should look like:
 ```shell
-jms-bridge-1.0.0-M1 $> ls
-bin   etc   share
+jms-bridge-1.0.0-M1-SNAPSHOT $> ls
+bin   etc   lib  share
 ```
 
 Those directories follow the standard linux conventions for naming.
  * `bin` contains executables
  * `etc` contains configuration files
- * `share` contains libraries and jars
+ * `lib` contains libraris and jars useful to external processes
+ * `share` contains docs, libraries and jars
 
 Update the permissions appropriately
 ```shell
@@ -58,6 +59,13 @@ As a companion to the `jms-bridge-server-start` script there is a `jms-bridge-se
 bin/jms-bridge-server-stop
 ```
 
+``` note::
+    Default location of runtime files of interest:
+
+     * Log files  -> `./logs`
+     * Data files -> `./data`
+```
+
 ## Systemd
 
 It is possible to run it via systemd but I leave that as an exercise for the reader for now.
@@ -75,6 +83,12 @@ The path to the Java installation you'd like to use.
 The JVM classpath used for executing the JMS-Bridge.
 
 This is a the basis of the classpath and will be appended to by the start scripts.
+
+### JMS_BRIDGE_DATA_DIR
+
+The directory in which any data files required for the JMS-Bridge will be written to.
+
+Default: `./data`
 
 ### JMS_BRIDGE_HEAP_OPTS
 
@@ -95,14 +109,19 @@ Options used for setting up the JVM's JMX interface.
 
 ### JMS_BRIDGE_LOG4J_OPTS
 
-Logging options, based on log4j.
+Logging options, based on [log4j2](https://logging.apache.org/log4j/2.x/manual). 
 
 For example to specify a custom logging configuration file you can set this property to
 ```shell
-export JMS_BRIDGE_LOG4J_OPTS="-Dlog4j.configuration=file:/path/to/log4j.properties"
+export JMS_BRIDGE_LOG4J_OPTS="-Dlog4j2.configurationFile=file:/path/to/log4j2.xml"
 ```
 
-Alternatively to modify the logging you can edit the `etc/jms-bridge/log4j-rolling.properties` file directly.
+Alternatively to modify the logging you can edit the `etc/jms-bridge/log4j2.xml` file directly.
+
+Included with the install is an example rolling file log4j2 configuration, `log4j2-rolling.xml`.
+
+The `log4j2-cli.xml` file configures logging for the [jms-bridge CLI](cli.md) command, you may 
+modify that as needed.
 
 ### JMX_PORT
 
@@ -111,6 +130,8 @@ The port on which the JMX interface will be available on.
 ### LOG_DIR
 
 Sets the path to the directory in which log files will be written.
+
+Default: `./logs`
 
 ### 
 

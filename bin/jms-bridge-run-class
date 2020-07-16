@@ -3,6 +3,47 @@
 
 # Use shellcheck to lint this file
 
+if [ $# -lt 1 ];
+then
+  echo "USAGE: $0 [-daemon] [opts] [-help]"
+    exit 1
+fi
+
+MAIN="$1"
+shift
+
+DAEMON_NAME=""
+GC_LOG_ENABLED=""
+DAEMON_MODE=""
+HELP=""
+if [ "$1" = "help" ]; then
+  HELP="true"
+fi
+while [ $# -gt 0 ]; do
+  COMMAND="$1"
+  case "$COMMAND" in
+    -name)
+      DAEMON_NAME=$2
+      shift 2
+      ;;
+    -loggc)
+      GC_LOG_ENABLED="true"
+      shift
+      ;;
+    -daemon)
+      DAEMON_MODE="true"
+      shift
+      ;;
+    -help)
+      HELP="true"
+      shift
+      ;;
+   *)
+      break
+      ;;
+  esac
+done
+
 base_dir=$( cd -P "$( dirname "${BASH_SOURCE[0]}" )/.." && pwd )
 
 # Log directory to use
@@ -86,47 +127,6 @@ fi
 if [ -z "$JMS_BRIDGE_JVM_PERFORMANCE_OPTS" ]; then
   JMS_BRIDGE_JVM_PERFORMANCE_OPTS="-server -XX:+UseConcMarkSweepGC -XX:+CMSClassUnloadingEnabled -XX:+CMSScavengeBeforeRemark -XX:+ExplicitGCInvokesConcurrent -XX:NewRatio=1 -Djava.awt.headless=true"
 fi
-
-if [ $# -lt 1 ];
-then
-  echo "USAGE: $0 [-daemon] [opts] [-help]"
-    exit 1
-fi
-
-MAIN="$1"
-shift
-
-DAEMON_NAME=""
-GC_LOG_ENABLED=""
-DAEMON_MODE=""
-HELP=""
-if [ "$1" = "help" ]; then
-  HELP="true"
-fi
-while [ $# -gt 0 ]; do
-  COMMAND="$1"
-  case "$COMMAND" in
-    -name)
-      DAEMON_NAME=$2
-      shift 2
-      ;;
-    -loggc)
-      GC_LOG_ENABLED="true"
-      shift
-      ;;
-    -daemon)
-      DAEMON_MODE="true"
-      shift
-      ;;
-    -help)
-      HELP="true"
-      shift
-      ;;
-   *)
-      break
-      ;;
-  esac
-done
 
 
 # GC options

@@ -15,8 +15,8 @@ base_dir=$( cd "$( dirname "${BASH_SOURCE[0]}" )/.." && pwd )
 : "${JMS_BRIDGE_CONFIG_DIR:="$base_dir/etc/jms-bridge"}"
 
 : "${JMS_BRIDGE_LOG4J_OPTS:=""}"
-if [ -z "$JMS_BRIDGE_LOG4J_OPTS" ] && [ -e "$JMS_BRIDGE_CONFIG_DIR/log4j2-rolling.xml" ]; then
-  export JMS_BRIDGE_LOG4J_OPTS="-Dlog4j2.configurationFile=file:$JMS_BRIDGE_CONFIG_DIR/log4j2-rolling.xml"
+if [ -z "$JMS_BRIDGE_LOG4J_OPTS" ] && [ -e "$JMS_BRIDGE_CONFIG_DIR/log4j2.xml" ]; then
+  export JMS_BRIDGE_LOG4J_OPTS="-Dlog4j2.configurationFile=file:$JMS_BRIDGE_CONFIG_DIR/log4j2.xml"
 fi
 
 EXTRA_ARGS="-name jms-bridge -loggc"
@@ -26,6 +26,14 @@ if [ -z "$JMS_BRIDGE_OPTS" ]; then
 else
   JMS_BRIDGE_OPTS="${JMS_BRIDGE_OPTS} -Djms-bridge.server.install.dir=$base_dir"
 fi
+
+: "${JMS_BRIDGE_DATA_DIR:=""}"
+if [ -z "$JMS_BRIDGE_DATA_DIR" ]; then
+  JMS_BRIDGE_OPTS="${JMS_BRIDGE_OPTS} -Djms-bridge.data.dir=$base_dir/data"
+else
+  JMS_BRIDGE_OPTS="${JMS_BRIDGE_OPTS} -Djms-bridge.data.dir=$JMS_BRIDGE_DATA_DIR"
+fi
+
 
 export JMS_BRIDGE_OPTS
 

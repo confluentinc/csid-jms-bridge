@@ -23,7 +23,7 @@
       </address-setting>
     </address-settings>
 
-    <bindings-directory>./target/bindings</bindings-directory>
+    <bindings-directory>${jms-bridge.data.dir:./data}/bindings</bindings-directory>
 
     <connectors>
       <!-- Default Connector.  Returned to clients during broadcast and distributed around cluster.  See broadcast and discovery-groups -->
@@ -32,13 +32,13 @@
       </connector>
     </connectors>
 
-    <journal-directory>./target/journal</journal-directory>
+    <journal-directory>${jms-bridge.data.dir:./data}/journal</journal-directory>
 
     <journal-min-files>2</journal-min-files>
 
-    <large-messages-directory>./target/large-messages</large-messages-directory>
+    <large-messages-directory>${jms-bridge.data.dir:./data}/large-messages</large-messages-directory>
 
-    <paging-directory>./target/paging</paging-directory>
+    <paging-directory>${jms-bridge.data.dir:./data}/paging</paging-directory>
 
     <security-enabled>false</security-enabled>
   </core>
