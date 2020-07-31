@@ -71,7 +71,7 @@ public class ReconciledMessage<V> {
   @SuppressWarnings("unchecked")
   public ReconciledMessage<JournalRecord> asForward() {
     if (isForwarded()) {
-      return (ReconciledMessage<JournalRecord>) this.value;
+      return (ReconciledMessage<JournalRecord>) this;
     }
 
     return null;

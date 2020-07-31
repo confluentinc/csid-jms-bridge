@@ -28,6 +28,9 @@ public interface KafkaJournalLoaderCallback extends LoaderCallback {
   }
 
   static KafkaJournalLoaderCallback wrap(LoaderCallback delegate) {
+    if (delegate instanceof KafkaJournalLoaderCallback) {
+      return (KafkaJournalLoaderCallback) delegate;
+    }
     return new WrappedCallback(delegate);
   }
 

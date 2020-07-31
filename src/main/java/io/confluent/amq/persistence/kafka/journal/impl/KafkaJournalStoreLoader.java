@@ -16,6 +16,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.LongAdder;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.utils.Bytes;
+import org.apache.kafka.streams.KafkaStreams.State;
+import org.apache.kafka.streams.KafkaStreams.StateListener;
 import org.apache.kafka.streams.KeyValue;
 import org.apache.kafka.streams.processor.ProcessorContext;
 import org.apache.kafka.streams.processor.StateRestoreListener;
@@ -27,10 +29,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class KafkaJournalStoreLoader implements
-    KafkaJournalHandler, StateRestoreListener, KeyValueStore<Bytes, byte[]> {
+    KafkaJournalHandler, StateRestoreListener, StateListener, KeyValueStore<Bytes, byte[]> {
 
-  public static Supplier createSupplier(String name, KafkaJournalTxHandler txHandler) {
-    return new Supplier(name, txHandler);
+  public static Supplier createSupplier(KafkaJournalStoreLoader loader) {
+    return new Supplier(loader);
   }
 
   private static final Logger LOGGER = LoggerFactory.getLogger(KafkaJournalStoreLoader.class);
@@ -86,6 +88,20 @@ public class KafkaJournalStoreLoader implements
     return Collections.singletonList(ReconciledMessage.forward(this.name, key, record));
   }
 
+  /////// Streams State Listener impl
+
+  @Override
+  public void onChange(State newState, State oldState) {
+    if (oldState != newState && newState == State.RUNNING) {
+      if (loaderReady.isDone()) {
+        try {
+          loaderReady.get().loadComplete(finalLoadCount.get());
+        } catch (Exception e) {
+          throw new RuntimeException(e);
+        }
+      }
+    }
+  }
 
   /////// StateRestoreListener impl
 
@@ -254,22 +270,20 @@ public class KafkaJournalStoreLoader implements
 
   public static class Supplier implements KeyValueBytesStoreSupplier {
 
-    private final String name;
-    private final KafkaJournalTxHandler txHandler;
+    private final KafkaJournalStoreLoader loader;
 
-    public Supplier(String name, KafkaJournalTxHandler txHandler) {
-      this.name = name;
-      this.txHandler = txHandler;
+    public Supplier(KafkaJournalStoreLoader loader) {
+      this.loader = loader;
     }
 
     @Override
     public String name() {
-      return name;
+      return loader.name();
     }
 
     @Override
     public KeyValueStore<Bytes, byte[]> get() {
-      return new KafkaJournalStoreLoader(name, txHandler);
+      return loader;
     }
 
 

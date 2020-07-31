@@ -65,6 +65,7 @@ public class KafkaJournalProcessor {
   public void startAndLoad(KafkaJournalLoaderCallback callback) {
     if (streams != null) {
       this.loader.readyLoader(callback);
+      streams.setStateListener(this.loader);
       streams.start();
     } else {
       throw new IllegalStateException(
@@ -74,7 +75,7 @@ public class KafkaJournalProcessor {
 
   protected Topology createTopology(Properties topoProps) {
     KeyValueBytesStoreSupplier supplier =
-        KafkaJournalStoreLoader.createSupplier("journal-store", this.txHandler);
+        KafkaJournalStoreLoader.createSupplier(this.loader);
 
     StreamsBuilder builder = new StreamsBuilder();
     builder.table(this.journalTopic,
@@ -91,6 +92,10 @@ public class KafkaJournalProcessor {
   }
 
   private JournalRecord deserializeJournalRecord(byte[] bytes) {
+    if (bytes == null) {
+      return null;
+    }
+
     try {
       return JournalRecord.parseFrom(bytes);
     } catch (Exception e) {

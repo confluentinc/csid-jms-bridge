@@ -144,7 +144,7 @@ public class KafkaJournalStorageManager extends JournalStorageManager {
   @Override
   protected void performCachedLargeMessageDeletes() {
     //not supporting large messages
-    throw new UnsupportedOperationException();
+    LOGGER.debug("Unsupported method performCachedLargeMessageDeletes called");
   }
 
   @Override
@@ -174,19 +174,19 @@ public class KafkaJournalStorageManager extends JournalStorageManager {
   @Override
   public void deleteLargeMessageBody(LargeServerMessage largeServerMessage)
       throws ActiveMQException {
-    throw new UnsupportedOperationException();
-
+    LOGGER.debug("Unsupported method deleteLargeMessageBody called");
   }
 
   @Override
   public void startReplication(ReplicationManager replicationManager, PagingManager pagingManager,
       String nodeID, boolean autoFailBack, long initialReplicationSyncTimeout) throws Exception {
     //unnecessary
-
+    LOGGER.debug("Unsupported method startReplication called");
   }
 
   @Override
   public void stopReplication() {
     //unnecessary
+    LOGGER.debug("Unsupported method stopReplication called");
   }
 }

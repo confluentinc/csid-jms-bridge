@@ -36,6 +36,11 @@ public class KafkaJournalReconciler {
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
   public List<ReconciledMessage<?>> reconcileRecord(byte[] key, JournalRecord record) {
     List<ReconciledMessage<?>> reconciledMessages = Collections.emptyList();
+    if (record == null) {
+      //tombstone
+      return reconciledMessages;
+    }
+
     switch (record.getRecordType()) {
       case ADD_RECORD:
       case UPDATE_RECORD:

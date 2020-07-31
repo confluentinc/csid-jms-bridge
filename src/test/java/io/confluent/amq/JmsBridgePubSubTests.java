@@ -7,28 +7,18 @@ package io.confluent.amq;
 import static io.confluent.amq.SerdePool.deserString;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
 
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import io.confluent.amq.test.TestSupport;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.Properties;
 import javax.jms.Connection;
-import javax.jms.ConnectionFactory;
 import javax.jms.Message;
 import javax.jms.MessageConsumer;
 import javax.jms.MessageProducer;
 import javax.jms.Session;
 import javax.jms.TextMessage;
 import javax.jms.Topic;
-import org.apache.activemq.artemis.api.jms.ActiveMQJMSClient;
-import org.apache.activemq.artemis.core.config.Configuration;
-import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.apache.kafka.common.serialization.Serde;
-import org.apache.kafka.common.serialization.Serdes;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -39,18 +29,15 @@ import org.junit.jupiter.api.extension.RegisterExtension;
 import org.junit.jupiter.api.io.TempDir;
 import org.testcontainers.containers.KafkaContainer;
 
-@SuppressFBWarnings({"MS_SHOULD_BE_FINAL", "MS_PKGPROTECT"})
 @Tag("IntegrationTest")
-public class ConfluentAmqServerTests {
-
+public class JmsBridgePubSubTests {
   private static final String JMS_TOPIC = "jms-to-kafka";
-  static final Serde<String> stringSerde = Serdes.String();
 
   @RegisterExtension
   public static KafkaTestContainer kafkaContainer = new KafkaTestContainer(
       new KafkaContainer("5.4.0")
-        .withEnv("KAFKA_DELETE_TOPIC_ENABLE", "true")
-        .withEnv("KAFKA_AUTO_CREATE_TOPICS_ENABLE", "false"));
+          .withEnv("KAFKA_DELETE_TOPIC_ENABLE", "true")
+          .withEnv("KAFKA_AUTO_CREATE_TOPICS_ENABLE", "false"));
 
   public static ConfluentEmbeddedAmq amqServer;
 
@@ -88,8 +75,9 @@ public class ConfluentAmqServerTests {
     amqConnection.close();
   }
 
+
   @Test
-  public void jmsPublishKafkaConsumeTopic() throws Exception {
+  public void jmsBasicPubSub() throws Exception {
     Session session = amqConnection.createSession(false, Session.AUTO_ACKNOWLEDGE);
     Topic topic = session.createTopic(JMS_TOPIC);
     MessageProducer producer = session.createProducer(topic);
@@ -98,56 +86,20 @@ public class ConfluentAmqServerTests {
     //It also must be targetting a durable queue
     MessageConsumer consumer = session.createDurableConsumer(topic, "test-subscriber");
 
-    TextMessage message = session.createTextMessage("Hello Kafka");
-    message.setJMSCorrelationID("yo-correlate-man");
+    TextMessage message = session.createTextMessage("Hello JMS Bridge");
     //Exceptions in bridges do bubble up to the client.
     producer.send(message);
 
-    Thread.sleep(1000);
-
-    try {
-      Message received = consumer.receive(100);
-      assertEquals("Hello Kafka", received.getBody(String.class));
-    } finally {
-      producer.close();
-      consumer.close();
-      session.close();
-    }
-
-    List<ConsumerRecord<String, String>> records = kafkaContainer.consumeAll(JMS_TOPIC,
-        stringSerde.deserializer(), stringSerde.deserializer());
-    assertEquals(1, records.size());
-    assertEquals("Hello Kafka", records.get(0).value());
-    assertEquals("yo-correlate-man", records.get(0).key());
-    assertTrue(records.get(0).headers().toArray().length > 0);
-
-  }
-
-  @Test
-  public void kafkaPublishJmsConsumeTopic() throws Exception {
-    Session session = amqConnection.createSession(false, Session.AUTO_ACKNOWLEDGE);
-    Topic topic = session.createTopic(JMS_TOPIC);
-    MessageConsumer consumer = session.createDurableConsumer(topic, "test-subscriber");
-
     //allow the consumer to get situated.
     Thread.sleep(1000);
-    kafkaContainer.publish(JMS_TOPIC, "key", "Hello AMQ");
 
     try {
       Message received = consumer.receive(5000);
       assertNotNull(received);
-      assertEquals("Hello AMQ",
-          deserString(received.getBody(byte[].class)));
+      assertEquals("Hello JMS Bridge", received.getBody(String.class));
     } finally {
       consumer.close();
       session.close();
     }
-
-    List<ConsumerRecord<String, String>> records = kafkaContainer.consumeAll(JMS_TOPIC,
-        stringSerde.deserializer(), stringSerde.deserializer());
-    assertEquals(1, records.size());
   }
-
-
-
 }

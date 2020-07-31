@@ -109,11 +109,14 @@ public class KafkaJournalTxHandler {
     List<ReconciledMessage<?>> reconciledMessages = Collections.emptyList();
 
     if (record.getRecordType() == JournalRecordType.PREPARE_RECORD) {
+      LOGGER.info("Preparing transaction with id: '{}'", record.getTxId());
       reconciledMessages = prepareTx(key, record);
-    } else if (!transactions.containsKey(record.getTxId())) {
-      LOGGER.error("Invalid transaction found, unprepared TX has {} record",
-          record.getRecordType().name());
     } else {
+      if (!transactions.containsKey(record.getTxId())) {
+        LOGGER.info("Starting transaction with id: '{}'", record.getTxId());
+        prepareTx(key, record);
+      }
+
       TransactionHolder txHolder = transactions.get(record.getTxId());
 
       switch (record.getRecordType()) {
