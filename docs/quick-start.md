@@ -23,7 +23,7 @@ cp ~/Downloads/jms-bridge-*.zip ./
 unzip jms-bridge-*
 export JAVA_HOME=<java-1.8-install-dir>
 chmod -R a=rx,o+w bin/
-bin/jms-bridge-server-start -daemon etc/jms-bridge.properties
+bin/jms-bridge-server-start -daemon etc/jms-bridge/jms-bridge.properties
 bin/jms-bridge receive --url tcp://localhost:61616 --topic quick-start
 ```
 
