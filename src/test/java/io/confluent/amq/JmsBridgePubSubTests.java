@@ -4,13 +4,14 @@
 
 package io.confluent.amq;
 
-import static io.confluent.amq.SerdePool.deserString;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 
+import io.confluent.amq.persistence.kafka.JournalRecord;
+import io.confluent.amq.persistence.kafka.JournalRecordKey;
 import io.confluent.amq.test.TestSupport;
 import java.nio.file.Path;
-import java.util.List;
+import java.util.stream.Collectors;
 import javax.jms.Connection;
 import javax.jms.Message;
 import javax.jms.MessageConsumer;
@@ -18,7 +19,9 @@ import javax.jms.MessageProducer;
 import javax.jms.Session;
 import javax.jms.TextMessage;
 import javax.jms.Topic;
-import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.activemq.artemis.core.server.embedded.EmbeddedActiveMQ;
+import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.apache.kafka.common.serialization.ByteArrayDeserializer;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -31,6 +34,8 @@ import org.testcontainers.containers.KafkaContainer;
 
 @Tag("IntegrationTest")
 public class JmsBridgePubSubTests {
+
+  private static final boolean IS_VANILLA = false;
   private static final String JMS_TOPIC = "jms-to-kafka";
 
   @RegisterExtension
@@ -48,11 +53,15 @@ public class JmsBridgePubSubTests {
 
   @BeforeAll
   public static void setupAll() throws Exception {
-    kafkaContainer.createTopic(JMS_TOPIC, 1);
-
-    amqServer = TestSupport.createEmbeddedAmq(b -> b
-        .jmsBridgeProps(kafkaContainer.defaultProps())
-        .dataDirectory(amqDataDir.toString()));
+    if (IS_VANILLA) {
+      amqServer = TestSupport.createVanillaEmbeddedAmq(b -> b
+          .dataDirectory(amqDataDir.toString())
+          .jmsBridgeProps(kafkaContainer.defaultProps()));
+    } else {
+      amqServer = TestSupport.createEmbeddedAmq(b -> b
+          .jmsBridgeProps(kafkaContainer.defaultProps())
+          .dataDirectory(amqDataDir.toString()));
+    }
 
     amqServer.start();
   }
@@ -60,7 +69,6 @@ public class JmsBridgePubSubTests {
   @AfterAll
   public static void cleanupAll() throws Exception {
     amqServer.stop();
-    kafkaContainer.deleteTopics(JMS_TOPIC);
   }
 
   @BeforeEach
@@ -86,20 +94,64 @@ public class JmsBridgePubSubTests {
     //It also must be targetting a durable queue
     MessageConsumer consumer = session.createDurableConsumer(topic, "test-subscriber");
 
-    TextMessage message = session.createTextMessage("Hello JMS Bridge");
-    //Exceptions in bridges do bubble up to the client.
-    producer.send(message);
-
     //allow the consumer to get situated.
     Thread.sleep(1000);
 
+    int count = 1;
     try {
-      Message received = consumer.receive(5000);
-      assertNotNull(received);
-      assertEquals("Hello JMS Bridge", received.getBody(String.class));
+      for (int i = 0; i < count; i++) {
+        producer.send(session.createTextMessage("Hello JMS Bridge " + i));
+        Message received = consumer.receive(100);
+        assertNotNull(received);
+        assertEquals("Hello JMS Bridge " + i, received.getBody(String.class));
+        Thread.sleep(100);
+      }
     } finally {
+      System.out.println("Closing JMS session and connection");
       consumer.close();
       session.close();
     }
+
+    if (!IS_VANILLA) {
+      String bindingsJournal = "_jms.bridge_junit_bindings";
+      logJournalFiles(bindingsJournal);
+
+      String messagesJournal = "_jms.bridge_junit_messages";
+      logJournalFiles(messagesJournal);
+    }
+  }
+
+  public void logJournalFiles(String journalTopic) {
+    String journalStr = kafkaContainer
+        .consumeAll(journalTopic, new ByteArrayDeserializer(), new ByteArrayDeserializer())
+        .stream()
+        .map(r -> {
+
+          String key = "null";
+          if (r.key() != null) {
+            try {
+              JournalRecordKey rkey = JournalRecordKey.parseFrom(r.key());
+              key = String.format("tx-%d_id-%d", rkey.getTxId(), rkey.getId());
+            } catch (Exception e) {
+              key = "ERROR";
+            }
+          }
+
+          String value = "null";
+          if (r.value() != null) {
+            try {
+              JournalRecord rval = JournalRecord.parseFrom(r.value());
+              value = String.format("RecordType: %s, UserRecordType: %d",
+                  rval.getRecordType().name(), rval.getUserRecordType());
+            } catch (Exception e) {
+              value = "ERROR";
+            }
+          }
+
+          return String.format("Offset: %d, Key: %s, Value: %s", r.offset(), key, value);
+        }).collect(Collectors.joining(System.lineSeparator() + System.lineSeparator()));
+
+    System.out.println(
+        "#### JOURNAL FOR TOPIC " + journalTopic + " ####" + System.lineSeparator() + journalStr);
   }
 }

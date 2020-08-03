@@ -11,7 +11,11 @@
   </Appenders>
 
   <Loggers>
-    <Logger name="io.confluent.amq" level="DEBUG" additivity="false">
+    <Logger name="io.confluent.amq" level="TRACE" additivity="false">
+      <AppenderRef ref="stdout"/>
+    </Logger>
+
+    <Logger name="org.apache.activemq.artemis.core" level="TRACE" additivity="false">
       <AppenderRef ref="stdout"/>
     </Logger>
 
@@ -68,15 +72,15 @@
       <AppenderRef ref="stdout"/>
     </Logger>
 
-    <Logger name="org.apache.kafka.clients.admin.AdminClientConfig" level="WARN" additivity="false">
+    <Logger name="org.apache.kafka.clients.admin.AdminClientConfig" level="ERROR" additivity="false">
       <AppenderRef ref="stdout"/>
     </Logger>
 
-    <Logger name="org.apache.kafka.clients.consumer.ConsumerConfig" level="WARN" additivity="false">
+    <Logger name="org.apache.kafka.clients.consumer.ConsumerConfig" level="ERROR" additivity="false">
       <AppenderRef ref="stdout"/>
     </Logger>
 
-    <Logger name="org.apache.kafka.clients.producer.ProducerConfig" level="WARN" additivity="false">
+    <Logger name="org.apache.kafka.clients.producer.ProducerConfig" level="ERROR" additivity="false">
       <AppenderRef ref="stdout"/>
     </Logger>
 
@@ -103,7 +107,7 @@
       <AppenderRef ref="stdout"/>
     </Logger>
 
-    <Root level="INFO">
+    <Root level="WARN">
       <AppenderRef ref="stdout"/>
     </Root>
   </Loggers>

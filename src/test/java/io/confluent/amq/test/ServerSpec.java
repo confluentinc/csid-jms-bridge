@@ -5,6 +5,7 @@
 package io.confluent.amq.test;
 
 import java.util.Map;
+import java.util.Optional;
 import java.util.Properties;
 import org.inferred.freebuilder.FreeBuilder;
 
@@ -23,11 +24,17 @@ public interface ServerSpec {
 
   String bridgeId();
 
-  String dataDirectory();
+  Optional<String> dataDirectory();
 
   String brokerXml();
 
+  boolean useVanilla();
+
   class Builder extends ServerSpec_Builder {
+
+    public Builder() {
+      this.useVanilla(false);
+    }
 
     public Builder jmsBridgeProps(Properties jmsBridgeProps) {
       jmsBridgeProps.forEach((k, v) -> this.putJmsBridgeConfigs((String)k, v));

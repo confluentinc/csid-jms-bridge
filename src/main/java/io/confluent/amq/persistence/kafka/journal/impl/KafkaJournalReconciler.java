@@ -5,6 +5,7 @@
 package io.confluent.amq.persistence.kafka.journal.impl;
 
 import io.confluent.amq.persistence.kafka.JournalRecord;
+import io.confluent.amq.persistence.kafka.JournalRecordKey;
 import io.confluent.amq.persistence.kafka.ReconciledMessage;
 import java.util.Collections;
 import java.util.List;
@@ -31,6 +32,22 @@ public class KafkaJournalReconciler {
     this.recordHandler = recordHandler;
     this.txHandler = txHandler;
     this.journalTopic = journalTopic;
+  }
+
+  public List<ReconciledMessage<?>> deleteRecord(byte[] key, JournalRecord record) {
+    if (LOGGER.isTraceEnabled()) {
+      String logKey = "EXCEPTION";
+      try {
+        JournalRecordKey jkey = JournalRecordKey.parseFrom(key);
+        logKey = String.format("tx-%d_id-%d", jkey.getTxId(), jkey.getId());
+      } catch (Exception e) {
+        //don't let it propagate
+      }
+
+      LOGGER.trace("DELETE Record({}) Tombstone: key: '{}' ", journalTopic, logKey);
+    }
+
+    return Collections.singletonList(ReconciledMessage.tombstone(journalTopic, key));
   }
 
   @SuppressWarnings("checkstyle:CyclomaticComplexity")

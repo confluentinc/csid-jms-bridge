@@ -96,16 +96,12 @@ public class KafkaTestContainer implements
   public <K, V> List<ConsumerRecord<K, V>> consumeAll(String topic, Deserializer<K> keydeser,
       Deserializer<V> valuedeser) {
 
-    Set<TopicPartition> assignment = consumer.assignment();
     List<TopicPartition> ptList = consumer.partitionsFor(topic).stream()
         .map(pi -> new TopicPartition(pi.topic(), pi.partition()))
-        .filter(tp -> !assignment.contains(tp))
         .collect(Collectors.toList());
 
     if (!ptList.isEmpty()) {
-      Set<TopicPartition> newAssignment = new HashSet<>(assignment);
-      newAssignment.addAll(ptList);
-      consumer.assign(newAssignment);
+      consumer.assign(ptList);
       consumer.seekToBeginning(ptList);
     }
 

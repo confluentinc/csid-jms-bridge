@@ -10,13 +10,12 @@ import java.nio.ByteBuffer;
 import java.util.concurrent.ScheduledExecutorService;
 import org.apache.activemq.artemis.api.core.ActiveMQBuffer;
 import org.apache.activemq.artemis.api.core.ActiveMQException;
+import org.apache.activemq.artemis.api.core.ActiveMQIOErrorException;
 import org.apache.activemq.artemis.api.core.Message;
-import org.apache.activemq.artemis.api.core.SimpleString;
 import org.apache.activemq.artemis.core.config.Configuration;
 import org.apache.activemq.artemis.core.io.IOCriticalErrorListener;
 import org.apache.activemq.artemis.core.io.SequentialFile;
 import org.apache.activemq.artemis.core.io.nio.NIOSequentialFileFactory;
-import org.apache.activemq.artemis.core.paging.PagedMessage;
 import org.apache.activemq.artemis.core.paging.PagingManager;
 import org.apache.activemq.artemis.core.persistence.impl.journal.JournalStorageManager;
 import org.apache.activemq.artemis.core.replication.ReplicationManager;
@@ -59,7 +58,8 @@ public class KafkaJournalStorageManager extends JournalStorageManager {
   }
 
   @Override
-  protected void init(Configuration config, IOCriticalErrorListener criticalErrorListener) {
+  protected synchronized void init(Configuration config,
+      IOCriticalErrorListener criticalErrorListener) {
     //need to create these journals
 
     JmsBridgeConfiguration jbConfig = (JmsBridgeConfiguration) config;
@@ -73,9 +73,9 @@ public class KafkaJournalStorageManager extends JournalStorageManager {
     this.kafkaIO.start();
 
     this.bindingsJournal = new KafkaJournal(kafkaIO, bridgeId, BINDINGS_NAME,
-        criticalErrorListener);
+        executorFactory, criticalErrorListener);
     this.messageJournal = new KafkaJournal(kafkaIO, bridgeId, MESSAGES_NAME,
-        criticalErrorListener);
+        executorFactory, criticalErrorListener);
 
   }
 
@@ -105,25 +105,6 @@ public class KafkaJournalStorageManager extends JournalStorageManager {
 
   @Override
   protected void beforeStop() throws Exception {
-  }
-
-  @Override
-  public void pageClosed(SimpleString storeName, int pageNumber) {
-    //pages are basically offset ranges
-    super.pageClosed(storeName, pageNumber);
-
-  }
-
-  @Override
-  public void pageDeleted(SimpleString storeName, int pageNumber) {
-    //pages are basically offset ranges
-    super.pageDeleted(storeName, pageNumber);
-  }
-
-  @Override
-  public void pageWrite(PagedMessage message, int pageNumber) {
-    //pages are basically offset ranges
-    super.pageWrite(message, pageNumber);
   }
 
 
@@ -156,7 +137,8 @@ public class KafkaJournalStorageManager extends JournalStorageManager {
   @Override
   public LargeServerMessage createLargeMessage(long id, Message message) throws Exception {
     //not supported
-    throw new UnsupportedOperationException();
+    int messageEncodeSize = message.getEncodeSize();
+    throw new ActiveMQIOErrorException("Message larger than max messag size");
   }
 
   @Override

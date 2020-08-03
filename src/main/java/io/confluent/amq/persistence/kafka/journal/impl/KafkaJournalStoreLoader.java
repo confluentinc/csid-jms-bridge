@@ -208,6 +208,11 @@ public class KafkaJournalStoreLoader implements
 
   protected void restore(byte[] key, ByteBuffer value) {
     try {
+      if (value == null) {
+        //skip tombstones
+        return;
+      }
+
       JournalRecord journalRecord = JournalRecord.parseFrom(value);
 
       //use our reconciler which also forwards add/update records

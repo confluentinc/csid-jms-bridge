@@ -43,6 +43,7 @@ import org.testcontainers.containers.KafkaContainer;
 @Tag("IntegrationTest")
 public class ConfluentAmqServerTests {
 
+  private static final boolean IS_VANILLA = true;
   private static final String JMS_TOPIC = "jms-to-kafka";
   static final Serde<String> stringSerde = Serdes.String();
 
@@ -61,11 +62,15 @@ public class ConfluentAmqServerTests {
 
   @BeforeAll
   public static void setupAll() throws Exception {
-    kafkaContainer.createTopic(JMS_TOPIC, 1);
-
-    amqServer = TestSupport.createEmbeddedAmq(b -> b
-        .jmsBridgeProps(kafkaContainer.defaultProps())
-        .dataDirectory(amqDataDir.toString()));
+    if (IS_VANILLA) {
+      amqServer = TestSupport.createVanillaEmbeddedAmq(b -> b
+        .dataDirectory(amqDataDir.toString())
+        .jmsBridgeProps(kafkaContainer.defaultProps()));
+    } else {
+      amqServer = TestSupport.createEmbeddedAmq(b -> b
+          .jmsBridgeProps(kafkaContainer.defaultProps())
+          .dataDirectory(amqDataDir.toString()));
+    }
 
     amqServer.start();
   }
@@ -73,7 +78,6 @@ public class ConfluentAmqServerTests {
   @AfterAll
   public static void cleanupAll() throws Exception {
     amqServer.stop();
-    kafkaContainer.deleteTopics(JMS_TOPIC);
   }
 
   @BeforeEach
@@ -90,6 +94,7 @@ public class ConfluentAmqServerTests {
 
   @Test
   public void jmsPublishKafkaConsumeTopic() throws Exception {
+    System.out.println(">>>>> IS VANILLA IS " + IS_VANILLA + " <<<<<<<");
     Session session = amqConnection.createSession(false, Session.AUTO_ACKNOWLEDGE);
     Topic topic = session.createTopic(JMS_TOPIC);
     MessageProducer producer = session.createProducer(topic);

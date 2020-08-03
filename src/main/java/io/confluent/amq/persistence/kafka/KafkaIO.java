@@ -17,6 +17,7 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
+import org.apache.activemq.artemis.api.core.ActiveMQExceptionType;
 import org.apache.activemq.artemis.api.core.ICoreMessage;
 import org.apache.activemq.artemis.api.core.Message;
 import org.apache.activemq.artemis.api.core.SimpleString;
@@ -76,9 +77,8 @@ public class KafkaIO {
   }
 
   /**
-   * Creates a new consumer thread and starts it.
-   * It does not manage any more of it's lifecycle past that point and is up to the caller
-   * to ensure it is stopped properly.
+   * Creates a new consumer thread and starts it. It does not manage any more of it's lifecycle past
+   * that point and is up to the caller to ensure it is stopped properly.
    */
   public <K, V> ConsumerThread<K, V> startConsumerThread(Consumer<Builder<K, V>> spec) {
     ConsumerThread.Builder<K, V> builder = ConsumerThread.newBuilder();
@@ -132,7 +132,7 @@ public class KafkaIO {
     }
   }
 
-  public void writeJournalRecord(KafkaJournalRecord record) {
+  public void writeJournalRecord(final KafkaJournalRecord record) {
     int pcount = kafkaProducer.partitionsFor(record.getDestTopic()).size();
     byte[] partitionKey = record.getKafkaPartitionKey().toByteArray();
     int partition = Utils.toPositive(Utils.murmur2(partitionKey)) % pcount;
@@ -143,10 +143,23 @@ public class KafkaIO {
         record.getKafkaMessageKey().toByteArray(),
         record.getRecord().toByteArray());
 
+    if (LOGGER.isTraceEnabled()) {
+      String key = String.format("txId: '%d', id: '%d'",
+          record.getKafkaMessageKey().getTxId(),
+          record.getKafkaMessageKey().getId());
+      LOGGER.trace("Publishing record {"
+              + " topic: '{}', partition: '{}', key: '{}', recordType: '{}' }",
+              record.getDestTopic(),
+              partition,
+              key,
+              record.getRecord().getRecordType().name());
+    }
+
     kafkaProducer.send(producerRecord, (meta, err) -> {
       if (err != null) {
         if (record.getIoCompletion() != null) {
-          record.getIoCompletion().onError(500, err.getMessage());
+          record.getIoCompletion()
+              .onError(ActiveMQExceptionType.IO_ERROR.getCode(), err.getMessage());
         }
         LOGGER.error("Publishing of journal data to kafka failed.", err);
       } else {

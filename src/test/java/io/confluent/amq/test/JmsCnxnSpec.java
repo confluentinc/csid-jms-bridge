@@ -18,6 +18,9 @@ public interface JmsCnxnSpec {
 
   class Builder extends JmsCnxnSpec_Builder {
 
+    public Builder() {
+      this.url("tcp://localhost:61616");
+    }
   }
 
 }
