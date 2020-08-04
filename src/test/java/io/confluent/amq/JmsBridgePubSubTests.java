@@ -17,10 +17,7 @@ import javax.jms.Message;
 import javax.jms.MessageConsumer;
 import javax.jms.MessageProducer;
 import javax.jms.Session;
-import javax.jms.TextMessage;
 import javax.jms.Topic;
-import org.apache.activemq.artemis.core.server.embedded.EmbeddedActiveMQ;
-import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.common.serialization.ByteArrayDeserializer;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
@@ -28,6 +25,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.junit.jupiter.api.io.TempDir;
 import org.testcontainers.containers.KafkaContainer;
@@ -85,6 +83,7 @@ public class JmsBridgePubSubTests {
 
 
   @Test
+  @Timeout(30)
   public void jmsBasicPubSub() throws Exception {
     Session session = amqConnection.createSession(false, Session.AUTO_ACKNOWLEDGE);
     Topic topic = session.createTopic(JMS_TOPIC);
@@ -97,15 +96,18 @@ public class JmsBridgePubSubTests {
     //allow the consumer to get situated.
     Thread.sleep(1000);
 
-    int count = 1;
+    int count = 100;
     try {
       for (int i = 0; i < count; i++) {
         producer.send(session.createTextMessage("Hello JMS Bridge " + i));
+      }
+
+      for (int i = 0; i < count; i++) {
         Message received = consumer.receive(100);
         assertNotNull(received);
         assertEquals("Hello JMS Bridge " + i, received.getBody(String.class));
-        Thread.sleep(100);
       }
+
     } finally {
       System.out.println("Closing JMS session and connection");
       consumer.close();

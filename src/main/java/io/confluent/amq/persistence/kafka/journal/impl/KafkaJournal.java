@@ -203,7 +203,10 @@ public class KafkaJournal implements Journal {
     kafkaIO.createTopicIfNotExists(this.destTopic, 1, 1, topicProps);
 
     Properties streamProps = this.kafkaIO.getKafkaProps();
-    streamProps.put(StreamsConfig.APPLICATION_ID_CONFIG, "jms.bridge." + this.bridgeId);
+    streamProps.put(
+        StreamsConfig.APPLICATION_ID_CONFIG,
+        String.format("jms.bridge.%s.%s", this.bridgeId, this.journalName));
+
     streamProps.put(StreamsConfig.COMMIT_INTERVAL_MS_CONFIG, "500");
     streamProps.put(StreamsConfig.CACHE_MAX_BYTES_BUFFERING_CONFIG, "0");
     //requires 3 brokers at minimum

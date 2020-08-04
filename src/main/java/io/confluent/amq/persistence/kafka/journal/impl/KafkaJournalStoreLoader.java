@@ -4,6 +4,7 @@
 
 package io.confluent.amq.persistence.kafka.journal.impl;
 
+import io.confluent.amq.LogFormat;
 import io.confluent.amq.persistence.kafka.JournalRecord;
 import io.confluent.amq.persistence.kafka.KafkaRecordUtils;
 import io.confluent.amq.persistence.kafka.ReconciledMessage;
@@ -14,6 +15,7 @@ import java.util.NoSuchElementException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.LongAdder;
+import org.apache.activemq.artemis.core.journal.PreparedTransactionInfo;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.utils.Bytes;
 import org.apache.kafka.streams.KafkaStreams.State;
@@ -36,6 +38,8 @@ public class KafkaJournalStoreLoader implements
   }
 
   private static final Logger LOGGER = LoggerFactory.getLogger(KafkaJournalStoreLoader.class);
+  private static final LogFormat LOGFORMAT = LogFormat.forSubject("KafkaJournalLoader");
+
   private static final KeyValueIterator<Bytes, byte[]> EMPTY_ITER =
       new KeyValueIterator<Bytes, byte[]>() {
 
@@ -77,8 +81,46 @@ public class KafkaJournalStoreLoader implements
     this.loaderReady = new CompletableFuture<>();
   }
 
+  /**
+   * This is required to begin the loading process, without this call the Kafka streams state store
+   * will be stuck on restoration.
+   *
+   * @param callback The loader callback to be populated with loading information
+   */
   public void readyLoader(KafkaJournalLoaderCallback callback) {
+    if (LOGGER.isDebugEnabled()) {
+      LOGGER.debug("{}: name={}", LOGFORMAT.prefix("LoaderReady"), name);
+    }
+
     loaderReady.complete(callback);
+  }
+
+  private void markRestorationComplete() {
+    int finalCount = restoreCounter.getAndSet(Integer.MAX_VALUE);
+    finalLoadCount.compareAndSet(0, finalCount);
+
+    if (LOGGER.isDebugEnabled()) {
+      LOGGER.debug("{}: name={}, finalLoadCount={}",
+          LOGFORMAT.prefix("RestorationComplete"), name, finalCount);
+    }
+  }
+
+  private boolean isRestorationComplete() {
+    return restoreCounter.get() == Integer.MAX_VALUE;
+  }
+
+  private void executeLoadCallback(KafkaJournalLoaderCallback callback) {
+    List<PreparedTransactionInfo> preparedTransactions = this.txHandler.preparedTransactions();
+    preparedTransactions.forEach(callback::addPreparedTransaction);
+    callback.loadComplete(finalLoadCount.get());
+
+    if (LOGGER.isDebugEnabled()) {
+      LOGGER.debug("{}: name={}, finalLoadCount={}, txSize={} ",
+          LOGFORMAT.prefix("ExecutedLoadCallback"),
+          name,
+          finalLoadCount.get(),
+          preparedTransactions.size());
+    }
   }
 
   ////// KafkaJournalHandler impl
@@ -95,7 +137,7 @@ public class KafkaJournalStoreLoader implements
     if (oldState != newState && newState == State.RUNNING) {
       if (loaderReady.isDone()) {
         try {
-          loaderReady.get().loadComplete(finalLoadCount.get());
+          executeLoadCallback(loaderReady.get());
         } catch (Exception e) {
           throw new RuntimeException(e);
         }
@@ -109,7 +151,11 @@ public class KafkaJournalStoreLoader implements
   public void onRestoreStart(TopicPartition topicPartition, String storeName, long startingOffset,
       long endingOffset) {
     if (this.name.equals(storeName)) {
-      restoreCounter.getAndIncrement();
+      int count = restoreCounter.getAndIncrement();
+      if (LOGGER.isTraceEnabled() && count == 0) {
+        LOGGER.trace("{}: name={}", LOGFORMAT.prefix("RestorationBegin"), name);
+      }
+
     }
   }
 
@@ -124,12 +170,10 @@ public class KafkaJournalStoreLoader implements
     if (this.name.equals(storeName)) {
       int currCount = restoreCounter.decrementAndGet();
       if (currCount < 1) {
-        int finalCount = restoreCounter.getAndSet(Integer.MAX_VALUE);
-        finalLoadCount.compareAndSet(0, finalCount);
+        markRestorationComplete();
       }
     }
   }
-
 
   /////// KeyValueStore impl
 
@@ -206,6 +250,8 @@ public class KafkaJournalStoreLoader implements
     }
   }
 
+  //due to logging
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   protected void restore(byte[] key, ByteBuffer value) {
     try {
       if (value == null) {
@@ -221,9 +267,15 @@ public class KafkaJournalStoreLoader implements
       //now we need to make sure the loader callback is available
       KafkaJournalLoaderCallback callback = loaderReady.get();
 
-      for (ReconciledMessage<?> rawMsg: messages) {
+      for (ReconciledMessage<?> rawMsg : messages) {
         ReconciledMessage<JournalRecord> rmsg = rawMsg.asForward();
         if (rmsg != null) {
+
+          if (LOGGER.isTraceEnabled()) {
+            LOGGER.trace("{}: name={}, recordType={} ",
+                LOGFORMAT.prefix("RestoreRecord"), name, rmsg.getValue().getRecordType());
+          }
+
           switch (rmsg.getValue().getRecordType()) {
             case DELETE_RECORD:
               callback.deleteRecord(rmsg.getValue().getId());
@@ -235,7 +287,10 @@ public class KafkaJournalStoreLoader implements
               callback.updateRecord(KafkaRecordUtils.toRecordInfo(rmsg.getValue()));
               break;
             default:
-              LOGGER.warn("Unwanted record type received during restore/load: {}",
+              LOGGER.warn("{}: name={}, msg={}, recordType={}",
+                  LOGFORMAT.prefix("UnwantedRestoreRecord"),
+                  name,
+                  "Unwanted record type received during restore/load.",
                   rmsg.getValue().getRecordType());
               break;
           }
@@ -243,9 +298,8 @@ public class KafkaJournalStoreLoader implements
       }
 
       //check to see if restore is over
-      if (restoreCounter.get() == Integer.MAX_VALUE) {
-        this.txHandler.preparedTransactions().forEach(callback::addPreparedTransaction);
-        callback.loadComplete(finalLoadCount.get());
+      if (isRestorationComplete()) {
+        executeLoadCallback(callback);
       }
     } catch (Exception e) {
       throw new RuntimeException(e);

@@ -13,14 +13,13 @@ import org.apache.activemq.artemis.api.core.ActiveMQException;
 import org.apache.activemq.artemis.api.core.ActiveMQIOErrorException;
 import org.apache.activemq.artemis.api.core.Message;
 import org.apache.activemq.artemis.core.config.Configuration;
+import org.apache.activemq.artemis.core.io.IOCallback;
 import org.apache.activemq.artemis.core.io.IOCriticalErrorListener;
 import org.apache.activemq.artemis.core.io.SequentialFile;
 import org.apache.activemq.artemis.core.io.nio.NIOSequentialFileFactory;
-import org.apache.activemq.artemis.core.paging.PagingManager;
+import org.apache.activemq.artemis.core.persistence.OperationContext;
 import org.apache.activemq.artemis.core.persistence.impl.journal.JournalStorageManager;
-import org.apache.activemq.artemis.core.replication.ReplicationManager;
 import org.apache.activemq.artemis.core.server.LargeServerMessage;
-import org.apache.activemq.artemis.core.server.files.FileStoreMonitor;
 import org.apache.activemq.artemis.utils.ExecutorFactory;
 import org.apache.activemq.artemis.utils.critical.CriticalAnalyzer;
 import org.slf4j.Logger;
@@ -53,8 +52,6 @@ public class KafkaJournalStorageManager extends JournalStorageManager {
 
     super(config, analyzer, executorFactory, scheduledExecutorService, ioExecutorFactory,
         criticalErrorListener);
-
-
   }
 
   @Override
@@ -95,21 +92,76 @@ public class KafkaJournalStorageManager extends JournalStorageManager {
     //nop
   }
 
+  @Override
+  public OperationContext getContext() {
+    return DummyOperationContext.getInstance();
+  }
+
+  private static final class DummyOperationContext implements OperationContext {
+
+    private static DummyOperationContext instance = new DummyOperationContext();
+
+    public static OperationContext getInstance() {
+      return DummyOperationContext.instance;
+    }
+
+    @Override
+    public void executeOnCompletion(final IOCallback runnable) {
+      // There are no executeOnCompletion calls while using the DummyOperationContext
+      // However we keep the code here for correctness
+      runnable.done();
+    }
+
+    @Override
+    public void executeOnCompletion(IOCallback runnable, boolean storeOnly) {
+      executeOnCompletion(runnable);
+    }
+
+    @Override
+    public void replicationDone() {
+    }
+
+    @Override
+    public void replicationLineUp() {
+    }
+
+    @Override
+    public void storeLineUp() {
+    }
+
+    @Override
+    public void done() {
+    }
+
+    @Override
+    public void onError(final int errorCode, final String errorMessage) {
+    }
+
+    @Override
+    public void waitCompletion() {
+    }
+
+    @Override
+    public boolean waitCompletion(final long timeout) {
+      return true;
+    }
+
+    @Override
+    public void pageSyncLineUp() {
+    }
+
+    @Override
+    public void pageSyncDone() {
+    }
+  }
+
+
   //////////////////
   // BELOW ARE NOT REQUIRED TO BE IMPLEMENTED
   //////////////////
 
   @Override
   protected void beforeStart() throws Exception {
-  }
-
-  @Override
-  protected void beforeStop() throws Exception {
-  }
-
-
-  @Override
-  public void injectMonitor(FileStoreMonitor monitor) throws Exception {
 
   }
 
@@ -157,18 +209,5 @@ public class KafkaJournalStorageManager extends JournalStorageManager {
   public void deleteLargeMessageBody(LargeServerMessage largeServerMessage)
       throws ActiveMQException {
     LOGGER.debug("Unsupported method deleteLargeMessageBody called");
-  }
-
-  @Override
-  public void startReplication(ReplicationManager replicationManager, PagingManager pagingManager,
-      String nodeID, boolean autoFailBack, long initialReplicationSyncTimeout) throws Exception {
-    //unnecessary
-    LOGGER.debug("Unsupported method startReplication called");
-  }
-
-  @Override
-  public void stopReplication() {
-    //unnecessary
-    LOGGER.debug("Unsupported method stopReplication called");
   }
 }
