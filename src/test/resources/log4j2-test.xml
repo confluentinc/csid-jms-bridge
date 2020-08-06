@@ -15,7 +15,7 @@
       <AppenderRef ref="stdout"/>
     </Logger>
 
-    <Logger name="org.apache.activemq.artemis.core" level="TRACE" additivity="false">
+    <Logger name="org.apache.activemq.artemis.core" level="INFO" additivity="false">
       <AppenderRef ref="stdout"/>
     </Logger>
 

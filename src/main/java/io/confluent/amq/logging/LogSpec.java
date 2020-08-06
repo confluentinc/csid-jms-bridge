@@ -23,7 +23,9 @@ public interface LogSpec {
 
     tokens().forEach((k, v) -> sb.append(k).append("='").append(v).append("', "));
 
-    sb.delete(sb.length() - 2, sb.length());
+    if (sb.length() > 2) {
+      sb.delete(sb.length() - 2, sb.length());
+    }
 
     return sb.toString();
   }
@@ -37,6 +39,8 @@ public interface LogSpec {
   Optional<String> name();
 
   Optional<String> message();
+
+  Optional<Throwable> error();
 
   class Builder extends LogSpec_Builder {
 

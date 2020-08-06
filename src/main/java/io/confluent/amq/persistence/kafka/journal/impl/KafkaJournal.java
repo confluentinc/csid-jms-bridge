@@ -5,6 +5,7 @@
 package io.confluent.amq.persistence.kafka.journal.impl;
 
 import com.google.protobuf.ByteString;
+import io.confluent.amq.logging.StructuredLogger;
 import io.confluent.amq.persistence.kafka.JournalRecord;
 import io.confluent.amq.persistence.kafka.JournalRecord.JournalRecordType;
 import io.confluent.amq.persistence.kafka.KafkaIO;
@@ -48,6 +49,9 @@ import org.slf4j.LoggerFactory;
 public class KafkaJournal implements Journal {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(KafkaJournal.class);
+  private static final StructuredLogger SLOG = StructuredLogger
+      .with(b -> b.loggerClass(KafkaJournal.class));
+
   private static final Integer MAX_RECORD_SIZE = 1024 * 1024;
   public static final int SEGMENT_MAX_BYTES = 100 * 1024 * 1024;
 
@@ -129,9 +133,7 @@ public class KafkaJournal implements Journal {
   private void appendRecord(KafkaJournalRecord kjr) throws Exception {
     checkStatus(kjr.getIoCompletion());
 
-    if (LOGGER.isTraceEnabled()) {
-      LOGGER.trace("appendRecord " + kjr);
-    }
+    SLOG.trace(b -> b.event("AppendRecord").name(journalName).addJournalRecord(kjr.getRecord()));
 
     if (kjr.getRecord().getRecordType() == JournalRecordType.COMMIT_RECORD
         && kjr.getIoCompletion() != null) {
@@ -151,16 +153,11 @@ public class KafkaJournal implements Journal {
       kjr.setIoCompletion(callback);
     }
 
-    publishRecord(kjr);
+    kafkaIO.writeJournalRecord(kjr);
 
     if (callback != null) {
       callback.waitCompletion();
     }
-  }
-
-  private void publishRecord(KafkaJournalRecord record) {
-
-    kafkaIO.writeJournalRecord(record);
   }
 
 
@@ -193,6 +190,8 @@ public class KafkaJournal implements Journal {
 
   @Override
   public void start() throws Exception {
+    SLOG.debug(b -> b.name(journalName).event("Start"));
+
     Map<String, String> topicProps = new HashMap<>();
     topicProps.put(TopicConfig.CLEANUP_POLICY_CONFIG, TopicConfig.CLEANUP_POLICY_COMPACT);
     topicProps.put(TopicConfig.SEGMENT_BYTES_CONFIG, Integer.toString(SEGMENT_MAX_BYTES));
@@ -216,13 +215,16 @@ public class KafkaJournal implements Journal {
     this.processor.init();
 
     state = JournalState.STARTED;
+    SLOG.debug(b -> b.name(journalName).event("Start").markSuccess());
   }
 
   @Override
   public void stop() throws Exception {
+    SLOG.debug(b -> b.name(journalName).event("Stop"));
     if (this.processor != null) {
       this.processor.stop();
     }
+    SLOG.debug(b -> b.name(journalName).event("Stop").markSuccess());
 
   }
 
@@ -243,13 +245,6 @@ public class KafkaJournal implements Journal {
       final TransactionFailureCallback failureCallback,
       final boolean fixBadTX) throws Exception {
 
-    if (LOGGER.isTraceEnabled()) {
-      LOGGER.trace(
-          "Journal:{}:: "
-              + "load (sparseCommittedRecords, preparedTransactions, failureCallback, fixBadTX)",
-          this.journalName);
-    }
-
     final List<RecordInfo> records = new ArrayList<>();
     final JournalLoadInformation journalLoadInformation = load(records, preparedTransactions,
         failureCallback, fixBadTX);
@@ -263,12 +258,6 @@ public class KafkaJournal implements Journal {
       final TransactionFailureCallback failureCallback,
       final boolean fixBadTX) throws Exception {
 
-    if (LOGGER.isTraceEnabled()) {
-      LOGGER.trace(
-          "Journal:{}:: load (committedRecords, preparedTransactions, failureCallback, fixBadTX)",
-          this.journalName);
-    }
-
     KafkaJournalLoaderCallback lc = KafkaJournalLoaderCallback.from(committedRecords,
         preparedTransactions, failureCallback, fixBadTX);
 
@@ -278,17 +267,20 @@ public class KafkaJournal implements Journal {
   @Override
   public synchronized JournalLoadInformation load(LoaderCallback reloadManager) {
 
-    if (LOGGER.isTraceEnabled()) {
-      LOGGER.trace(
-          "Journal:{}:: load (reloadManager)",
-          this.journalName);
-    }
+    SLOG.debug(b -> b.name(journalName).event("Load"));
 
     KafkaJournalLoaderCallback klc = KafkaJournalLoaderCallback.wrap(reloadManager);
     processor.startAndLoad(klc);
 
     JournalLoadInformation jli = klc.getLoadInfo();
     this.state = JournalState.LOADED;
+
+    SLOG.debug(b -> b
+        .name(journalName)
+        .event("Load")
+        .markSuccess()
+        .putTokens("NumberOfRecords", jli.getNumberOfRecords())
+        .putTokens("MaxID", jli.getMaxID()));
 
     return jli;
   }
@@ -297,10 +289,6 @@ public class KafkaJournal implements Journal {
   public boolean tryAppendDeleteRecord(long id, boolean sync, IOCompletion completionCallback)
       throws Exception {
 
-    if (LOGGER.isTraceEnabled()) {
-      LOGGER.trace("Journal:{}:: tryAppendDeleteRecord(id, sync, callback)", this.journalName);
-    }
-
     appendDeleteRecord(id, sync, completionCallback);
     return true;
   }
@@ -308,11 +296,6 @@ public class KafkaJournal implements Journal {
   @Override
   public void appendAddRecord(long id, byte userRecordType, byte[] record, boolean sync)
       throws Exception {
-
-    if (LOGGER.isTraceEnabled()) {
-      LOGGER.trace("Journal:{}:: appendAddRecord(id, userRecordType, byte[], sync)",
-          this.journalName);
-    }
 
     JournalRecord r = JournalRecord.newBuilder()
         .setId(id)
@@ -329,11 +312,6 @@ public class KafkaJournal implements Journal {
   @Override
   public void appendAddRecord(long id, byte userRecordType, Persister persister, Object record,
       boolean sync) throws Exception {
-
-    if (LOGGER.isTraceEnabled()) {
-      LOGGER.trace("Journal:{}:: appendAddRecord(id, userRecordType, byte[], sync)",
-          this.journalName);
-    }
 
     JournalRecord r = JournalRecord.newBuilder()
         .setId(id)
@@ -350,12 +328,6 @@ public class KafkaJournal implements Journal {
   @Override
   public void appendAddRecord(long id, byte userRecordType, Persister persister, Object record,
       boolean sync, IOCompletion completionCallback) throws Exception {
-    if (LOGGER.isTraceEnabled()) {
-      LOGGER.trace("Journal:{}:: appendAddRecord("
-              + "long id, byte userRecordType, Persister persister, Object record, boolean sync,"
-              + " IOCompletion completionCallback)",
-          this.journalName);
-    }
 
     JournalRecord r = JournalRecord.newBuilder()
         .setId(id)
@@ -372,11 +344,6 @@ public class KafkaJournal implements Journal {
   @Override
   public void appendUpdateRecord(long id, byte userRecordType, byte[] record, boolean sync)
       throws Exception {
-    if (LOGGER.isTraceEnabled()) {
-      LOGGER.trace("Journal:{}:: appendUpdateRecord("
-              + "long id, byte userRecordType, byte[] record, boolean sync)",
-          this.journalName);
-    }
 
     JournalRecord r = JournalRecord.newBuilder()
         .setId(id)
@@ -393,11 +360,6 @@ public class KafkaJournal implements Journal {
   @Override
   public void appendUpdateRecord(long id, byte userRecordType, Persister persister, Object record,
       boolean sync) throws Exception {
-    if (LOGGER.isTraceEnabled()) {
-      LOGGER.trace("Journal:{}:: appendUpdateRecord("
-              + "long id, byte userRecordType, Persister persister, Object record, boolean sync)",
-          this.journalName);
-    }
 
     JournalRecord r = JournalRecord.newBuilder()
         .setId(id)
@@ -414,12 +376,6 @@ public class KafkaJournal implements Journal {
   @Override
   public void appendUpdateRecord(long id, byte userRecordType, Persister persister, Object record,
       boolean sync, IOCompletion callback) throws Exception {
-    if (LOGGER.isTraceEnabled()) {
-      LOGGER.trace("Journal:{}:: appendUpdateRecord("
-              + "long id, byte userRecordType, Persister persister, Object record, boolean sync,"
-              + " IOCompletion callback)",
-          this.journalName);
-    }
 
     JournalRecord r = JournalRecord.newBuilder()
         .setId(id)
@@ -435,11 +391,7 @@ public class KafkaJournal implements Journal {
 
   @Override
   public void appendDeleteRecord(long id, boolean sync) throws Exception {
-    if (LOGGER.isTraceEnabled()) {
-      LOGGER.trace("Journal:{}:: appendDeleteRecord("
-              + "long id, boolean sync)",
-          this.journalName);
-    }
+
     //delete record marks the record as eligible for compaction
     appendDeleteRecord(id, sync, null);
 
@@ -449,11 +401,6 @@ public class KafkaJournal implements Journal {
   @Override
   public void appendDeleteRecord(long id, boolean sync, IOCompletion completionCallback)
       throws Exception {
-    if (LOGGER.isTraceEnabled()) {
-      LOGGER.trace("Journal:{}:: appendDeleteRecord("
-              + "long id, boolean sync, IOCompletion completionCallback)",
-          this.journalName);
-    }
     //delete record marks the record as eligible for compaction
     JournalRecord r = JournalRecord.newBuilder()
         .setId(id)
@@ -468,11 +415,6 @@ public class KafkaJournal implements Journal {
   public void appendAddRecordTransactional(long txID, long id, byte userRecordType,
       Persister persister,
       Object record) throws Exception {
-    if (LOGGER.isTraceEnabled()) {
-      LOGGER.trace("Journal:{}:: appendAddRecordTransactional("
-              + "long txID, long id, byte userRecordType, Persister persister, Object record) ",
-          this.journalName);
-    }
 
     appendAddRecordTransactional(txID, id, userRecordType, decode(persister, record));
   }
@@ -481,11 +423,6 @@ public class KafkaJournal implements Journal {
   @Override
   public void appendAddRecordTransactional(long txID, long id, byte userRecordType, byte[] record)
       throws Exception {
-    if (LOGGER.isTraceEnabled()) {
-      LOGGER.trace("Journal:{}:: appendAddRecordTransactional("
-              + "long txID, long id, byte userRecordType, byte[] record)",
-          this.journalName);
-    }
     //adds a new record to the journal
 
     JournalRecord r = JournalRecord.newBuilder()
@@ -503,11 +440,6 @@ public class KafkaJournal implements Journal {
   @Override
   public void appendUpdateRecordTransactional(long txID, long id, byte userRecordType,
       Persister persister, Object record) throws Exception {
-    if (LOGGER.isTraceEnabled()) {
-      LOGGER.trace("Journal:{}:: appendUpdateRecordTransactional("
-              + "long txID, long id, byte userRecordType, Persister persister, Object record) ",
-          this.journalName);
-    }
 
     byte[] recordBytes = decode(persister, record);
     appendUpdateRecordTransactional(txID, id, userRecordType, recordBytes);
@@ -518,11 +450,7 @@ public class KafkaJournal implements Journal {
   public void appendUpdateRecordTransactional(long txID, long id, byte userRecordType,
       byte[] record)
       throws Exception {
-    if (LOGGER.isTraceEnabled()) {
-      LOGGER.trace("Journal:{}:: appendUpdateRecordTransactional("
-              + "long txID, long id, byte userRecordType, byte[] record)",
-          this.journalName);
-    }
+
     //add a record indicating an existing record has been updated.  Not sure if this should replace
     //the previous record or be aggregated with it.
 
@@ -541,11 +469,6 @@ public class KafkaJournal implements Journal {
   @Override
   public void appendDeleteRecordTransactional(long txID, long id, EncodingSupport record)
       throws Exception {
-    if (LOGGER.isTraceEnabled()) {
-      LOGGER.trace("Journal:{}:: appendDeleteRecordTransactional("
-              + "long txID, long id, EncodingSupport record)",
-          this.journalName);
-    }
 
     appendDeleteRecordTransactional(txID, id, decode(record));
   }
@@ -553,11 +476,7 @@ public class KafkaJournal implements Journal {
 
   @Override
   public void appendDeleteRecordTransactional(long txID, long id) throws Exception {
-    if (LOGGER.isTraceEnabled()) {
-      LOGGER.trace("Journal:{}:: appendDeleteRecordTransactional("
-              + "long txID, long id)",
-          this.journalName);
-    }
+
     JournalRecord r = JournalRecord.newBuilder()
         .setTxId(txID)
         .setId(id)
@@ -569,11 +488,7 @@ public class KafkaJournal implements Journal {
 
   @Override
   public void appendDeleteRecordTransactional(long txID, long id, byte[] record) throws Exception {
-    if (LOGGER.isTraceEnabled()) {
-      LOGGER.trace("Journal:{}:: appendDeleteRecordTransactional("
-              + "long txID, long id, byte[] record)",
-          this.journalName);
-    }
+
     JournalRecord r = JournalRecord.newBuilder()
         .setTxId(txID)
         .setId(id)
@@ -586,22 +501,14 @@ public class KafkaJournal implements Journal {
 
   @Override
   public void appendCommitRecord(long txID, boolean sync) throws Exception {
-    if (LOGGER.isTraceEnabled()) {
-      LOGGER.trace("Journal:{}:: appendCommitRecord("
-              + "long txID, boolean sync)",
-          this.journalName);
-    }
+
     appendCommitRecord(txID, sync, null, false);
   }
 
 
   @Override
   public void appendCommitRecord(long txID, boolean sync, IOCompletion callback) throws Exception {
-    if (LOGGER.isTraceEnabled()) {
-      LOGGER.trace("Journal:{}:: appendCommitRecord("
-              + "long txID, boolean sync, IOCompletion callback)",
-          this.journalName);
-    }
+
     appendCommitRecord(txID, sync, callback, false);
   }
 
@@ -609,11 +516,6 @@ public class KafkaJournal implements Journal {
   @Override
   public void appendCommitRecord(long txID, boolean sync, IOCompletion callback,
       boolean lineUpContext) throws Exception {
-    if (LOGGER.isTraceEnabled()) {
-      LOGGER.trace("Journal:{}:: appendCommitRecord("
-              + "long txID, boolean sync, IOCompletion callback, boolean lineUpContext)",
-          this.journalName);
-    }
 
     JournalRecord r = JournalRecord.newBuilder()
         .setRecordType(JournalRecordType.COMMIT_RECORD)
@@ -627,11 +529,6 @@ public class KafkaJournal implements Journal {
   @Override
   public void appendPrepareRecord(long txID, EncodingSupport transactionData, boolean sync)
       throws Exception {
-    if (LOGGER.isTraceEnabled()) {
-      LOGGER.trace("Journal:{}:: appendPrepareRecord("
-              + "long txID, EncodingSupport transactionData, boolean sync)",
-          this.journalName);
-    }
 
     appendPrepareRecord(txID, transactionData, sync, null);
   }
@@ -640,11 +537,6 @@ public class KafkaJournal implements Journal {
   @Override
   public void appendPrepareRecord(long txID, EncodingSupport transactionData, boolean sync,
       IOCompletion callback) throws Exception {
-    if (LOGGER.isTraceEnabled()) {
-      LOGGER.trace("Journal:{}:: appendPrepareRecord("
-              + "long txID, EncodingSupport transactionData, boolean sync, IOCompletion callback) ",
-          this.journalName);
-    }
 
     JournalRecord r = JournalRecord.newBuilder()
         .setRecordType(JournalRecordType.PREPARE_RECORD)
@@ -659,11 +551,6 @@ public class KafkaJournal implements Journal {
   @Override
   public void appendPrepareRecord(long txID, byte[] transactionData, boolean sync)
       throws Exception {
-    if (LOGGER.isTraceEnabled()) {
-      LOGGER.trace("Journal:{}:: appendPrepareRecord("
-              + "long txID, byte[] transactionData, boolean sync)",
-          this.journalName);
-    }
 
     JournalRecord r = JournalRecord.newBuilder()
         .setRecordType(JournalRecordType.PREPARE_RECORD)
@@ -677,11 +564,7 @@ public class KafkaJournal implements Journal {
 
   @Override
   public void appendRollbackRecord(long txID, boolean sync) throws Exception {
-    if (LOGGER.isTraceEnabled()) {
-      LOGGER.trace("Journal:{}:: appendRollbackRecord("
-              + "long txID, boolean sync)",
-          this.journalName);
-    }
+
     appendRollbackRecord(txID, sync, null);
   }
 
@@ -689,11 +572,6 @@ public class KafkaJournal implements Journal {
   @Override
   public void appendRollbackRecord(long txID, boolean sync, IOCompletion callback)
       throws Exception {
-    if (LOGGER.isTraceEnabled()) {
-      LOGGER.trace("Journal:{}:: appendRollbackRecord("
-              + "long txID, boolean sync, IOCompletion callback)",
-          this.journalName);
-    }
 
     JournalRecord r = JournalRecord.newBuilder()
         .setRecordType(JournalRecordType.ROLLBACK_RECORD)
@@ -705,11 +583,20 @@ public class KafkaJournal implements Journal {
 
   @Override
   public JournalLoadInformation loadInternalOnly() throws Exception {
+    SLOG.debug(b -> b
+        .name(journalName)
+        .event("UnimplementedMethodCall")
+        .message("loadInternalOnly"));
+
     return null;
   }
 
   @Override
   public JournalLoadInformation loadSyncOnly(JournalState state) throws Exception {
+    SLOG.debug(b -> b
+        .name(journalName)
+        .event("UnimplementedMethodCall")
+        .message("loadSyncOnly"));
     return null;
   }
 
@@ -756,6 +643,11 @@ public class KafkaJournal implements Journal {
 
   @Override
   public int getAlignment() throws Exception {
+    SLOG.debug(b -> b
+        .name(journalName)
+        .event("UnimplementedMethodCall")
+        .message("getAlignment"));
+
     // required for replication, not needed so return 0
     return 0;
   }
@@ -767,41 +659,73 @@ public class KafkaJournal implements Journal {
 
   @Override
   public int getUserVersion() {
+    SLOG.debug(b -> b
+        .name(journalName)
+        .event("UnimplementedMethodCall")
+        .message("getUserVersion"));
     return 0;
   }
 
   @Override
   public void runDirectJournalBlast() throws Exception {
-    //do nothing
+    SLOG.debug(b -> b
+        .name(journalName)
+        .event("UnimplementedMethodCall")
+        .message("runDirectJournalBlast"));
   }
 
   @Override
   public Map<Long, JournalFile> createFilesForBackupSync(long[] fileIds) throws Exception {
+    SLOG.debug(b -> b
+        .name(journalName)
+        .event("UnimplementedMethodCall")
+        .message("createFilesForBackupSync"));
+
     return Collections.emptyMap();
   }
 
   @Override
   public void synchronizationLock() {
+    SLOG.debug(b -> b
+        .name(journalName)
+        .event("UnimplementedMethodCall")
+        .message("synchronizationLock"));
     //do nothing
   }
 
   @Override
   public void synchronizationUnlock() {
+    SLOG.debug(b -> b
+        .name(journalName)
+        .event("UnimplementedMethodCall")
+        .message("synchronizationUnlock"));
     //do nothing
   }
 
   @Override
   public void forceMoveNextFile() throws Exception {
+    SLOG.debug(b -> b
+        .name(journalName)
+        .event("UnimplementedMethodCall")
+        .message("forceMoveNextFile"));
     //do nothing
   }
 
   @Override
   public JournalFile[] getDataFiles() {
+    SLOG.debug(b -> b
+        .name(journalName)
+        .event("UnimplementedMethodCall")
+        .message("getDataFiles"));
     return new JournalFile[0];
   }
 
   @Override
   public SequentialFileFactory getFileFactory() {
+    SLOG.debug(b -> b
+        .name(journalName)
+        .event("UnimplementedMethodCall")
+        .message("getFileFactory"));
     return null;
   }
 
@@ -812,21 +736,37 @@ public class KafkaJournal implements Journal {
 
   @Override
   public void scheduleCompactAndBlock(int timeout) throws Exception {
+    SLOG.debug(b -> b
+        .name(journalName)
+        .event("UnimplementedMethodCall")
+        .message("scheduleCompactAndBlock"));
     //do nothing
   }
 
   @Override
   public void replicationSyncPreserveOldFiles() {
+    SLOG.debug(b -> b
+        .name(journalName)
+        .event("UnimplementedMethodCall")
+        .message("scheduleCompactAndBlock"));
     //do nothing
   }
 
   @Override
   public void replicationSyncFinished() {
+    SLOG.debug(b -> b
+        .name(journalName)
+        .event("UnimplementedMethodCall")
+        .message("replicationSyncFinished"));
     //do nothing
   }
 
   @Override
   public void flush() throws Exception {
+    SLOG.debug(b -> b
+        .name(journalName)
+        .event("UnimplementedMethodCall")
+        .message("flush"));
     //do nothing
   }
 

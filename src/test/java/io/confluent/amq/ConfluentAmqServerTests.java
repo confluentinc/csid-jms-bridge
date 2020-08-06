@@ -10,39 +10,26 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
-import io.confluent.amq.test.TestSupport;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import io.confluent.amq.test.ArtemisTestServer;
+import io.confluent.amq.test.KafkaTestContainer;
 import java.util.List;
-import java.util.Properties;
-import javax.jms.Connection;
-import javax.jms.ConnectionFactory;
 import javax.jms.Message;
 import javax.jms.MessageConsumer;
 import javax.jms.MessageProducer;
 import javax.jms.Session;
 import javax.jms.TextMessage;
 import javax.jms.Topic;
-import org.apache.activemq.artemis.api.jms.ActiveMQJMSClient;
-import org.apache.activemq.artemis.core.config.Configuration;
-import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.serialization.Serde;
 import org.apache.kafka.common.serialization.Serdes;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
-import org.junit.jupiter.api.io.TempDir;
 import org.testcontainers.containers.KafkaContainer;
 
 @SuppressFBWarnings({"MS_SHOULD_BE_FINAL", "MS_PKGPROTECT"})
 @Tag("IntegrationTest")
-@Disabled
 public class ConfluentAmqServerTests {
 
   private static final boolean IS_VANILLA = true;
@@ -50,54 +37,22 @@ public class ConfluentAmqServerTests {
   static final Serde<String> stringSerde = Serdes.String();
 
   @RegisterExtension
+  @Order(100)
   public static KafkaTestContainer kafkaContainer = new KafkaTestContainer(
       new KafkaContainer("5.4.0")
         .withEnv("KAFKA_DELETE_TOPIC_ENABLE", "true")
         .withEnv("KAFKA_AUTO_CREATE_TOPICS_ENABLE", "false"));
 
-  public static ConfluentEmbeddedAmq amqServer;
-
-  @TempDir
-  public static Path amqDataDir;
-
-  Connection amqConnection;
-
-  @BeforeAll
-  public static void setupAll() throws Exception {
-    if (IS_VANILLA) {
-      amqServer = TestSupport.createVanillaEmbeddedAmq(b -> b
-        .dataDirectory(amqDataDir.toString())
-        .jmsBridgeProps(kafkaContainer.defaultProps()));
-    } else {
-      amqServer = TestSupport.createEmbeddedAmq(b -> b
-          .jmsBridgeProps(kafkaContainer.defaultProps())
-          .dataDirectory(amqDataDir.toString()));
-    }
-
-    amqServer.start();
-  }
-
-  @AfterAll
-  public static void cleanupAll() throws Exception {
-    amqServer.stop();
-  }
-
-  @BeforeEach
-  public void setup() throws Exception {
-    amqConnection = TestSupport.startJmsConnection(b -> {
-
-    });
-  }
-
-  @AfterEach
-  public void cleanup() throws Exception {
-    amqConnection.close();
-  }
+  @RegisterExtension
+  @Order(200)
+  public static ArtemisTestServer amqServer = ArtemisTestServer.embedded(b -> b
+      .useVanilla(IS_VANILLA)
+      .jmsBridgeProps(kafkaContainer.defaultProps()));
 
   @Test
   public void jmsPublishKafkaConsumeTopic() throws Exception {
     System.out.println(">>>>> IS VANILLA IS " + IS_VANILLA + " <<<<<<<");
-    Session session = amqConnection.createSession(false, Session.AUTO_ACKNOWLEDGE);
+    Session session = amqServer.getConnection().createSession(false, Session.AUTO_ACKNOWLEDGE);
     Topic topic = session.createTopic(JMS_TOPIC);
     MessageProducer producer = session.createProducer(topic);
 
@@ -132,7 +87,7 @@ public class ConfluentAmqServerTests {
 
   @Test
   public void kafkaPublishJmsConsumeTopic() throws Exception {
-    Session session = amqConnection.createSession(false, Session.AUTO_ACKNOWLEDGE);
+    Session session = amqServer.getConnection().createSession(false, Session.AUTO_ACKNOWLEDGE);
     Topic topic = session.createTopic(JMS_TOPIC);
     MessageConsumer consumer = session.createDurableConsumer(topic, "test-subscriber");
 

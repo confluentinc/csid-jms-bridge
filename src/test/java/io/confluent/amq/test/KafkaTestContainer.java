@@ -2,7 +2,7 @@
  * Copyright 2020 Confluent Inc.
  */
 
-package io.confluent.amq;
+package io.confluent.amq.test;
 
 import static io.confluent.amq.SerdePool.ser;
 
@@ -10,7 +10,6 @@ import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Properties;
@@ -58,8 +57,23 @@ public class KafkaTestContainer implements
   }
 
   @Override
-  public void afterAll(ExtensionContext extensionContext) throws Exception {
-    after();
+  public void beforeAll(ExtensionContext extensionContext) throws Exception {
+    this.kafkaContainer.start();
+
+    Properties kafkaProps = defaultProps();
+    kafkaProps.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false");
+    kafkaProps.put(ConsumerConfig.GROUP_ID_CONFIG, "kafka-test-container");
+
+    this.adminClient = AdminClient.create(kafkaProps);
+    this.producer = new KafkaProducer<>(
+        kafkaProps, new ByteArraySerializer(), new ByteArraySerializer());
+    this.consumer = new KafkaConsumer<>(
+        kafkaProps, new ByteArrayDeserializer(), new ByteArrayDeserializer());
+  }
+
+  @Override
+  public void beforeEach(ExtensionContext extensionContext) throws Exception {
+
   }
 
   @Override
@@ -68,14 +82,13 @@ public class KafkaTestContainer implements
   }
 
   @Override
-  public void beforeAll(ExtensionContext extensionContext) throws Exception {
-    before();
+  public void afterAll(ExtensionContext extensionContext) throws Exception {
+    this.adminClient.close();
+    this.producer.close();
+    this.consumer.close();
+    this.kafkaContainer.stop();
   }
 
-  @Override
-  public void beforeEach(ExtensionContext extensionContext) throws Exception {
-
-  }
 
   public KafkaContainer getKafkaContainer() {
     return kafkaContainer;
@@ -152,7 +165,7 @@ public class KafkaTestContainer implements
     deleteTopics(topiclist);
   }
 
-  public void deleteTopics(Collection<String> topiclist)  {
+  public void deleteTopics(Collection<String> topiclist) {
 
     try {
       adminClient.deleteTopics(topiclist).all().get();
@@ -191,26 +204,5 @@ public class KafkaTestContainer implements
     kafkaProps.setProperty(
         ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaContainer.getBootstrapServers());
     return kafkaProps;
-  }
-
-  protected void before() {
-    this.kafkaContainer.start();
-
-    Properties kafkaProps = defaultProps();
-    kafkaProps.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false");
-    kafkaProps.put(ConsumerConfig.GROUP_ID_CONFIG, "kafka-test-container");
-
-    this.adminClient = AdminClient.create(kafkaProps);
-    this.producer = new KafkaProducer<>(
-        kafkaProps, new ByteArraySerializer(), new ByteArraySerializer());
-    this.consumer = new KafkaConsumer<>(
-        kafkaProps, new ByteArrayDeserializer(), new ByteArrayDeserializer());
-  }
-
-  protected void after() {
-    this.kafkaContainer.stop();
-    this.adminClient.close();
-    this.producer.close();
-    this.consumer.close();
   }
 }
