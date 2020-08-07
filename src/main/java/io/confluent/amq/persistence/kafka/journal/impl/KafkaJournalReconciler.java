@@ -4,17 +4,17 @@
 
 package io.confluent.amq.persistence.kafka.journal.impl;
 
+import io.confluent.amq.logging.StructuredLogger;
 import io.confluent.amq.persistence.kafka.JournalRecord;
 import io.confluent.amq.persistence.kafka.JournalRecordKey;
 import io.confluent.amq.persistence.kafka.ReconciledMessage;
 import java.util.Collections;
 import java.util.List;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class KafkaJournalReconciler {
 
-  private static final Logger LOGGER = LoggerFactory.getLogger(KafkaJournalReconciler.class);
+  private static final StructuredLogger SLOG = StructuredLogger.with(b -> b
+      .loggerClass(KafkaJournalReconciler.class));
 
   private final KafkaJournalHandler recordHandler;
   private final KafkaJournalTxHandler txHandler;
@@ -34,25 +34,18 @@ public class KafkaJournalReconciler {
     this.journalTopic = journalTopic;
   }
 
-  public List<ReconciledMessage<?>> deleteRecord(byte[] key, JournalRecord record) {
-    if (LOGGER.isTraceEnabled()) {
-      String logKey;
-      try {
-        JournalRecordKey jkey = JournalRecordKey.parseFrom(key);
-        logKey = String.format("tx-%d_id-%d", jkey.getTxId(), jkey.getId());
-      } catch (Exception e) {
-        //don't let it propagate
-        logKey = "EXCEPTION";
-      }
-
-      LOGGER.trace("DELETE Record({}) Tombstone: key: '{}' ", journalTopic, logKey);
-    }
+  public List<ReconciledMessage<?>> deleteRecord(JournalRecordKey key, JournalRecord record) {
+    SLOG.trace(b -> {
+      b.name(journalTopic)
+          .event("Tombstone")
+          .addJournalRecordKey(key);
+    });
 
     return Collections.singletonList(ReconciledMessage.tombstone(journalTopic, key));
   }
 
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
-  public List<ReconciledMessage<?>> reconcileRecord(byte[] key, JournalRecord record) {
+  public List<ReconciledMessage<?>> reconcileRecord(JournalRecordKey key, JournalRecord record) {
     List<ReconciledMessage<?>> reconciledMessages = Collections.emptyList();
     if (record == null) {
       //tombstone
@@ -79,7 +72,10 @@ public class KafkaJournalReconciler {
       case UNRECOGNIZED:
       case UNKNOWN:
       default:
-        LOGGER.error("Invalid record type encountered");
+        SLOG.error(b -> b
+            .name(journalTopic)
+            .event("InvalidRecordType")
+            .putTokens("recordType", record.getRecordType()));
         throw new RuntimeException("Invalid record encountered");
     }
     return reconciledMessages;

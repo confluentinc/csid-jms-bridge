@@ -20,7 +20,8 @@ public final class KafkaRecordUtils {
     boolean isUpdate = jrec.getRecordType() == JournalRecordType.UPDATE_RECORD
         || jrec.getRecordType() == JournalRecordType.UPDATE_RECORD_TX;
 
-    return new RecordInfo(jrec.getId(), (byte) jrec.getUserRecordType(),
+
+    return new RecordInfo(jrec.getId(), (byte) jrec.getUserRecordType().getNumber(),
         jrec.getData().toByteArray(), isUpdate, (short) 0);
   }
 

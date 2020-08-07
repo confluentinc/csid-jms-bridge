@@ -5,9 +5,11 @@
 package io.confluent.amq.persistence.kafka.journal.impl;
 
 import com.google.protobuf.ByteString;
+import com.google.protobuf.Message;
 import io.confluent.amq.logging.StructuredLogger;
 import io.confluent.amq.persistence.kafka.JournalRecord;
 import io.confluent.amq.persistence.kafka.JournalRecord.JournalRecordType;
+import io.confluent.amq.persistence.kafka.JournalRecord.UserRecordType;
 import io.confluent.amq.persistence.kafka.KafkaIO;
 import io.confluent.amq.persistence.kafka.journal.KafkaJournalRecord;
 import java.util.ArrayList;
@@ -37,16 +39,33 @@ import org.apache.activemq.artemis.core.journal.impl.SimpleWaitIOCallback;
 import org.apache.activemq.artemis.core.persistence.Persister;
 import org.apache.activemq.artemis.utils.ExecutorFactory;
 import org.apache.activemq.artemis.utils.collections.SparseArrayLinkedList;
+import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.config.TopicConfig;
 import org.apache.kafka.streams.StreamsConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+
+/**
+ * <p>
+ * A journal that is implemented on top of Apache Kafka.
+ * </p>
+ * <p>
+ * Journal state:
+ * </p>
+ * <pre>
+ *  null -> started -> loaded -> stopped
+ * </pre>
+ */
 //note, exceptions should not really be part of the data coupling check
 //note, I cannot satisfy checkstyle's overrides ordering requirements
 @SuppressWarnings({"unchecked", "rawtypes", "checkstyle:ClassDataAbstractionCoupling",
     "checkstyle:OverloadMethodsDeclarationOrder"})
 public class KafkaJournal implements Journal {
+
+  public static String journalTopic(String bridgeId, String journalName) {
+    return "_jms.bridge_" + bridgeId.toLowerCase() + "_" + journalName.toLowerCase();
+  }
 
   private static final Logger LOGGER = LoggerFactory.getLogger(KafkaJournal.class);
   private static final StructuredLogger SLOG = StructuredLogger
@@ -68,7 +87,9 @@ public class KafkaJournal implements Journal {
   private volatile JournalState state;
   private KafkaJournalProcessor processor;
 
-  public KafkaJournal(KafkaIO kafkaIO, String bridgeId, String journalName,
+  public KafkaJournal(KafkaIO kafkaIO,
+      String bridgeId,
+      String journalName,
       ExecutorFactory executor,
       IOCriticalErrorListener criticalIOErrorListener) {
 
@@ -78,8 +99,7 @@ public class KafkaJournal implements Journal {
     this.executor = executor;
     this.criticalIOErrorListener = criticalIOErrorListener;
 
-    this.destTopic =
-        "_jms.bridge_" + this.bridgeId.toLowerCase() + "_" + this.journalName.toLowerCase();
+    this.destTopic = journalTopic(this.bridgeId, this.journalName);
   }
 
 
@@ -114,18 +134,20 @@ public class KafkaJournal implements Journal {
   }
 
   private void checkStatus(IOCompletion callback) throws Exception {
-    if (state != JournalState.LOADED) {
+    if (!isReady()) {
       if (callback != null) {
-        callback.onError(-1, "Kafka Journal is not loaded");
+        callback
+            .onError(ActiveMQExceptionType.ILLEGAL_STATE.getCode(), "Kafka Journal is not loaded");
       }
-      throw new ActiveMQShutdownException("KafkaJournal is not loaded");
+      throw new ActiveMQShutdownException("Kafka Journal is not loaded");
     }
 
     if (failed.get()) {
       if (callback != null) {
-        callback.onError(-1, "Kafka Journal failed");
+        callback.onError(ActiveMQExceptionType.IO_ERROR.getCode(),
+            "Kafka Journal is in a failed state");
       }
-      throw new ActiveMQException("KafkaJournal Failed");
+      throw new ActiveMQException("Kafka Journal is in a failed state");
     }
   }
 
@@ -135,31 +157,59 @@ public class KafkaJournal implements Journal {
 
     SLOG.trace(b -> b.event("AppendRecord").name(journalName).addJournalRecord(kjr.getRecord()));
 
-    if (kjr.getRecord().getRecordType() == JournalRecordType.COMMIT_RECORD
-        && kjr.getIoCompletion() != null) {
-      kjr.getIoCompletion().storeLineUp();
-    }
-
-    if (state != JournalState.LOADED) {
-      if (kjr.getIoCompletion() != null) {
-        kjr.getIoCompletion()
-            .onError(ActiveMQExceptionType.IO_ERROR.getCode(), "Kafka Journal not started");
-      }
-    }
-
     SimpleWaitIOCallback callback = null;
     if (kjr.isSync() && kjr.getIoCompletion() == null) {
       callback = new SimpleWaitIOCallback();
       kjr.setIoCompletion(callback);
     }
 
-    kafkaIO.writeJournalRecord(kjr);
+    publishJournalRecord(kjr);
 
     if (callback != null) {
       callback.waitCompletion();
     }
   }
 
+  protected void publishJournalRecord(KafkaJournalRecord record) {
+    kafkaIO.withProducer((kafkaProducer) -> {
+
+      ProducerRecord<Message, Message> producerRecord = new ProducerRecord<>(
+          record.getDestTopic(),
+          record.getKafkaMessageKey(),
+          record.getRecord());
+
+      kafkaProducer.send(producerRecord, (meta, err) -> {
+        if (err != null) {
+          if (record.getIoCompletion() != null) {
+            handleException(err);
+            record.getIoCompletion()
+                .onError(ActiveMQExceptionType.IO_ERROR.getCode(), err.getMessage());
+          }
+
+          SLOG.error(b -> b
+              .event("PublishJournalRecord")
+              .markFailure()
+              .addProducerRecord(producerRecord)
+              .addJournalRecordKey(record.getKafkaMessageKey())
+              .addJournalRecord(record.getRecord()), err);
+
+        } else {
+
+          SLOG.trace(b -> b
+              .event("PublishJournalRecord")
+              .markSuccess()
+              .addRecordMetadata(meta)
+              .addJournalRecordKey(record.getKafkaMessageKey())
+              .addJournalRecord(record.getRecord()));
+        }
+
+        if (record.getIoCompletion() != null) {
+          record.getIoCompletion().done();
+        }
+      });
+      return null;
+    });
+  }
 
   private void appendRecord(JournalRecord record) throws Exception {
     KafkaJournalRecord kjr = new KafkaJournalRecord(record)
@@ -224,6 +274,7 @@ public class KafkaJournal implements Journal {
     if (this.processor != null) {
       this.processor.stop();
     }
+    this.state = JournalState.STOPPED;
     SLOG.debug(b -> b.name(journalName).event("Stop").markSuccess());
 
   }
@@ -231,6 +282,13 @@ public class KafkaJournal implements Journal {
   @Override
   public boolean isStarted() {
     return state == JournalState.STARTED || state == JournalState.LOADED;
+  }
+
+  /**
+   * Indicates that the journal is ready to accept writes, meaning it has been started and loaded.
+   */
+  public boolean isReady() {
+    return state == JournalState.LOADED;
   }
 
   @Override
@@ -300,7 +358,7 @@ public class KafkaJournal implements Journal {
     JournalRecord r = JournalRecord.newBuilder()
         .setId(id)
         .setRecordType(JournalRecordType.ADD_RECORD)
-        .setUserRecordType(userRecordType)
+        .setUserRecordType(UserRecordType.forNumber(userRecordType))
         .setData(ByteString.copyFrom(record))
         .build();
 
@@ -316,7 +374,7 @@ public class KafkaJournal implements Journal {
     JournalRecord r = JournalRecord.newBuilder()
         .setId(id)
         .setRecordType(JournalRecordType.ADD_RECORD)
-        .setUserRecordType(userRecordType)
+        .setUserRecordType(UserRecordType.forNumber(userRecordType))
         .setData(ByteString.copyFrom(decode(persister, record)))
         .build();
 
@@ -332,7 +390,7 @@ public class KafkaJournal implements Journal {
     JournalRecord r = JournalRecord.newBuilder()
         .setId(id)
         .setRecordType(JournalRecordType.ADD_RECORD)
-        .setUserRecordType(userRecordType)
+        .setUserRecordType(UserRecordType.forNumber(userRecordType))
         .setData(ByteString.copyFrom(decode(persister, record)))
         .build();
 
@@ -348,7 +406,7 @@ public class KafkaJournal implements Journal {
     JournalRecord r = JournalRecord.newBuilder()
         .setId(id)
         .setRecordType(JournalRecordType.UPDATE_RECORD)
-        .setUserRecordType(userRecordType)
+        .setUserRecordType(UserRecordType.forNumber(userRecordType))
         .setData(ByteString.copyFrom(record))
         .build();
 
@@ -364,7 +422,7 @@ public class KafkaJournal implements Journal {
     JournalRecord r = JournalRecord.newBuilder()
         .setId(id)
         .setRecordType(JournalRecordType.UPDATE_RECORD)
-        .setUserRecordType(userRecordType)
+        .setUserRecordType(UserRecordType.forNumber(userRecordType))
         .setData(ByteString.copyFrom(decode(persister, record)))
         .build();
 
@@ -380,7 +438,7 @@ public class KafkaJournal implements Journal {
     JournalRecord r = JournalRecord.newBuilder()
         .setId(id)
         .setRecordType(JournalRecordType.UPDATE_RECORD)
-        .setUserRecordType(userRecordType)
+        .setUserRecordType(UserRecordType.forNumber(userRecordType))
         .setData(ByteString.copyFrom(decode(persister, record)))
         .build();
 
@@ -429,7 +487,7 @@ public class KafkaJournal implements Journal {
         .setTxId(txID)
         .setId(id)
         .setRecordType(JournalRecordType.ADD_RECORD_TX)
-        .setUserRecordType(userRecordType)
+        .setUserRecordType(UserRecordType.forNumber(userRecordType))
         .setData(ByteString.copyFrom(record))
         .build();
 
@@ -458,7 +516,7 @@ public class KafkaJournal implements Journal {
         .setTxId(txID)
         .setId(id)
         .setRecordType(JournalRecordType.UPDATE_RECORD_TX)
-        .setUserRecordType(userRecordType)
+        .setUserRecordType(UserRecordType.forNumber(userRecordType))
         .setData(ByteString.copyFrom(record))
         .build();
 
@@ -541,7 +599,7 @@ public class KafkaJournal implements Journal {
     JournalRecord r = JournalRecord.newBuilder()
         .setRecordType(JournalRecordType.PREPARE_RECORD)
         .setTxId(txID)
-        .setTxData(ByteString.copyFrom(decode(transactionData)))
+        .setData(ByteString.copyFrom(decode(transactionData)))
         .build();
 
     appendRecord(r, sync, callback);
@@ -555,7 +613,7 @@ public class KafkaJournal implements Journal {
     JournalRecord r = JournalRecord.newBuilder()
         .setRecordType(JournalRecordType.PREPARE_RECORD)
         .setTxId(txID)
-        .setTxData(ByteString.copyFrom(transactionData))
+        .setData(ByteString.copyFrom(transactionData))
         .build();
 
     appendRecord(r, sync);

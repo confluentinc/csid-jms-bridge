@@ -138,6 +138,12 @@ public class ArtemisTestServer implements
     }
   }
 
+  public synchronized void restartServer() throws Exception {
+    afterEach(null);
+    afterAll(null);
+    beforeAll(null);
+  }
+
   public synchronized Connection getConnection() {
     if (this.amqConnection == null) {
       this.amqConnection = startJmsConnection(this.cnxnSpec);

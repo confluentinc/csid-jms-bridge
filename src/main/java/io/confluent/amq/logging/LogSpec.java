@@ -8,6 +8,7 @@ import io.confluent.amq.persistence.kafka.JournalRecord;
 import io.confluent.amq.persistence.kafka.JournalRecordKey;
 import java.util.Map;
 import java.util.Optional;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.clients.producer.RecordMetadata;
 import org.inferred.freebuilder.FreeBuilder;
@@ -45,9 +46,13 @@ public interface LogSpec {
   class Builder extends LogSpec_Builder {
 
     public Builder addJournalRecordKey(JournalRecordKey record) {
-      String key = String.format("tx-%d_id-%d",
-          record.getTxId(),
-          record.getId());
+
+      String key = record != null
+          ? String.format("tx-%d_id-%d%s",
+            record.getTxId(),
+            record.getId(),
+            record.getUpdate() ? "-upd" : "")
+          : "NULL";
 
       return this
           .putTokens("key", key);
@@ -62,21 +67,44 @@ public interface LogSpec {
     }
 
     public Builder addJournalRecord(JournalRecord record) {
+      if (record == null) {
+        return this.putTokens("journalRecord", "null");
+      }
+
       return this
           .putTokens("id", record.getId())
           .putTokens("txId", record.getTxId())
           .putTokens("recordType", record.getRecordType().name())
-          .putTokens("userRecordType", record.getUserRecordType())
+          .putTokens("userRecordType", record.getUserRecordType().name())
           .putTokens("recordSize", record.getSerializedSize());
     }
 
     public Builder addProducerRecord(ProducerRecord<?, ?> rec) {
+      if (rec == null) {
+        return this.putTokens("producerRecord", "null");
+      }
+
       return this
           .putTokens("topic", rec.topic())
           .putTokens("partition", rec.partition());
     }
 
+    public Builder addRecordMetadata(ConsumerRecord<?, ?> consumerRecord) {
+      if (consumerRecord == null) {
+        return this.putTokens("recordMetadata", "null");
+      }
+
+      return this
+          .putTokens("topic", consumerRecord.topic())
+          .putTokens("partition", consumerRecord.partition())
+          .putTokens("offset", consumerRecord.offset());
+    }
+
     public Builder addRecordMetadata(RecordMetadata meta) {
+      if (meta == null) {
+        return this.putTokens("recordMetadata", "null");
+      }
+
       return this
           .putTokens("topic", meta.topic())
           .putTokens("partition", meta.partition())

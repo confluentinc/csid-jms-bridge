@@ -44,25 +44,31 @@ public class JmsBridgePubSubTests {
 
   @RegisterExtension
   @Order(100)
-  public static KafkaTestContainer kafkaContainer = new KafkaTestContainer(
+  public static final KafkaTestContainer kafkaContainer = new KafkaTestContainer(
       new KafkaContainer("5.4.0")
           .withEnv("KAFKA_DELETE_TOPIC_ENABLE", "true")
           .withEnv("KAFKA_AUTO_CREATE_TOPICS_ENABLE", "false"));
 
   @RegisterExtension
   @Order(200)
-  public static ArtemisTestServer amqServer = ArtemisTestServer.embedded(b -> b
+  public static final ArtemisTestServer amqServer = ArtemisTestServer.embedded(b -> b
       .useVanilla(IS_VANILLA)
       .jmsBridgeProps(kafkaContainer.defaultProps()));
 
 
   @Test
   @Timeout(30)
-  public void idGeneratorIsUnique() throws Exception {
+  public void idGeneratorIsUniqueAcrossReloads() throws Exception {
     if (IS_VANILLA) {
       return;
     }
 
+    assertIdsUnique();
+    amqServer.restartServer();
+    assertIdsUnique();
+  }
+
+  public void assertIdsUnique() throws Exception {
     Session session = amqServer.getConnection().createSession(false, Session.AUTO_ACKNOWLEDGE);
     Topic topic = session.createTopic(JMS_TOPIC);
     MessageProducer producer = session.createProducer(topic);

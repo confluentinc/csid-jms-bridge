@@ -6,6 +6,8 @@ package io.confluent.amq.persistence.kafka.journal;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import io.confluent.amq.persistence.kafka.JournalRecord;
+import io.confluent.amq.persistence.kafka.KafkaRecordUtils;
+import org.apache.activemq.artemis.core.journal.RecordInfo;
 
 public class KafkaRecordInfo {
   private final JournalRecord journalRecord;
@@ -34,5 +36,9 @@ public class KafkaRecordInfo {
   @SuppressFBWarnings("EI_EXPOSE_REP")
   public byte[] getKafkaKey() {
     return kafkaKey;
+  }
+
+  public RecordInfo toRecordInfo() {
+    return KafkaRecordUtils.toRecordInfo(journalRecord);
   }
 }

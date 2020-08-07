@@ -8,6 +8,7 @@ import static io.confluent.amq.persistence.kafka.JournalRecord.JournalRecordType
 import static io.confluent.amq.persistence.kafka.JournalRecord.JournalRecordType.PREPARE_RECORD;
 import static io.confluent.amq.persistence.kafka.JournalRecord.JournalRecordType.ROLLBACK_RECORD;
 
+import io.confluent.amq.logging.StructuredLogger;
 import io.confluent.amq.persistence.kafka.JournalRecord;
 import io.confluent.amq.persistence.kafka.JournalRecord.JournalRecordType;
 import io.confluent.amq.persistence.kafka.JournalRecordKey;
@@ -27,10 +28,11 @@ import org.slf4j.LoggerFactory;
 public class KafkaJournalTxHandler {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(KafkaJournalTxHandler.class);
-
+  private static final StructuredLogger SLOG = StructuredLogger
+      .with(b -> b.loggerClass(KafkaJournalTxHandler.class));
 
   // Track Tx Records
-  private final Map<Long, TransactionHolder> transactions = new ConcurrentHashMap<>();
+  private final ConcurrentHashMap<Long, TransactionHolder> transactions = new ConcurrentHashMap<>();
   private final String journalTopic;
 
   public KafkaJournalTxHandler(String journalTopic) {
@@ -75,8 +77,6 @@ public class KafkaJournalTxHandler {
             JournalRecord updRecord = JournalRecord.newBuilder(ki.getJournalRecord())
                 .setRecordType(updType)
                 .clearTxId()
-                .clearTxData()
-                .clearTxRecordCount()
                 .build();
 
             JournalRecordKey updKey = JournalRecordKey.newBuilder()
@@ -86,32 +86,27 @@ public class KafkaJournalTxHandler {
             msgs.add(
                 ReconciledMessage.forward(journalTopic, updKey.toByteArray(), updRecord));
 
-            if (LOGGER.isTraceEnabled()) {
-              LOGGER.trace("Committing TX({} #{}) Record: "
-                  + "key: tx-{}_id-{}, RecordType: '{}', UserRecordType: '{}'",
-                  journalTopic,
-                  txHolder.transactionID,
-                  updKey.getTxId(),
-                  updKey.getId(),
-                  updRecord.getRecordType(),
-                  updRecord.getUserRecordType());
-            }
+            SLOG.trace(b -> b.name(journalTopic).event("CommitTX")
+                .addJournalRecordKey(updKey).addJournalRecord(updRecord));
 
           }
 
           //delete the tx meta records, key ==  key
           msgs.add(ReconciledMessage.tombstone(journalTopic, ki.getKafkaKey()));
 
-          if (LOGGER.isTraceEnabled()) {
-            LOGGER.trace("Tombstoning TX({} #{}) Record: "
-                    + "key: tx-{}_id-{}, RecordType: '{}', UserRecordType: '{}'",
-                journalTopic,
-                txHolder.transactionID,
-                ki.getJournalRecord().getTxId(),
-                ki.getJournalRecord().getId(),
-                ki.getJournalRecord().getRecordType(),
-                ki.getJournalRecord().getUserRecordType());
-          }
+          SLOG.trace(b -> {
+            JournalRecordKey jkey = null;
+            try {
+              jkey = JournalRecordKey.parseFrom(ki.getKafkaKey());
+            } catch (Exception e) {
+              //swallow
+            }
+
+            b.name(journalTopic)
+                .event("Tombstone")
+                .addJournalRecordKey(jkey)
+                .addJournalRecord(ki.getJournalRecord());
+          });
 
           return msgs.stream();
 
@@ -168,11 +163,15 @@ public class KafkaJournalTxHandler {
         reconciledMessages = commitTx(txHolder, key, record);
         break;
       default:
-        LOGGER.warn("Non-Transaction record was sent to the transaction handler.");
+        SLOG.warn(b -> b.name(journalTopic).event("NotTXRecord").addJournalRecord(record));
         break;
     }
 
     return reconciledMessages;
+  }
+
+  public List<TransactionHolder> getOpenTransactions() {
+    return new ArrayList<>(transactions.values());
   }
 
   public List<PreparedTransactionInfo> preparedTransactions() {
@@ -182,20 +181,32 @@ public class KafkaJournalTxHandler {
         .collect(Collectors.toList());
   }
 
-  static final class TransactionHolder {
+  public static class TransactionHolder {
+    private final long transactionID;
+    private final List<KafkaRecordInfo> recordInfos = new ArrayList<>();
+    private boolean prepared;
+    private byte[] extraData;
 
     TransactionHolder(final long id) {
       transactionID = id;
     }
 
-    public final long transactionID;
 
-    final List<KafkaRecordInfo> recordInfos = new ArrayList<>();
+    public long getTransactionID() {
+      return transactionID;
+    }
 
-    public boolean prepared;
+    public List<KafkaRecordInfo> getRecordInfos() {
+      return recordInfos;
+    }
 
-    byte[] extraData;
+    public boolean isPrepared() {
+      return prepared;
+    }
 
+    public byte[] getExtraData() {
+      return extraData;
+    }
   }
 
 }

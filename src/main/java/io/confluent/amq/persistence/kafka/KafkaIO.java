@@ -6,33 +6,27 @@ package io.confluent.amq.persistence.kafka;
 
 import io.confluent.amq.logging.LogFormat;
 import io.confluent.amq.persistence.kafka.ConsumerThread.Builder;
-import io.confluent.amq.persistence.kafka.journal.KafkaJournalRecord;
-import java.nio.charset.StandardCharsets;
+import io.confluent.amq.persistence.kafka.journal.impl.JournalRecordKeyPartitioner;
+import io.confluent.amq.persistence.kafka.journal.impl.ProtoSerializer;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Properties;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
-import org.apache.activemq.artemis.api.core.ActiveMQExceptionType;
+import java.util.function.Function;
 import org.apache.activemq.artemis.api.core.ICoreMessage;
-import org.apache.activemq.artemis.api.core.Message;
 import org.apache.activemq.artemis.api.core.SimpleString;
-import org.apache.activemq.artemis.reader.BytesMessageUtil;
-import org.apache.activemq.artemis.reader.TextMessageUtil;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.producer.KafkaProducer;
-import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.clients.producer.Producer;
+import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.header.internals.RecordHeader;
-import org.apache.kafka.common.serialization.ByteArraySerializer;
 import org.apache.kafka.common.serialization.LongSerializer;
 import org.apache.kafka.common.serialization.StringSerializer;
-import org.apache.kafka.common.utils.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -51,7 +45,7 @@ public class KafkaIO {
 
   private final Properties kafkaProps;
 
-  private KafkaProducer<byte[], byte[]> kafkaProducer;
+  private KafkaProducer<com.google.protobuf.Message, com.google.protobuf.Message> kafkaProducer;
   private AdminClient adminClient;
   private StringSerializer stringSerializer = new StringSerializer();
   private LongSerializer longSerializer = new LongSerializer();
@@ -61,7 +55,12 @@ public class KafkaIO {
   }
 
   public KafkaIO(Properties kafkaProps) {
-    this.kafkaProps = kafkaProps;
+    this.kafkaProps = new Properties(kafkaProps);
+    this.kafkaProps.put(ProducerConfig.MAX_IN_FLIGHT_REQUESTS_PER_CONNECTION, 1);
+    this.kafkaProps.put(ProducerConfig.ACKS_CONFIG, "all");
+    this.kafkaProps.put(
+        ProducerConfig.PARTITIONER_CLASS_CONFIG,
+        JournalRecordKeyPartitioner.class.getCanonicalName());
   }
 
   public Properties getKafkaProps() {
@@ -69,8 +68,8 @@ public class KafkaIO {
   }
 
   public synchronized void start() {
-    kafkaProducer = new KafkaProducer<>(kafkaProps, new ByteArraySerializer(),
-        new ByteArraySerializer());
+    ProtoSerializer protoSerializer = new ProtoSerializer();
+    kafkaProducer = new KafkaProducer<>(kafkaProps, protoSerializer, protoSerializer);
     adminClient = AdminClient.create(kafkaProps);
     Runtime.getRuntime().addShutdownHook(new Thread(() -> {
       kafkaProducer.close();
@@ -138,57 +137,14 @@ public class KafkaIO {
     }
   }
 
-  public void writeJournalRecord(final KafkaJournalRecord record) {
-    int pcount = kafkaProducer.partitionsFor(record.getDestTopic()).size();
-    byte[] partitionKey = record.getKafkaPartitionKey().toByteArray();
-    int partition = Utils.toPositive(Utils.murmur2(partitionKey)) % pcount;
+  public <T> T withProducer(
+      Function<Producer<com.google.protobuf.Message, com.google.protobuf.Message>, T> produceFn) {
 
-    ProducerRecord<byte[], byte[]> producerRecord = new ProducerRecord<>(
-        record.getDestTopic(),
-        partition,
-        record.getKafkaMessageKey().toByteArray(),
-        record.getRecord().toByteArray());
+    return produceFn.apply(kafkaProducer);
 
-    if (LOGGER.isTraceEnabled()) {
-      LOGGER.trace(LOG_FORMAT.build(b -> b
-          .event("PublishJournalRecord")
-          .addProducerRecord(producerRecord)
-          .addJournalRecordKey(record.getKafkaMessageKey())
-          .addJournalRecord(record.getRecord())));
-    }
-
-    kafkaProducer.send(producerRecord, (meta, err) -> {
-      if (err != null) {
-        if (record.getIoCompletion() != null) {
-          record.getIoCompletion()
-              .onError(ActiveMQExceptionType.IO_ERROR.getCode(), err.getMessage());
-        }
-
-        LOGGER.error(LOG_FORMAT.build(b -> b
-            .event("PublishJournalRecord")
-            .markFailure()
-            .addProducerRecord(producerRecord)
-            .addJournalRecordKey(record.getKafkaMessageKey())
-            .addJournalRecord(record.getRecord())), err);
-
-      } else {
-
-        if (LOGGER.isTraceEnabled()) {
-          LOGGER.trace(LOG_FORMAT.build(b -> b
-              .event("PublishJournalRecord")
-              .markSuccess()
-              .addRecordMetadata(meta)
-              .addJournalRecordKey(record.getKafkaMessageKey())
-              .addJournalRecord(record.getRecord())));
-        }
-
-        if (record.getIoCompletion() != null) {
-          record.getIoCompletion().done();
-        }
-      }
-    });
   }
 
+  /* //save for future reference
   public CompletableFuture<KafkaRef> writeMessage(Message message) {
     ICoreMessage coreMessage = message.toCore();
 
@@ -236,6 +192,7 @@ public class KafkaIO {
 
     return future;
   }
+  */
 
   private List<RecordHeader> convertHeaders(ICoreMessage message) {
     final List<RecordHeader> kheaders = new LinkedList<>();

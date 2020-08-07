@@ -4,18 +4,23 @@
 
 package io.confluent.amq.persistence.kafka.journal.impl;
 
-import io.confluent.amq.logging.LogFormat;
+import com.google.protobuf.InvalidProtocolBufferException;
+import io.confluent.amq.logging.StructuredLogger;
 import io.confluent.amq.persistence.kafka.JournalRecord;
 import io.confluent.amq.persistence.kafka.KafkaRecordUtils;
 import io.confluent.amq.persistence.kafka.ReconciledMessage;
+import io.confluent.amq.persistence.kafka.journal.KafkaRecordInfo;
 import java.nio.ByteBuffer;
 import java.util.Collections;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.LongAdder;
 import org.apache.activemq.artemis.core.journal.PreparedTransactionInfo;
+import org.apache.activemq.artemis.core.journal.RecordInfo;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.utils.Bytes;
 import org.apache.kafka.streams.KafkaStreams.State;
@@ -27,9 +32,8 @@ import org.apache.kafka.streams.processor.StateStore;
 import org.apache.kafka.streams.state.KeyValueBytesStoreSupplier;
 import org.apache.kafka.streams.state.KeyValueIterator;
 import org.apache.kafka.streams.state.KeyValueStore;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
+@SuppressWarnings("checkstyle:ClassDataAbstractionCoupling")
 public class KafkaJournalStoreLoader implements
     KafkaJournalHandler, StateRestoreListener, StateListener, KeyValueStore<Bytes, byte[]> {
 
@@ -37,8 +41,9 @@ public class KafkaJournalStoreLoader implements
     return new Supplier(loader);
   }
 
-  private static final Logger LOGGER = LoggerFactory.getLogger(KafkaJournalStoreLoader.class);
-  private static final LogFormat LOGFORMAT = LogFormat.forSubject("KafkaJournalLoader");
+  private static final StructuredLogger SLOG = StructuredLogger.with(b -> b
+      .loggerClass(KafkaJournalStoreLoader.class));
+
 
   private static final KeyValueIterator<Bytes, byte[]> EMPTY_ITER =
       new KeyValueIterator<Bytes, byte[]>() {
@@ -88,9 +93,10 @@ public class KafkaJournalStoreLoader implements
    * @param callback The loader callback to be populated with loading information
    */
   public void readyLoader(KafkaJournalLoaderCallback callback) {
-    if (LOGGER.isDebugEnabled()) {
-      LOGGER.debug("{}: name={}", LOGFORMAT.prefix("LoaderReady"), name);
-    }
+    SLOG.debug(b -> b
+        .event("LoaderReady")
+        .name(name)
+    );
 
     loaderReady.complete(callback);
   }
@@ -99,10 +105,11 @@ public class KafkaJournalStoreLoader implements
     int finalCount = restoreCounter.getAndSet(Integer.MAX_VALUE);
     finalLoadCount.compareAndSet(0, finalCount);
 
-    if (LOGGER.isDebugEnabled()) {
-      LOGGER.debug("{}: name={}, finalLoadCount={}",
-          LOGFORMAT.prefix("RestorationComplete"), name, finalCount);
-    }
+    SLOG.debug(b -> b
+        .name(name)
+        .event("RestoreJournal")
+        .markSuccess()
+        .putTokens("finalLoadCount", finalCount));
   }
 
   private boolean isRestorationComplete() {
@@ -110,17 +117,31 @@ public class KafkaJournalStoreLoader implements
   }
 
   private void executeLoadCallback(KafkaJournalLoaderCallback callback) {
-    List<PreparedTransactionInfo> preparedTransactions = this.txHandler.preparedTransactions();
-    preparedTransactions.forEach(callback::addPreparedTransaction);
+
+    this.txHandler.getOpenTransactions().forEach(t -> {
+      if (t.isPrepared()) {
+        callback.addPreparedTransaction(
+            new PreparedTransactionInfo(t.getTransactionID(), t.getExtraData()));
+      } else {
+        List<RecordInfo> records = new LinkedList<>();
+        List<RecordInfo> delRecords = new LinkedList<>();
+        for (KafkaRecordInfo kri : t.getRecordInfos()) {
+          if (kri.isDelete()) {
+            delRecords.add(kri.toRecordInfo());
+          } else {
+            records.add(kri.toRecordInfo());
+          }
+        }
+        callback.failedTransaction(t.getTransactionID(), records, delRecords);
+      }
+    });
+
     callback.loadComplete(finalLoadCount.get());
 
-    if (LOGGER.isDebugEnabled()) {
-      LOGGER.debug("{}: name={}, finalLoadCount={}, txSize={} ",
-          LOGFORMAT.prefix("ExecutedLoadCallback"),
-          name,
-          finalLoadCount.get(),
-          preparedTransactions.size());
-    }
+    SLOG.debug(b -> b
+        .name(name)
+        .event("LoadCallbackExecuted")
+        .putTokens("finalLoadCount", finalLoadCount.get()));
   }
 
   ////// KafkaJournalHandler impl
@@ -148,19 +169,24 @@ public class KafkaJournalStoreLoader implements
   /////// StateRestoreListener impl
 
   @Override
-  public void onRestoreStart(TopicPartition topicPartition, String storeName, long startingOffset,
+  public void onRestoreStart(TopicPartition topicPartition, String storeName,
+      long startingOffset,
       long endingOffset) {
     if (this.name.equals(storeName)) {
       int count = restoreCounter.getAndIncrement();
-      if (LOGGER.isTraceEnabled() && count == 0) {
-        LOGGER.trace("{}: name={}", LOGFORMAT.prefix("RestorationBegin"), name);
-      }
 
+      if (count == 0) {
+        SLOG.trace(b -> b
+            .name(name)
+            .event("RestoreJournal")
+            .message("Restore started."));
+      }
     }
   }
 
   @Override
-  public void onBatchRestored(TopicPartition topicPartition, String storeName, long batchEndOffset,
+  public void onBatchRestored(TopicPartition topicPartition, String storeName,
+      long batchEndOffset,
       long numRestored) {
     //do nothing
   }
@@ -271,10 +297,10 @@ public class KafkaJournalStoreLoader implements
         ReconciledMessage<JournalRecord> rmsg = rawMsg.asForward();
         if (rmsg != null) {
 
-          if (LOGGER.isTraceEnabled()) {
-            LOGGER.trace("{}: name={}, recordType={} ",
-                LOGFORMAT.prefix("RestoreRecord"), name, rmsg.getValue().getRecordType());
-          }
+          SLOG.trace(b -> b
+              .name(name)
+              .event("RestoreRecord")
+              .addJournalRecord(rmsg.getValue()));
 
           switch (rmsg.getValue().getRecordType()) {
             case DELETE_RECORD:
@@ -287,11 +313,11 @@ public class KafkaJournalStoreLoader implements
               callback.updateRecord(KafkaRecordUtils.toRecordInfo(rmsg.getValue()));
               break;
             default:
-              LOGGER.warn("{}: name={}, msg={}, recordType={}",
-                  LOGFORMAT.prefix("UnwantedRestoreRecord"),
-                  name,
-                  "Unwanted record type received during restore/load.",
-                  rmsg.getValue().getRecordType());
+              SLOG.warn(b -> b.name(name)
+                  .event("RestoreRecord")
+                  .markFailure()
+                  .message("Bad record type received, skipping.")
+                  .addJournalRecord(rmsg.getValue()));
               break;
           }
         }
@@ -301,7 +327,17 @@ public class KafkaJournalStoreLoader implements
       if (isRestorationComplete()) {
         executeLoadCallback(callback);
       }
-    } catch (Throwable e) {
+    } catch (InvalidProtocolBufferException e) {
+      SLOG.error(b -> b
+          .name(name)
+          .event("RestoreRecord")
+          .markFailure()
+          .message("Failed to parse payload, skipping."), e);
+    } catch (InterruptedException | ExecutionException e) {
+      SLOG.error(b -> b
+          .name(name)
+          .event("RestoreJournal")
+          .markFailure(), e);
       throw new RuntimeException(e);
     }
   }
@@ -325,7 +361,6 @@ public class KafkaJournalStoreLoader implements
   public boolean isOpen() {
     return open;
   }
-
 
   public static class Supplier implements KeyValueBytesStoreSupplier {
 

@@ -11,16 +11,18 @@ import org.apache.kafka.common.serialization.Serializer;
 
 public class ReconciledMessage<V> {
 
-  public static ReconciledMessage<Void> tombstone(String topic, byte[] key) {
+  public static ReconciledMessage<Void> tombstone(String topic, JournalRecordKey key) {
     return new ReconciledMessage<>(topic, key, null, TOMBSTONE);
   }
 
-  public static ReconciledMessage<byte[]> route(String topic, byte[] key, byte[] value) {
+  public static ReconciledMessage<byte[]> route(
+      String topic, JournalRecordKey key, JournalRecord value) {
+
     return new ReconciledMessage<>(topic, key, value, ROUTED);
   }
 
   public static ReconciledMessage<JournalRecord> forward(
-      String topic, byte[] key, JournalRecord value) {
+      String topic, JournalRecordKey key, JournalRecord value) {
 
     return new ReconciledMessage<>(topic, key, value, FORWARD);
   }
@@ -30,12 +32,14 @@ public class ReconciledMessage<V> {
   private static final int TOMBSTONE = 2;
 
   private final String topic;
-  private final byte[] key;
-  private final V value;
+  private final JournalRecordKey key;
+  private final JournalRecord value;
   private final int disposition;
 
 
-  protected ReconciledMessage(String topic, byte[] key, V value, int disposition) {
+  public ReconciledMessage(
+      String topic, JournalRecordKey key, JournalRecord value, int disposition) {
+
     this.topic = topic;
     this.key = key;
     this.value = value;

@@ -5,8 +5,10 @@
 package io.confluent.amq.persistence.kafka.journal.impl;
 
 import io.confluent.amq.persistence.kafka.JournalRecord;
+import io.confluent.amq.persistence.kafka.JournalRecordKey;
 import io.confluent.amq.persistence.kafka.ReconciledMessage.ReconciledMessageSerde;
 import java.util.Properties;
+import org.apache.kafka.common.serialization.Serde;
 import org.apache.kafka.common.serialization.Serdes;
 import org.apache.kafka.streams.KafkaStreams;
 import org.apache.kafka.streams.StreamsBuilder;
@@ -14,6 +16,7 @@ import org.apache.kafka.streams.StreamsConfig;
 import org.apache.kafka.streams.Topology;
 import org.apache.kafka.streams.Topology.AutoOffsetReset;
 import org.apache.kafka.streams.kstream.Consumed;
+import org.apache.kafka.streams.kstream.KStream;
 import org.apache.kafka.streams.kstream.Materialized;
 import org.apache.kafka.streams.kstream.Produced;
 import org.apache.kafka.streams.state.KeyValueBytesStoreSupplier;
@@ -74,19 +77,30 @@ public class KafkaJournalProcessor {
   }
 
   protected Topology createTopology(Properties topoProps) {
+    Serde<JournalRecord> journalRecordSerde = Serdes
+        .serdeFrom(new ProtoSerializer<>(), new ProtoDeserializer<>(JournalRecord::parseFrom));
+    Serde<JournalRecordKey> journalRecordKeySerde = Serdes
+        .serdeFrom(new ProtoSerializer<>(), new ProtoDeserializer<>(JournalRecordKey::parseFrom));
+
     KeyValueBytesStoreSupplier supplier =
         KafkaJournalStoreLoader.createSupplier(this.loader);
 
     StreamsBuilder builder = new StreamsBuilder();
-    builder.table(this.journalTopic,
-        Consumed.with(Serdes.ByteArray(), Serdes.ByteArray()).withOffsetResetPolicy(
-            AutoOffsetReset.EARLIEST),
-        Materialized.<byte[], byte[]>as(supplier).withCachingDisabled().withLoggingDisabled())
-        .toStream()
-        .mapValues(this::deserializeJournalRecord)
-        .flatMapValues(this.reconciler::reconcileRecord)
-        .to((k, v, rc) -> v.getTopic(),
-            Produced.with(Serdes.ByteArray(), new ReconciledMessageSerde()));
+
+    KStream<JournalRecordKey, JournalRecord> journalStream = builder.table(this.journalTopic,
+        Consumed.with(journalRecordKeySerde, journalRecordSerde)
+            .withOffsetResetPolicy(AutoOffsetReset.EARLIEST),
+        Materialized.<JournalRecordKey, JournalRecord>as(supplier).withCachingDisabled().withLoggingDisabled())
+        .toStream();
+
+        //main processing route
+        journalStream.flatMapValues(this.reconciler::reconcileRecord)
+        .to(journalTopic,
+            Produced.with(Serdes.ByteArray(), new ReconciledMessageSerde())
+              .withStreamPartitioner(new JournalRecordKeyPartitioner())));
+
+        //side processing
+        // journalStream.filter(adds only).to(external kafka topic)
 
     return builder.build(topoProps);
   }

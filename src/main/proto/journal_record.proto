@@ -9,8 +9,8 @@ package kafkajournal;
 
 message JournalRecord {
   int64 id = 1;
-  int32 userRecordType = 2;
-  bytes data = 3;
+  int64 txId = 2;
+
   enum JournalRecordType {
     UNKNOWN = 0;
     ADD_RECORD = 11;
@@ -23,20 +23,71 @@ message JournalRecord {
     COMMIT_RECORD = 18;
     ROLLBACK_RECORD = 19;
   }
-  JournalRecordType recordType = 4;
+  JournalRecordType recordType = 3;
 
-  int64 txId = 5;
-  bytes txData = 6;
-  int32 txRecordCount = 7;
+  /**
+   * All update records are aggregated together to simplify tombstoning.
+   * For updates this will be many.
+   *
+   * ADD / DELETE will only have one user record, UPDATE will have many aggregated possibly.
+   * TX ADD / DELETE / PREPARE / ROLLBACK, COMMIT will only have one user record, TX UPDATE will
+   * have many aggregated.
+   */
+  /**
+   * For ADD_RECORD / DELETE_RECORD and all TX records except UPDATE_RECORD_TX
+   */
+  UserJournalRecord singleRecord = 6;
 
-  int32 compactCount = 16;
+  /**
+   * For UPDATE_RECORD and UPDATE_RECORD_TX. They will all be aggregated into this list.
+   */
+  repeated UserJournalRecord updateRecords = 7;
+}
+
+message UserJournalRecord {
+  /**
+ * This corresponds to values found in
+ * org.apache.activemq.artemis.core.persistence.impl.journal.JournalRecordIds
+ */
+  enum UserRecordType {
+    UNASSIGNED = 0;
+    GROUP_RECORD = 20;
+
+    // BindingsImpl journal record type
+    QUEUE_BINDING_RECORD = 21;
+    QUEUE_STATUS_RECORD = 22;
+    ID_COUNTER_RECORD = 24;
+    ADDRESS_SETTING_RECORD = 25;
+    SECURITY_RECORD = 26;
+
+    // Message journal record types
+    ADD_LARGE_MESSAGE_PENDING = 29;
+    ADD_LARGE_MESSAGE = 30;
+    ADD_MESSAGE = 31;
+    ADD_REF = 32;
+    ACKNOWLEDGE_REF = 33;
+    UPDATE_DELIVERY_COUNT = 34;
+    PAGE_TRANSACTION = 35;
+    SET_SCHEDULED_DELIVERY_TIME = 36;
+    DUPLICATE_ID = 37;
+    HEURISTIC_COMPLETION = 38;
+    ACKNOWLEDGE_CURSOR = 39;
+    PAGE_CURSOR_COUNTER_VALUE = 40;
+    PAGE_CURSOR_COUNTER_INC = 41;
+    PAGE_CURSOR_COMPLETE = 42;
+    PAGE_CURSOR_PENDING_COUNTER = 43;
+    ADDRESS_BINDING_RECORD = 44;
+    ADD_MESSAGE_PROTOCOL = 45;
+    ADDRESS_STATUS_RECORD = 46;
+  }
+
+  UserRecordType userRecordType = 1;
+
+  bytes data = 2;
 }
 
 message JournalRecordKey {
   int64 txId = 1;
   int64 id = 2;
-}
-
-message JournalPartitionKey {
-  int64 id = 1;
+  bool update = 3;
 }

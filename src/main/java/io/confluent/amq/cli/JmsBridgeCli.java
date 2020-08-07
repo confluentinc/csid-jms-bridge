@@ -5,6 +5,7 @@
 package io.confluent.amq.cli;
 
 import com.github.rvesse.airline.Cli;
+import com.github.rvesse.airline.annotations.Group;
 import com.github.rvesse.airline.annotations.Parser;
 import com.github.rvesse.airline.model.GlobalMetadata;
 import com.github.rvesse.airline.parser.ParseResult;
@@ -17,7 +18,14 @@ import java.util.stream.Stream;
 @SuppressWarnings("checkstyle:HideUtilityClassConstructor")
 @com.github.rvesse.airline.annotations.Cli(name = "jms-bridge",
     description = "jms-bridge command line utility",
-    commands = {JmsBridgeCliHelp.class, SendCommand.class, ReceiveCommand.class},
+    groups = {
+      @Group(name = "jms",
+             defaultCommand = JmsBridgeCliHelp.class,
+             commands = {JmsBridgeCliHelp.class, SendCommand.class, ReceiveCommand.class}),
+      @Group(name = "journal",
+          defaultCommand = JmsBridgeCliHelp.class,
+          commands = {JmsBridgeCliHelp.class, ReadJournalCommand.class})
+    },
     parserConfiguration = @Parser(
         useDefaultOptionParsers = true,
         defaultParsersFirst = false,
