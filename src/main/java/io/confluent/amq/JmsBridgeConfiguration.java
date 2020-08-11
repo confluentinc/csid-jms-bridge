@@ -496,7 +496,9 @@ public class JmsBridgeConfiguration implements Configuration {
 
   @Override
   @Deprecated
-  public List<org.apache.activemq.artemis.core.config.CoreQueueConfiguration> getQueueConfigurations() {
+  public List<org.apache.activemq.artemis.core.config.CoreQueueConfiguration>
+      getQueueConfigurations() {
+
     return delegate.getQueueConfigurations();
   }
 

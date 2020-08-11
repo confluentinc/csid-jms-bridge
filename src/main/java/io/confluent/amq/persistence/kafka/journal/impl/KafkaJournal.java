@@ -198,7 +198,7 @@ public class KafkaJournal implements Journal {
     topicProps.put(TopicConfig.SEGMENT_BYTES_CONFIG, Integer.toString(SEGMENT_MAX_BYTES));
 
     // default to 1MB plus extra space for extra byte flags
-    //TODO: fix these things so they are configurable
+    //todo: fix these things so they are configurable
     topicProps.put(TopicConfig.MAX_MESSAGE_BYTES_CONFIG, Integer.toString(MAX_RECORD_SIZE + 1024));
     kafkaIO.createTopicIfNotExists(this.destTopic, 1, 1, topicProps);
 

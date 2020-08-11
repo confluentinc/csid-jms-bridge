@@ -85,7 +85,7 @@ public class ConfluentAmqServer extends ActiveMQServerImpl {
       final DatabaseStorageConfiguration dbConf =
           (DatabaseStorageConfiguration) configuration .getStoreConfiguration();
 
-      //TODO: Kafka node manager
+      //todo: Kafka node manager
       manager = JdbcNodeManager
           .with(dbConf, scheduledPool, executorFactory, shutdownOnCriticalIO);
 

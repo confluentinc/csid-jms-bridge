@@ -4,7 +4,7 @@
 
 package io.confluent.amq.persistence.kafka.journal.impl;
 
-import io.confluent.amq.LogFormat;
+import io.confluent.amq.logging.LogFormat;
 import io.confluent.amq.persistence.kafka.JournalRecord;
 import io.confluent.amq.persistence.kafka.KafkaRecordUtils;
 import io.confluent.amq.persistence.kafka.ReconciledMessage;
@@ -301,7 +301,7 @@ public class KafkaJournalStoreLoader implements
       if (isRestorationComplete()) {
         executeLoadCallback(callback);
       }
-    } catch (Exception e) {
+    } catch (Throwable e) {
       throw new RuntimeException(e);
     }
   }

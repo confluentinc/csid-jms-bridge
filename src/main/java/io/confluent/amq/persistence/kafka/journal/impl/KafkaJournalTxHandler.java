@@ -44,6 +44,7 @@ public class KafkaJournalTxHandler {
         record.getTxId(), TransactionHolder::new);
 
     if (record.getRecordType() == PREPARE_RECORD) {
+      txHolder.extraData = record.getData().toByteArray();
       txHolder.prepared = true;
     }
 
@@ -146,7 +147,7 @@ public class KafkaJournalTxHandler {
       txHolder = upsertTxHolder(key, record);
 
       if (txHolder == null) {
-        //TODO: what to do here, commit/rollback unknown TX
+        //todo: what to do here, commit/rollback unknown TX
         return reconciledMessages;
       }
     }

@@ -189,7 +189,6 @@ public class KafkaJournalStorageManager extends JournalStorageManager {
   @Override
   public LargeServerMessage createLargeMessage(long id, Message message) throws Exception {
     //not supported
-    int messageEncodeSize = message.getEncodeSize();
     throw new ActiveMQIOErrorException("Message larger than max messag size");
   }
 

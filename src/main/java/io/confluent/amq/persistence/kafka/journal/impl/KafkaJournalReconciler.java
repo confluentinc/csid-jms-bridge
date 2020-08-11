@@ -36,12 +36,13 @@ public class KafkaJournalReconciler {
 
   public List<ReconciledMessage<?>> deleteRecord(byte[] key, JournalRecord record) {
     if (LOGGER.isTraceEnabled()) {
-      String logKey = "EXCEPTION";
+      String logKey;
       try {
         JournalRecordKey jkey = JournalRecordKey.parseFrom(key);
         logKey = String.format("tx-%d_id-%d", jkey.getTxId(), jkey.getId());
       } catch (Exception e) {
         //don't let it propagate
+        logKey = "EXCEPTION";
       }
 
       LOGGER.trace("DELETE Record({}) Tombstone: key: '{}' ", journalTopic, logKey);
@@ -65,8 +66,7 @@ public class KafkaJournalReconciler {
         break;
       case DELETE_RECORD:
         //the original record, delete record and tombstone record all share the same key
-        reconciledMessages = Collections
-            .singletonList(ReconciledMessage.tombstone(journalTopic, key));
+        reconciledMessages = deleteRecord(key, record);
         break;
       case PREPARE_RECORD:
       case UPDATE_RECORD_TX:

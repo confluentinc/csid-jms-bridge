@@ -4,6 +4,7 @@
 
 package io.confluent.amq.persistence.kafka;
 
+import io.confluent.amq.logging.LogFormat;
 import io.confluent.amq.persistence.kafka.ConsumerThread.Builder;
 import io.confluent.amq.persistence.kafka.journal.KafkaJournalRecord;
 import java.nio.charset.StandardCharsets;
@@ -27,7 +28,6 @@ import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;
-import org.apache.kafka.clients.producer.RecordMetadata;
 import org.apache.kafka.common.header.internals.RecordHeader;
 import org.apache.kafka.common.serialization.ByteArraySerializer;
 import org.apache.kafka.common.serialization.LongSerializer;
@@ -40,6 +40,7 @@ import org.slf4j.LoggerFactory;
 public class KafkaIO {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(KafkaIO.class);
+  private static final LogFormat LOG_FORMAT = LogFormat.forSubject("KafkaIO");
 
   private static final ThreadGroup THREAD_GROUP;
 
@@ -122,7 +123,11 @@ public class KafkaIO {
   public void createTopic(String name, int partitions, int replication,
       Map<String, String> options) {
 
-    LOGGER.info("Creating kafka topic {}", name);
+    LOGGER.info(LOG_FORMAT.build(b -> b
+        .event("CreateTopic")
+        .putTokens("topic", name)
+        .putTokens("partitions", partitions)
+        .putTokens("replication", replication)));
 
     NewTopic topic = new NewTopic(name, partitions, (short) replication);
     topic.configs(options);
@@ -145,15 +150,11 @@ public class KafkaIO {
         record.getRecord().toByteArray());
 
     if (LOGGER.isTraceEnabled()) {
-      String key = String.format("txId: '%d', id: '%d'",
-          record.getKafkaMessageKey().getTxId(),
-          record.getKafkaMessageKey().getId());
-      LOGGER.trace("Publishing record {"
-              + " topic: '{}', partition: '{}', key: '{}', recordType: '{}' }",
-              record.getDestTopic(),
-              partition,
-              key,
-              record.getRecord().getRecordType().name());
+      LOGGER.trace(LOG_FORMAT.build(b -> b
+          .event("PublishJournalRecord")
+          .addProducerRecord(producerRecord)
+          .addJournalRecordKey(record.getKafkaMessageKey())
+          .addJournalRecord(record.getRecord())));
     }
 
     kafkaProducer.send(producerRecord, (meta, err) -> {
@@ -162,11 +163,25 @@ public class KafkaIO {
           record.getIoCompletion()
               .onError(ActiveMQExceptionType.IO_ERROR.getCode(), err.getMessage());
         }
-        LOGGER.error("Publishing of journal data to kafka failed.", err);
+
+        LOGGER.error(LOG_FORMAT.build(b -> b
+            .event("PublishJournalRecord")
+            .markFailure()
+            .addProducerRecord(producerRecord)
+            .addJournalRecordKey(record.getKafkaMessageKey())
+            .addJournalRecord(record.getRecord())), err);
+
       } else {
-        if (LOGGER.isDebugEnabled()) {
-          LOGGER.info("Published kafka record metadata is: " + meta);
+
+        if (LOGGER.isTraceEnabled()) {
+          LOGGER.trace(LOG_FORMAT.build(b -> b
+              .event("PublishJournalRecord")
+              .markSuccess()
+              .addRecordMetadata(meta)
+              .addJournalRecordKey(record.getKafkaMessageKey())
+              .addJournalRecord(record.getRecord())));
         }
+
         if (record.getIoCompletion() != null) {
           record.getIoCompletion().done();
         }
