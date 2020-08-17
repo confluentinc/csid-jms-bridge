@@ -6,8 +6,8 @@ package io.confluent.amq.persistence.kafka.journal;
 
 import io.confluent.amq.logging.LogFormat;
 import io.confluent.amq.logging.LogSpec;
-import io.confluent.amq.persistence.kafka.JournalRecord;
-import io.confluent.amq.persistence.kafka.JournalRecordKey;
+import io.confluent.amq.persistence.domain.proto.JournalEntryKey;
+import io.confluent.amq.persistence.domain.proto.JournalRecord;
 import io.confluent.amq.persistence.kafka.journal.impl.KafkaJournal;
 import java.io.PrintStream;
 import java.time.Duration;
@@ -71,18 +71,18 @@ public class KafkaJournalDescriber {
   }
 
   private void writeRecord(PrintStream out, ConsumerRecord<byte[], byte[]> record) {
-    JournalRecordKey key;
+    JournalEntryKey key;
     JournalRecord value;
     LogSpec.Builder logSpec = new LogSpec.Builder()
         .name(journalName)
         .addRecordMetadata(record);
 
     try {
-      key = JournalRecordKey.parseFrom(record.key());
+      key = JournalEntryKey.parseFrom(record.key());
     } catch (Exception e) {
       key = null;
     }
-    logSpec.addJournalRecordKey(key);
+    logSpec.addJournalEntryKey(key);
 
     if (record.value() == null) {
       out.println(logger.build(b -> b

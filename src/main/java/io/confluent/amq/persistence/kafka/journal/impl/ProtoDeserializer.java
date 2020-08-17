@@ -17,6 +17,10 @@ public class ProtoDeserializer<T extends Message> implements Deserializer<T> {
 
   @Override
   public T deserialize(String topic, byte[] data) {
+    if (data == null) {
+      return null;
+    }
+
     try {
       return protoFn.apply(data);
     } catch (Exception e) {

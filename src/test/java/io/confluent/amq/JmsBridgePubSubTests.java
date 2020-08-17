@@ -4,21 +4,22 @@
 
 package io.confluent.amq;
 
+import static io.confluent.amq.persistence.domain.proto.JournalRecordType.ADD_RECORD;
+import static io.confluent.amq.test.TestSupport.getCompactedJournal;
 import static io.confluent.amq.test.TestSupport.println;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
-import io.confluent.amq.persistence.kafka.JournalRecord;
-import io.confluent.amq.persistence.kafka.JournalRecord.JournalRecordType;
-import io.confluent.amq.persistence.kafka.JournalRecordKey;
+import io.confluent.amq.logging.LogFormat;
+import io.confluent.amq.persistence.domain.proto.JournalEntry;
+import io.confluent.amq.persistence.domain.proto.JournalEntryKey;
 import io.confluent.amq.test.ArtemisTestServer;
 import io.confluent.amq.test.KafkaTestContainer;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import io.confluent.amq.test.TestSupport;
+import java.nio.file.Path;
+import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.jms.Message;
@@ -28,11 +29,13 @@ import javax.jms.Session;
 import javax.jms.Topic;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.kafka.common.serialization.ByteArrayDeserializer;
+import org.apache.kafka.streams.StreamsConfig;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.extension.RegisterExtension;
+import org.junit.jupiter.api.io.TempDir;
 import org.testcontainers.containers.KafkaContainer;
 
 @SuppressFBWarnings({"MS_PKGPROTECT", "MS_SHOULD_BE_FINAL"})
@@ -42,18 +45,23 @@ public class JmsBridgePubSubTests {
   private static final boolean IS_VANILLA = false;
   private static final String JMS_TOPIC = "jms-to-kafka";
 
-  @RegisterExtension
+  @TempDir
   @Order(100)
+  public static Path tempdir;
+
+  @RegisterExtension
+  @Order(200)
   public static final KafkaTestContainer kafkaContainer = new KafkaTestContainer(
       new KafkaContainer("5.4.0")
           .withEnv("KAFKA_DELETE_TOPIC_ENABLE", "true")
           .withEnv("KAFKA_AUTO_CREATE_TOPICS_ENABLE", "false"));
 
   @RegisterExtension
-  @Order(200)
+  @Order(300)
   public static final ArtemisTestServer amqServer = ArtemisTestServer.embedded(b -> b
       .useVanilla(IS_VANILLA)
-      .jmsBridgeProps(kafkaContainer.defaultProps()));
+      .jmsBridgeProps(kafkaContainer.defaultProps())
+      .putJmsBridgeConfigs(StreamsConfig.STATE_DIR_CONFIG, tempdir.toAbsolutePath().toString()));
 
 
   @Test
@@ -97,20 +105,25 @@ public class JmsBridgePubSubTests {
     }
 
     String messagesJournal = "_jms.bridge_junit_messages";
-    List<JournalRecordKey> keys = streamJournalFiles(messagesJournal)
+    TestSupport.logJournalFiles(kafkaContainer, messagesJournal, true);
+
+    Map<Long, Long> keyCounts = streamJournalFiles(messagesJournal)
         //tombstones
         .filter(p -> p.getValue() != null)
         //exclude TX
-        .filter(p -> p.getValue().getRecordType() == JournalRecordType.ADD_RECORD)
+        .filter(p -> p.getValue().hasAppendedRecord())
+        .filter(p -> p.getValue().getAppendedRecord().getRecordType() == ADD_RECORD)
         .map(Pair::getKey)
-        .collect(Collectors.toList());
+        .collect(Collectors.groupingBy(JournalEntryKey::getMessageId, Collectors.counting()));
 
-    Set<Long> foundIds = new HashSet<>();
-    for (JournalRecordKey key : keys) {
-      assertFalse(String.format("Duplicate ID found: '%d'", key.getId()),
-          foundIds.contains(key.getId()));
-      foundIds.add(key.getId());
-    }
+    keyCounts.entrySet().stream()
+        .filter(en -> en.getValue() > 1)
+        .forEach(en ->
+            println("Duplicate messageId found, ID: {}, dupeCount: {}",
+                en.getKey(), en.getValue()));
+
+    assertEquals("Duplicate IDs found.", 0L,
+        keyCounts.values().stream().filter(c -> c > 1).count());
   }
 
   @Test
@@ -139,13 +152,18 @@ public class JmsBridgePubSubTests {
         assertNull(rcvmsg);
       }
     }
+
+    String messagesJournal = "_jms.bridge_junit_messages";
+    Map<JournalEntryKey, JournalEntry> table = getCompactedJournal(kafkaContainer, messagesJournal);
+    TestSupport.logTable(messagesJournal, table);
+    assertEquals("Compacted table should be empty.", 0, table.size());
   }
 
   @Test
   @Timeout(30)
   public void jmsClientPubSubMultipleBindings() throws Exception {
-    String topicName = "jms-client-tx-commit";
-    String subscriberName = "jms-client-tx-commit-subscriber";
+    String topicName = "jms-client-multi-bindings";
+    String subscriberName = "jms-client-multi-bindings-subscriber";
 
     try (
         Session session1 = amqServer.getConnection().createSession(false, Session.AUTO_ACKNOWLEDGE);
@@ -202,7 +220,13 @@ public class JmsBridgePubSubTests {
         assertEquals("Message 2", rcvmsg.getBody(String.class));
 
       }
+
     }
+
+    String messagesJournal = "_jms.bridge_junit_messages";
+    Map<JournalEntryKey, JournalEntry> table = getCompactedJournal(kafkaContainer, messagesJournal);
+    TestSupport.logTable(messagesJournal, table);
+    assertEquals("Compacted table should be empty.", 0, table.size());
   }
 
   @Test
@@ -246,25 +270,25 @@ public class JmsBridgePubSubTests {
     }
   }
 
-  public Stream<Pair<JournalRecordKey, JournalRecord>> streamJournalFiles(String journalTopic) {
+  public Stream<Pair<JournalEntryKey, JournalEntry>> streamJournalFiles(String journalTopic) {
     return kafkaContainer
         .consumeAll(journalTopic, new ByteArrayDeserializer(), new ByteArrayDeserializer())
         .stream()
         .map(r -> {
 
-          JournalRecordKey rkey = null;
+          JournalEntryKey rkey = null;
           if (r.key() != null) {
             try {
-              rkey = JournalRecordKey.parseFrom(r.key());
+              rkey = JournalEntryKey.parseFrom(r.key());
             } catch (Exception e) {
               throw new RuntimeException(e);
             }
           }
 
-          JournalRecord rval = null;
+          JournalEntry rval = null;
           if (r.value() != null) {
             try {
-              rval = JournalRecord.parseFrom(r.value());
+              rval = JournalEntry.parseFrom(r.value());
             } catch (Exception e) {
               throw new RuntimeException(e);
             }
@@ -275,30 +299,21 @@ public class JmsBridgePubSubTests {
   }
 
   public void logJournalFiles(String journalTopic) {
+    LogFormat format = LogFormat.forSubject("JournalLog");
+
     String journalStr = streamJournalFiles(journalTopic)
-        .map(pair -> {
+        .map(pair -> format.build(b -> {
 
-          String key = "null";
-          if (pair.getKey() != null) {
-            try {
-              key = String.format("tx-%d_id-%d", pair.getKey().getTxId(), pair.getKey().getId());
-            } catch (Exception e) {
-              key = "ERROR";
-            }
+          b.addJournalEntryKey(pair.getKey());
+          if (pair.getValue() == null) {
+            b.event("TOMBSTONE");
+          } else {
+            b.event("ENTRY");
+            b.addJournalEntry(pair.getValue());
           }
 
-          String value = "null";
-          if (pair.getValue() != null) {
-            try {
-              value = String.format("RecordType: %s, UserRecordType: %d",
-                  pair.getValue().getRecordType().name(), pair.getValue().getUserRecordType());
-            } catch (Exception e) {
-              value = "ERROR";
-            }
-          }
-
-          return String.format("Key: %s, Value: %s", key, value);
-        }).collect(Collectors.joining(System.lineSeparator() + System.lineSeparator()));
+        }))
+        .collect(Collectors.joining(System.lineSeparator()));
 
     println(
         "#### JOURNAL FOR TOPIC " + journalTopic + " ####" + System.lineSeparator() + journalStr);

@@ -13,6 +13,10 @@ For a detailed description of findbugs bug categories, see http://findbugs.sourc
     If you really MUST suppress an error warning, do so using the @SuppressFBWarnings annotation.
 -->
   <Match>
+  <!-- Avro generates redundant "implements" interface declarations -->
+  <Or>
+    <Package name="~io[.]confluent[.]amq[.]persistence[.]domain[.]proto([.].*)?" />
     <Class name="~.*\$Builder.*" />
+  </Or>
   </Match>
 </FindBugsFilter>

@@ -4,26 +4,33 @@
 
 package io.confluent.amq.persistence.kafka;
 
+import com.google.protobuf.Message;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import io.confluent.amq.logging.LogFormat;
 import io.confluent.amq.persistence.kafka.ConsumerThread.Builder;
-import io.confluent.amq.persistence.kafka.journal.impl.JournalRecordKeyPartitioner;
+import io.confluent.amq.persistence.kafka.journal.impl.JournalEntryKeyPartitioner;
 import io.confluent.amq.persistence.kafka.journal.impl.ProtoSerializer;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 import org.apache.activemq.artemis.api.core.ICoreMessage;
 import org.apache.activemq.artemis.api.core.SimpleString;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.NewTopic;
+import org.apache.kafka.clients.admin.OffsetSpec;
+import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerConfig;
+import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.header.internals.RecordHeader;
 import org.apache.kafka.common.serialization.LongSerializer;
 import org.apache.kafka.common.serialization.StringSerializer;
@@ -45,7 +52,7 @@ public class KafkaIO {
 
   private final Properties kafkaProps;
 
-  private KafkaProducer<com.google.protobuf.Message, com.google.protobuf.Message> kafkaProducer;
+  private KafkaProducer<? extends Message, ? extends Message> kafkaProducer;
   private AdminClient adminClient;
   private StringSerializer stringSerializer = new StringSerializer();
   private LongSerializer longSerializer = new LongSerializer();
@@ -55,12 +62,13 @@ public class KafkaIO {
   }
 
   public KafkaIO(Properties kafkaProps) {
-    this.kafkaProps = new Properties(kafkaProps);
+    this.kafkaProps = new Properties();
+    this.kafkaProps.putAll(kafkaProps);
     this.kafkaProps.put(ProducerConfig.MAX_IN_FLIGHT_REQUESTS_PER_CONNECTION, 1);
     this.kafkaProps.put(ProducerConfig.ACKS_CONFIG, "all");
     this.kafkaProps.put(
         ProducerConfig.PARTITIONER_CLASS_CONFIG,
-        JournalRecordKeyPartitioner.class.getCanonicalName());
+        JournalEntryKeyPartitioner.class.getCanonicalName());
   }
 
   public Properties getKafkaProps() {
@@ -68,13 +76,60 @@ public class KafkaIO {
   }
 
   public synchronized void start() {
-    ProtoSerializer protoSerializer = new ProtoSerializer();
-    kafkaProducer = new KafkaProducer<>(kafkaProps, protoSerializer, protoSerializer);
-    adminClient = AdminClient.create(kafkaProps);
-    Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-      kafkaProducer.close();
-      adminClient.close();
-    }));
+    if (this.kafkaProducer == null) {
+      ProtoSerializer<com.google.protobuf.Message> protoSerializer = new ProtoSerializer<>();
+      kafkaProducer = new KafkaProducer<>(kafkaProps, protoSerializer, protoSerializer);
+      adminClient = AdminClient.create(kafkaProps);
+      Runtime.getRuntime().addShutdownHook(new Thread(this::stop));
+    }
+  }
+
+  public Map<TopicPartition, Long> fetchLatestOffsets(String topic) {
+    try {
+      //get the partitions for the topic
+      List<TopicPartition> tpList = adminClient
+          .describeTopics(Collections.singleton(topic))
+          .all()
+          .get()
+          .get(topic)
+          .partitions()
+          .stream()
+          .map(tpi -> new TopicPartition(topic, tpi.partition()))
+          .collect(Collectors.toList());
+
+      //get the highwater marks (latest offsets)
+      return adminClient
+          .listOffsets(
+              tpList.stream().collect(Collectors.toMap(tp -> tp, tp -> OffsetSpec.latest())))
+          .all()
+          .get()
+          .entrySet()
+          .stream()
+          .collect(
+              Collectors.toMap(Entry::getKey, v -> v.getValue().offset()));
+
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  public void resetConsumerGroupOffsetsLatest(String consumerGroup, String topic) {
+    try {
+      Map<TopicPartition, OffsetAndMetadata> groupOffsetMap = fetchLatestOffsets(topic)
+          .entrySet()
+          .stream()
+          .collect(
+              Collectors.toMap(Entry::getKey, v -> new OffsetAndMetadata(v.getValue())));
+
+      adminClient.alterConsumerGroupOffsets(
+          consumerGroup,
+          groupOffsetMap)
+          .all()
+          .get();
+      //done moving offsets around ... whew!
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
   }
 
   /**
@@ -137,11 +192,11 @@ public class KafkaIO {
     }
   }
 
-  public <T> T withProducer(
-      Function<Producer<com.google.protobuf.Message, com.google.protobuf.Message>, T> produceFn) {
+  @SuppressWarnings("unchecked")
+  public <K extends Message, V extends Message> void withProducer(
+      Consumer<Producer<K, V>> produceFn) {
 
-    return produceFn.apply(kafkaProducer);
-
+    produceFn.accept((Producer<K, V>)kafkaProducer);
   }
 
   /* //save for future reference
@@ -223,14 +278,16 @@ public class KafkaIO {
     return kheaders;
   }
 
-  public void stop() throws Exception {
+  public void stop() {
 
     if (kafkaProducer != null) {
       kafkaProducer.close();
+      kafkaProducer = null;
     }
 
     if (adminClient != null) {
       adminClient.close();
+      adminClient = null;
     }
   }
 

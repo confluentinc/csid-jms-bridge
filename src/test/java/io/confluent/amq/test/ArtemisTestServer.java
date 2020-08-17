@@ -156,6 +156,7 @@ public class ArtemisTestServer implements
     if (this.amqConnection != null) {
       try {
         this.amqConnection.stop();
+        this.amqConnection.close();
       } catch (Exception e) {
         throw new RuntimeException(e);
       }

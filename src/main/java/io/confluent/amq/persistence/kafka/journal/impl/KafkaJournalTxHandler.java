@@ -4,30 +4,27 @@
 
 package io.confluent.amq.persistence.kafka.journal.impl;
 
-import static io.confluent.amq.persistence.kafka.JournalRecord.JournalRecordType.COMMIT_RECORD;
-import static io.confluent.amq.persistence.kafka.JournalRecord.JournalRecordType.PREPARE_RECORD;
-import static io.confluent.amq.persistence.kafka.JournalRecord.JournalRecordType.ROLLBACK_RECORD;
+import static io.confluent.amq.persistence.domain.proto.JournalRecordType.COMMIT_TX;
+import static io.confluent.amq.persistence.domain.proto.JournalRecordType.PREPARE_TX;
+import static io.confluent.amq.persistence.domain.proto.JournalRecordType.ROLLBACK_TX;
 
 import io.confluent.amq.logging.StructuredLogger;
-import io.confluent.amq.persistence.kafka.JournalRecord;
-import io.confluent.amq.persistence.kafka.JournalRecord.JournalRecordType;
-import io.confluent.amq.persistence.kafka.JournalRecordKey;
+import io.confluent.amq.persistence.domain.proto.JournalEntry;
+import io.confluent.amq.persistence.domain.proto.JournalEntryKey;
+import io.confluent.amq.persistence.domain.proto.JournalRecord;
+import io.confluent.amq.persistence.domain.proto.JournalRecordType;
 import io.confluent.amq.persistence.kafka.ReconciledMessage;
 import io.confluent.amq.persistence.kafka.journal.KafkaRecordInfo;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import org.apache.activemq.artemis.core.journal.PreparedTransactionInfo;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class KafkaJournalTxHandler {
 
-  private static final Logger LOGGER = LoggerFactory.getLogger(KafkaJournalTxHandler.class);
   private static final StructuredLogger SLOG = StructuredLogger
       .with(b -> b.loggerClass(KafkaJournalTxHandler.class));
 
@@ -40,12 +37,13 @@ public class KafkaJournalTxHandler {
   }
 
 
-  private TransactionHolder upsertTxHolder(byte[] key, JournalRecord record) {
+  private TransactionHolder upsertTxHolder(JournalRecord record) {
 
     TransactionHolder txHolder = transactions.computeIfAbsent(
         record.getTxId(), TransactionHolder::new);
 
-    if (record.getRecordType() == PREPARE_RECORD) {
+    //XA record most likely that has associated metadata
+    if (record.getRecordType() == PREPARE_TX) {
       txHolder.extraData = record.getData().toByteArray();
       txHolder.prepared = true;
     }
@@ -53,65 +51,62 @@ public class KafkaJournalTxHandler {
     return txHolder;
   }
 
-  private List<ReconciledMessage<?>> rollbackTx(
-      TransactionHolder txHolder, byte[] key, JournalRecord record) {
+  private List<ReconciledMessage> rollbackTx(
+      TransactionHolder txHolder, JournalEntryKey key, JournalRecord record) {
 
+    //add in the rollback record so it also gets tombstoned
     txHolder.recordInfos.add(new KafkaRecordInfo(key, record));
 
+    //tombstone the entire transaction
     return txHolder.recordInfos.stream()
-        .map(ki -> ReconciledMessage.tombstone(journalTopic, ki.getKafkaKey()))
+        .map(ki ->
+            ReconciledMessage.tombstone(JournalEntryKey.newBuilder(ki.getKafkaKey()).build()))
         .collect(Collectors.toList());
   }
 
-  private List<ReconciledMessage<?>> commitTx(
-      TransactionHolder txHolder, byte[] key, JournalRecord record) {
+  private List<ReconciledMessage> commitTx(
+      TransactionHolder txHolder, JournalEntryKey key, JournalRecord record) {
 
-    //we don't need the commit record, so we don't add it
-    return txHolder.recordInfos.stream()
-        .flatMap(ki -> {
-          List<ReconciledMessage<?>> msgs = new LinkedList<>();
-          JournalRecordType updType = convertTxRecordType(ki.getJournalRecord().getRecordType());
+    List<ReconciledMessage> msgs = new LinkedList<>();
+    for (KafkaRecordInfo ki : txHolder.getRecordInfos()) {
+      //we issue new records overwriting the old ones
 
-          //Indicates that we want to publish back this part of the transaction
-          if (ki.getJournalRecord().getRecordType() != updType) {
-            JournalRecord updRecord = JournalRecord.newBuilder(ki.getJournalRecord())
+      JournalRecordType updType = convertTxRecordType(ki.getJournalRecord().getRecordType());
+      if (ki.getJournalRecord().getRecordType() != updType) {
+
+        //overwrite the existing record key
+        JournalEntryKey updKey = JournalEntryKey.newBuilder(ki.getKafkaKey()).build();
+
+        //remove the transaction properties
+        JournalEntry updRecord = JournalEntry.newBuilder()
+            .setAppendedRecord(JournalRecord.newBuilder(ki.getJournalRecord())
                 .setRecordType(updType)
-                .clearTxId()
-                .build();
+                .clearTxId())
+            .build();
 
-            JournalRecordKey updKey = JournalRecordKey.newBuilder()
-                .setId(updRecord.getId())
-                .build();
+        msgs.add(
+            ReconciledMessage.forward(updKey, updRecord));
 
-            msgs.add(
-                ReconciledMessage.forward(journalTopic, updKey.toByteArray(), updRecord));
+        SLOG.trace(b -> b.name(journalTopic).event("CommitTX")
+            .addJournalEntryKey(updKey).addJournalEntry(updRecord));
+      } else {
+        //tombstone the TX protocol messages
+        JournalEntryKey tsKey = JournalEntryKey.newBuilder(ki.getKafkaKey()).build();
+        msgs.add(ReconciledMessage.tombstone(tsKey));
 
-            SLOG.trace(b -> b.name(journalTopic).event("CommitTX")
-                .addJournalRecordKey(updKey).addJournalRecord(updRecord));
+        SLOG.trace(b -> {
+          b.name(journalTopic)
+              .event("Tombstone")
+              .addJournalEntryKey(ki.getKafkaKey())
+              .addJournalRecord(ki.getJournalRecord());
+        });
+      }
+    }
 
-          }
+    //finally tombstone the commit record
+    msgs.add(ReconciledMessage.tombstone(key));
 
-          //delete the tx meta records, key ==  key
-          msgs.add(ReconciledMessage.tombstone(journalTopic, ki.getKafkaKey()));
-
-          SLOG.trace(b -> {
-            JournalRecordKey jkey = null;
-            try {
-              jkey = JournalRecordKey.parseFrom(ki.getKafkaKey());
-            } catch (Exception e) {
-              //swallow
-            }
-
-            b.name(journalTopic)
-                .event("Tombstone")
-                .addJournalRecordKey(jkey)
-                .addJournalRecord(ki.getJournalRecord());
-          });
-
-          return msgs.stream();
-
-        })
-        .collect(Collectors.toList());
+    return msgs;
   }
 
   private JournalRecordType convertTxRecordType(JournalRecordType txType) {
@@ -120,50 +115,58 @@ public class KafkaJournalTxHandler {
         return JournalRecordType.ADD_RECORD;
       case DELETE_RECORD_TX:
         return JournalRecordType.DELETE_RECORD;
-      case UPDATE_RECORD_TX:
-        return JournalRecordType.UPDATE_RECORD;
+      case ANNOTATE_RECORD_TX:
+        return JournalRecordType.ANNOTATE_RECORD;
       default:
         return txType;
     }
   }
 
   private boolean isTxTerminator(JournalRecord record) {
-    return record.getRecordType() == ROLLBACK_RECORD
-        || record.getRecordType() == COMMIT_RECORD;
+    return record.getRecordType() == ROLLBACK_TX
+        || record.getRecordType() == COMMIT_TX;
   }
 
-  public List<ReconciledMessage<?>> handleTxRecord(byte[] key, JournalRecord record) {
-    List<ReconciledMessage<?>> reconciledMessages = Collections.emptyList();
+  public List<ReconciledMessage> handleTxRecord(JournalEntryKey key, JournalRecord record) {
+    List<ReconciledMessage> reconciledMessages = Collections.emptyList();
 
     TransactionHolder txHolder;
     if (isTxTerminator(record)) {
       txHolder = transactions.get(record.getTxId());
     } else {
-      txHolder = upsertTxHolder(key, record);
+      txHolder = upsertTxHolder(record);
+    }
 
-      if (txHolder == null) {
-        //todo: what to do here, commit/rollback unknown TX
-        return reconciledMessages;
-      }
+    if (txHolder == null) {
+      return Collections.singletonList(
+          ReconciledMessage.deadletter(
+              key,
+              JournalEntry.newBuilder().setAppendedRecord(record).build(),
+              "TransactionInvalid",
+              "Record's indicated transaction is not active/found."));
     }
 
     switch (record.getRecordType()) {
       case ADD_RECORD_TX:
-      case UPDATE_RECORD_TX:
+      case ANNOTATE_RECORD_TX:
         txHolder.recordInfos.add(new KafkaRecordInfo(key, record));
         break;
       case DELETE_RECORD_TX:
         txHolder.recordInfos.add(new KafkaRecordInfo(key, record, true));
         break;
-      case ROLLBACK_RECORD:
+      case ROLLBACK_TX:
         reconciledMessages = rollbackTx(txHolder, key, record);
         transactions.remove(txHolder.transactionID);
         break;
-      case COMMIT_RECORD:
+      case COMMIT_TX:
         reconciledMessages = commitTx(txHolder, key, record);
         break;
       default:
-        SLOG.warn(b -> b.name(journalTopic).event("NotTXRecord").addJournalRecord(record));
+        SLOG.warn(b -> b
+            .name(journalTopic)
+            .event("NotTXRecord")
+            .addJournalEntryKey(key)
+            .addJournalRecord(record));
         break;
     }
 
@@ -182,6 +185,7 @@ public class KafkaJournalTxHandler {
   }
 
   public static class TransactionHolder {
+
     private final long transactionID;
     private final List<KafkaRecordInfo> recordInfos = new ArrayList<>();
     private boolean prepared;

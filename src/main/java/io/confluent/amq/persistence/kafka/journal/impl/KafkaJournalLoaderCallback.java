@@ -42,8 +42,8 @@ public interface KafkaJournalLoaderCallback extends LoaderCallback {
   void loadComplete(int recordCount);
 
   /**
-   * Waits for loading to complete to return the load information.
-   * If loading has already completed then it returns immediately.
+   * Waits for loading to complete to return the load information. If loading has already completed
+   * then it returns immediately.
    *
    * @return metadata on the loading of the journal
    */

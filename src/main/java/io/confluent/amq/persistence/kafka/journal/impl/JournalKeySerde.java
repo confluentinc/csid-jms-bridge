@@ -1,0 +1,31 @@
+/*
+ * Copyright 2020 Confluent Inc.
+ */
+
+package io.confluent.amq.persistence.kafka.journal.impl;
+
+import io.confluent.amq.persistence.domain.proto.JournalEntryKey;
+import org.apache.kafka.common.serialization.Deserializer;
+import org.apache.kafka.common.serialization.Serde;
+import org.apache.kafka.common.serialization.Serializer;
+
+public class JournalKeySerde implements Serde<JournalEntryKey> {
+  private final Serializer<JournalEntryKey> serializer;
+  private final Deserializer<JournalEntryKey> deserializer;
+
+  public JournalKeySerde() {
+
+    this.serializer = new ProtoSerializer<>();
+    this.deserializer = new ProtoDeserializer<>(JournalEntryKey::parseFrom);
+  }
+
+  @Override
+  public Serializer<JournalEntryKey> serializer() {
+    return serializer;
+  }
+
+  @Override
+  public Deserializer<JournalEntryKey> deserializer() {
+    return deserializer;
+  }
+}

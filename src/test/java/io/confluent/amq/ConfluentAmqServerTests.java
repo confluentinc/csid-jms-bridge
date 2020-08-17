@@ -22,6 +22,7 @@ import javax.jms.Topic;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.serialization.Serde;
 import org.apache.kafka.common.serialization.Serdes;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -29,10 +30,11 @@ import org.junit.jupiter.api.extension.RegisterExtension;
 import org.testcontainers.containers.KafkaContainer;
 
 @SuppressFBWarnings({"MS_SHOULD_BE_FINAL", "MS_PKGPROTECT"})
+@Disabled("Functionality currently not available.")
 @Tag("IntegrationTest")
 public class ConfluentAmqServerTests {
 
-  private static final boolean IS_VANILLA = true;
+  private static final boolean IS_VANILLA = false;
   private static final String JMS_TOPIC = "jms-to-kafka";
   static final Serde<String> stringSerde = Serdes.String();
 

@@ -4,9 +4,9 @@
 
 package io.confluent.amq.persistence.kafka.journal;
 
-import io.confluent.amq.persistence.kafka.JournalRecord;
-import io.confluent.amq.persistence.kafka.JournalRecord.JournalRecordType;
-import io.confluent.amq.persistence.kafka.JournalRecordKey;
+import io.confluent.amq.persistence.domain.proto.JournalEntryKey;
+import io.confluent.amq.persistence.domain.proto.JournalRecord;
+import io.confluent.amq.persistence.kafka.KafkaRecordUtils;
 import org.apache.activemq.artemis.core.journal.IOCompletion;
 
 /**
@@ -23,18 +23,8 @@ public class KafkaJournalRecord {
     this.record = record;
   }
 
-  public JournalRecordKey getKafkaMessageKey() {
-
-    boolean update =
-        record.getRecordType() == JournalRecordType.UPDATE_RECORD_TX
-          ||
-        record.getRecordType() == JournalRecordType.UPDATE_RECORD;
-
-    return JournalRecordKey.newBuilder()
-        .setId(record.getId())
-        .setTxId(record.getTxId())
-        .setUpdate(update)
-        .build();
+  public JournalEntryKey getKafkaMessageKey() {
+    return KafkaRecordUtils.keyFromRecord(record);
   }
 
   public String getDestTopic() {

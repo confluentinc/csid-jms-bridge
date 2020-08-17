@@ -5,8 +5,8 @@
 package io.confluent.amq.persistence.kafka.journal.impl;
 
 import com.google.common.primitives.Longs;
-import io.confluent.amq.persistence.kafka.JournalRecord;
-import io.confluent.amq.persistence.kafka.JournalRecordKey;
+import io.confluent.amq.persistence.domain.proto.JournalEntry;
+import io.confluent.amq.persistence.domain.proto.JournalEntryKey;
 import java.util.Map;
 import org.apache.kafka.clients.producer.Partitioner;
 import org.apache.kafka.clients.producer.internals.DefaultPartitioner;
@@ -15,15 +15,15 @@ import org.apache.kafka.common.utils.Utils;
 import org.apache.kafka.streams.processor.StreamPartitioner;
 
 /**
- * Partitions JournalRecordKeys either by the Tx ID or by the record ID, depending if the record is
+ * Partitions JournalEntryKeys either by the Tx ID or by the record ID, depending if the record is
  * part of a transaction or not.
  */
-public class JournalRecordKeyPartitioner
-    implements Partitioner, StreamPartitioner<JournalRecordKey, JournalRecord> {
+public class JournalEntryKeyPartitioner
+    implements Partitioner, StreamPartitioner<JournalEntryKey, JournalEntry> {
 
   private final DefaultPartitioner defaultPartitioner;
 
-  public JournalRecordKeyPartitioner() {
+  public JournalEntryKeyPartitioner() {
     this.defaultPartitioner = new DefaultPartitioner();
   }
 
@@ -31,9 +31,9 @@ public class JournalRecordKeyPartitioner
   public int partition(String topic, Object key, byte[] keyBytes, Object value, byte[] valueBytes,
       Cluster cluster) {
 
-    if (key instanceof JournalRecordKey) {
+    if (key instanceof JournalEntryKey) {
       //If it's a TX then partition based on the TX ID otherwise partition on the record ID
-      JournalRecordKey jkey = (JournalRecordKey) key;
+      JournalEntryKey jkey = (JournalEntryKey) key;
       return defaultPartitioner.partition(
           topic, key, keyBytes(jkey), value, valueBytes, cluster);
 
@@ -43,20 +43,19 @@ public class JournalRecordKeyPartitioner
   }
 
   @Override
-  public Integer partition(String topic, JournalRecordKey key, JournalRecord value,
+  public Integer partition(String topic, JournalEntryKey key, JournalEntry value,
       int numPartitions) {
 
     byte[] keyBytes = keyBytes(key);
     return Utils.toPositive(Utils.murmur2(keyBytes)) % numPartitions;
   }
 
-  private byte[] keyBytes(JournalRecordKey key) {
+  private byte[] keyBytes(JournalEntryKey key) {
     if (key.getTxId() != 0) {
 
       return Longs.toByteArray(key.getTxId());
     } else {
-
-      return Longs.toByteArray(key.getId());
+      return Longs.toByteArray(key.getMessageId());
     }
 
   }
