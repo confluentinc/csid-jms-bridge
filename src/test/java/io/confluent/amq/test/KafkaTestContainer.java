@@ -2,17 +2,18 @@
  * Copyright 2020 Confluent Inc.
  */
 
-package io.confluent.amq;
+package io.confluent.amq.test;
 
 import static io.confluent.amq.SerdePool.ser;
 
+import io.confluent.amq.persistence.kafka.KafkaIO;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -43,6 +44,15 @@ import org.testcontainers.containers.KafkaContainer;
 public class KafkaTestContainer implements
     BeforeAllCallback, AfterAllCallback, BeforeEachCallback, AfterEachCallback {
 
+
+  public static KafkaTestContainer usingDefaults() {
+    KafkaContainer container = new KafkaContainer("5.4.0")
+        .withEnv("KAFKA_DELETE_TOPIC_ENABLE", "true")
+        .withEnv("KAFKA_AUTO_CREATE_TOPICS_ENABLE", "false");
+
+    return new KafkaTestContainer(container);
+  }
+
   private static final Logger LOGGER = LoggerFactory.getLogger(KafkaTestContainer.class);
 
   private final KafkaContainer kafkaContainer;
@@ -51,6 +61,7 @@ public class KafkaTestContainer implements
   private AdminClient adminClient;
   private KafkaProducer<byte[], byte[]> producer;
   private KafkaConsumer<byte[], byte[]> consumer;
+  private KafkaIO kafkaIO;
 
   public KafkaTestContainer(KafkaContainer kafkaContainer) {
     this.kafkaContainer = kafkaContainer;
@@ -58,8 +69,25 @@ public class KafkaTestContainer implements
   }
 
   @Override
-  public void afterAll(ExtensionContext extensionContext) throws Exception {
-    after();
+  public void beforeAll(ExtensionContext extensionContext) throws Exception {
+    this.kafkaContainer.start();
+
+    Properties kafkaProps = defaultProps();
+    kafkaProps.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false");
+    kafkaProps.put(ConsumerConfig.GROUP_ID_CONFIG, "kafka-test-container");
+
+    this.adminClient = AdminClient.create(kafkaProps);
+    this.producer = new KafkaProducer<>(
+        kafkaProps, new ByteArraySerializer(), new ByteArraySerializer());
+    this.consumer = new KafkaConsumer<>(
+        kafkaProps, new ByteArrayDeserializer(), new ByteArrayDeserializer());
+
+    this.kafkaIO = new KafkaIO(kafkaProps);
+    this.kafkaIO.start();
+  }
+
+  @Override
+  public void beforeEach(ExtensionContext extensionContext) throws Exception {
   }
 
   @Override
@@ -68,13 +96,20 @@ public class KafkaTestContainer implements
   }
 
   @Override
-  public void beforeAll(ExtensionContext extensionContext) throws Exception {
-    before();
+  public void afterAll(ExtensionContext extensionContext) throws Exception {
+    this.adminClient.close();
+    this.producer.close();
+    this.consumer.close();
+    this.kafkaIO.stop();
+    this.kafkaContainer.stop();
   }
 
-  @Override
-  public void beforeEach(ExtensionContext extensionContext) throws Exception {
+  public AdminClient adminClient() {
+    return adminClient;
+  }
 
+  public KafkaIO getKafkaIO() {
+    return this.kafkaIO;
   }
 
   public KafkaContainer getKafkaContainer() {
@@ -121,11 +156,17 @@ public class KafkaTestContainer implements
       });
     }
 
+    consumer.assign(Collections.emptyList());
     return recordList;
   }
 
   public void createTopic(String name, int partitions) {
+    createTopic(name, partitions, Collections.emptyMap());
+  }
+
+  public void createTopic(String name, int partitions, Map<String, String> options) {
     NewTopic topic = new NewTopic(name, partitions, (short) 1);
+    topic.configs(options);
 
     try {
       adminClient.createTopics(Collections.singletonList(topic)).all().get();
@@ -139,7 +180,11 @@ public class KafkaTestContainer implements
   }
 
   public void createTempTopic(String name, int partitions) {
-    this.createTopic(name, partitions);
+    createTempTopic(name, partitions, Collections.emptyMap());
+  }
+
+  public void createTempTopic(String name, int partitions, Map<String, String> options) {
+    this.createTopic(name, partitions, options);
     tempTopics.add(name);
   }
 
@@ -152,19 +197,27 @@ public class KafkaTestContainer implements
     deleteTopics(topiclist);
   }
 
-  public void deleteTopics(Collection<String> topiclist)  {
+  public void deleteTopics(Collection<String> topiclist) {
 
     try {
       adminClient.deleteTopics(topiclist).all().get();
 
       while (true) {
-        Set<String> knownTopics = adminClient.listTopics().names().get();
+        Set<String> knownTopics = listTopics();
         if (topiclist.stream().anyMatch(knownTopics::contains)) {
           Thread.sleep(50);
         } else {
           break;
         }
       }
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  public Set<String> listTopics() {
+    try {
+      return this.adminClient.listTopics().names().get();
     } catch (Exception e) {
       throw new RuntimeException(e);
     }
@@ -178,12 +231,7 @@ public class KafkaTestContainer implements
   }
 
   public void deleteAllTopics() {
-    try {
-      Set<String> knownTopics = adminClient.listTopics().names().get();
-      deleteTopics(knownTopics);
-    } catch (Exception e) {
-      throw new RuntimeException(e);
-    }
+    deleteTopics(listTopics());
   }
 
   public Properties defaultProps() {
@@ -191,26 +239,5 @@ public class KafkaTestContainer implements
     kafkaProps.setProperty(
         ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaContainer.getBootstrapServers());
     return kafkaProps;
-  }
-
-  protected void before() {
-    this.kafkaContainer.start();
-
-    Properties kafkaProps = defaultProps();
-    kafkaProps.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false");
-    kafkaProps.put(ConsumerConfig.GROUP_ID_CONFIG, "kafka-test-container");
-
-    this.adminClient = AdminClient.create(kafkaProps);
-    this.producer = new KafkaProducer<>(
-        kafkaProps, new ByteArraySerializer(), new ByteArraySerializer());
-    this.consumer = new KafkaConsumer<>(
-        kafkaProps, new ByteArrayDeserializer(), new ByteArrayDeserializer());
-  }
-
-  protected void after() {
-    this.kafkaContainer.stop();
-    this.adminClient.close();
-    this.producer.close();
-    this.consumer.close();
   }
 }

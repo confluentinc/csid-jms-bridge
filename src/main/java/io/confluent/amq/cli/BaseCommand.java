@@ -15,6 +15,14 @@ public interface BaseCommand {
    * </p>
    * @return system exit code
    */
-  int execute() throws Exception;
+  int execute(CommandIo io) throws Exception;
+
+  default boolean helpRequested() {
+    return false;
+  }
+
+  default void showHelp(CommandIo io) {
+    //do nothing
+  }
 
 }

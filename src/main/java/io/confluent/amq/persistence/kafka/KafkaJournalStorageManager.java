@@ -5,6 +5,7 @@
 package io.confluent.amq.persistence.kafka;
 
 import io.confluent.amq.JmsBridgeConfiguration;
+import io.confluent.amq.logging.StructuredLogger;
 import io.confluent.amq.persistence.kafka.journal.impl.KafkaJournal;
 import java.nio.ByteBuffer;
 import java.util.concurrent.ScheduledExecutorService;
@@ -22,12 +23,12 @@ import org.apache.activemq.artemis.core.persistence.impl.journal.JournalStorageM
 import org.apache.activemq.artemis.core.server.LargeServerMessage;
 import org.apache.activemq.artemis.utils.ExecutorFactory;
 import org.apache.activemq.artemis.utils.critical.CriticalAnalyzer;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class KafkaJournalStorageManager extends JournalStorageManager {
 
-  private static final Logger LOGGER = LoggerFactory.getLogger(KafkaJournalStorageManager.class);
+  private static final StructuredLogger LOGGER = StructuredLogger.with(b -> b
+      .loggerClass(KafkaJournalStorageManager.class));
+
   private static final String BINDINGS_NAME = "bindings";
   private static final String MESSAGES_NAME = "messages";
 
@@ -58,10 +59,14 @@ public class KafkaJournalStorageManager extends JournalStorageManager {
   protected synchronized void init(Configuration config,
       IOCriticalErrorListener criticalErrorListener) {
     //need to create these journals
+    LOGGER.info(b -> b.event("Init"));
 
     JmsBridgeConfiguration jbConfig = (JmsBridgeConfiguration) config;
 
     if (!jbConfig.getJmsBridgeProperties().containsKey("bridge.id")) {
+      LOGGER.error(
+          b -> b.event("Init").markFailure().message("'bridge.id' is a required configuration"));
+
       throw new IllegalStateException("A bridge id is required for using the Kafka Journal");
     }
     String bridgeId = jbConfig.getJmsBridgeProperties().getProperty("bridge.id");
@@ -74,12 +79,17 @@ public class KafkaJournalStorageManager extends JournalStorageManager {
     this.messageJournal = new KafkaJournal(kafkaIO, bridgeId, MESSAGES_NAME,
         executorFactory, criticalErrorListener);
 
+    LOGGER.info(b -> b.event("Init").markSuccess());
   }
 
   @Override
   public void stop(boolean ioCriticalError, boolean sendFailover) throws Exception {
+    LOGGER.info(b -> b.event("Stop"));
+
     super.stop(ioCriticalError, sendFailover);
     this.kafkaIO.stop();
+
+    LOGGER.info(b -> b.event("Stop").markSuccess());
   }
 
   @Override
@@ -155,7 +165,6 @@ public class KafkaJournalStorageManager extends JournalStorageManager {
     }
   }
 
-
   //////////////////
   // BELOW ARE NOT REQUIRED TO BE IMPLEMENTED
   //////////////////
@@ -177,7 +186,8 @@ public class KafkaJournalStorageManager extends JournalStorageManager {
   @Override
   protected void performCachedLargeMessageDeletes() {
     //not supporting large messages
-    LOGGER.debug("Unsupported method performCachedLargeMessageDeletes called");
+    LOGGER.debug(
+        b -> b.event("UnsupportedOperationCalled").message("performCachedLargeMessageDeletes"));
   }
 
   @Override
@@ -207,6 +217,7 @@ public class KafkaJournalStorageManager extends JournalStorageManager {
   @Override
   public void deleteLargeMessageBody(LargeServerMessage largeServerMessage)
       throws ActiveMQException {
-    LOGGER.debug("Unsupported method deleteLargeMessageBody called");
+    LOGGER.debug(
+        b -> b.event("UnsupportedOperationCalled").message("deleteLargeMessageBody"));
   }
 }

@@ -4,35 +4,34 @@
 
 package io.confluent.amq.persistence.kafka;
 
+import com.google.protobuf.Message;
 import io.confluent.amq.logging.LogFormat;
 import io.confluent.amq.persistence.kafka.ConsumerThread.Builder;
-import io.confluent.amq.persistence.kafka.journal.KafkaJournalRecord;
-import java.nio.charset.StandardCharsets;
+import io.confluent.amq.persistence.kafka.journal.JournalEntryKeyPartitioner;
+import io.confluent.amq.persistence.kafka.journal.serde.ProtoSerializer;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
+import java.util.Map.Entry;
 import java.util.Properties;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
-import org.apache.activemq.artemis.api.core.ActiveMQExceptionType;
+import java.util.stream.Collectors;
 import org.apache.activemq.artemis.api.core.ICoreMessage;
-import org.apache.activemq.artemis.api.core.Message;
 import org.apache.activemq.artemis.api.core.SimpleString;
-import org.apache.activemq.artemis.reader.BytesMessageUtil;
-import org.apache.activemq.artemis.reader.TextMessageUtil;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.NewTopic;
+import org.apache.kafka.clients.admin.OffsetSpec;
+import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.clients.producer.KafkaProducer;
-import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.clients.producer.Producer;
+import org.apache.kafka.clients.producer.ProducerConfig;
+import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.header.internals.RecordHeader;
-import org.apache.kafka.common.serialization.ByteArraySerializer;
 import org.apache.kafka.common.serialization.LongSerializer;
 import org.apache.kafka.common.serialization.StringSerializer;
-import org.apache.kafka.common.utils.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -51,7 +50,7 @@ public class KafkaIO {
 
   private final Properties kafkaProps;
 
-  private KafkaProducer<byte[], byte[]> kafkaProducer;
+  private KafkaProducer<? extends Message, ? extends Message> kafkaProducer;
   private AdminClient adminClient;
   private StringSerializer stringSerializer = new StringSerializer();
   private LongSerializer longSerializer = new LongSerializer();
@@ -61,7 +60,13 @@ public class KafkaIO {
   }
 
   public KafkaIO(Properties kafkaProps) {
-    this.kafkaProps = kafkaProps;
+    this.kafkaProps = new Properties();
+    this.kafkaProps.putAll(kafkaProps);
+    this.kafkaProps.put(ProducerConfig.MAX_IN_FLIGHT_REQUESTS_PER_CONNECTION, 1);
+    this.kafkaProps.put(ProducerConfig.ACKS_CONFIG, "all");
+    this.kafkaProps.put(
+        ProducerConfig.PARTITIONER_CLASS_CONFIG,
+        JournalEntryKeyPartitioner.class.getCanonicalName());
   }
 
   public Properties getKafkaProps() {
@@ -69,13 +74,60 @@ public class KafkaIO {
   }
 
   public synchronized void start() {
-    kafkaProducer = new KafkaProducer<>(kafkaProps, new ByteArraySerializer(),
-        new ByteArraySerializer());
-    adminClient = AdminClient.create(kafkaProps);
-    Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-      kafkaProducer.close();
-      adminClient.close();
-    }));
+    if (this.kafkaProducer == null) {
+      ProtoSerializer<com.google.protobuf.Message> protoSerializer = new ProtoSerializer<>();
+      kafkaProducer = new KafkaProducer<>(kafkaProps, protoSerializer, protoSerializer);
+      adminClient = AdminClient.create(kafkaProps);
+      Runtime.getRuntime().addShutdownHook(new Thread(this::stop));
+    }
+  }
+
+  public Map<TopicPartition, Long> fetchLatestOffsets(String topic) {
+    try {
+      //get the partitions for the topic
+      List<TopicPartition> tpList = adminClient
+          .describeTopics(Collections.singleton(topic))
+          .all()
+          .get()
+          .get(topic)
+          .partitions()
+          .stream()
+          .map(tpi -> new TopicPartition(topic, tpi.partition()))
+          .collect(Collectors.toList());
+
+      //get the highwater marks (latest offsets)
+      return adminClient
+          .listOffsets(
+              tpList.stream().collect(Collectors.toMap(tp -> tp, tp -> OffsetSpec.latest())))
+          .all()
+          .get()
+          .entrySet()
+          .stream()
+          .collect(
+              Collectors.toMap(Entry::getKey, v -> v.getValue().offset()));
+
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  public void resetConsumerGroupOffsetsLatest(String consumerGroup, String topic) {
+    try {
+      Map<TopicPartition, OffsetAndMetadata> groupOffsetMap = fetchLatestOffsets(topic)
+          .entrySet()
+          .stream()
+          .collect(
+              Collectors.toMap(Entry::getKey, v -> new OffsetAndMetadata(v.getValue())));
+
+      adminClient.alterConsumerGroupOffsets(
+          consumerGroup,
+          groupOffsetMap)
+          .all()
+          .get();
+      //done moving offsets around ... whew!
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
   }
 
   /**
@@ -138,57 +190,14 @@ public class KafkaIO {
     }
   }
 
-  public void writeJournalRecord(final KafkaJournalRecord record) {
-    int pcount = kafkaProducer.partitionsFor(record.getDestTopic()).size();
-    byte[] partitionKey = record.getKafkaPartitionKey().toByteArray();
-    int partition = Utils.toPositive(Utils.murmur2(partitionKey)) % pcount;
+  @SuppressWarnings("unchecked")
+  public <K extends Message, V extends Message> void withProducer(
+      Consumer<Producer<K, V>> produceFn) {
 
-    ProducerRecord<byte[], byte[]> producerRecord = new ProducerRecord<>(
-        record.getDestTopic(),
-        partition,
-        record.getKafkaMessageKey().toByteArray(),
-        record.getRecord().toByteArray());
-
-    if (LOGGER.isTraceEnabled()) {
-      LOGGER.trace(LOG_FORMAT.build(b -> b
-          .event("PublishJournalRecord")
-          .addProducerRecord(producerRecord)
-          .addJournalRecordKey(record.getKafkaMessageKey())
-          .addJournalRecord(record.getRecord())));
-    }
-
-    kafkaProducer.send(producerRecord, (meta, err) -> {
-      if (err != null) {
-        if (record.getIoCompletion() != null) {
-          record.getIoCompletion()
-              .onError(ActiveMQExceptionType.IO_ERROR.getCode(), err.getMessage());
-        }
-
-        LOGGER.error(LOG_FORMAT.build(b -> b
-            .event("PublishJournalRecord")
-            .markFailure()
-            .addProducerRecord(producerRecord)
-            .addJournalRecordKey(record.getKafkaMessageKey())
-            .addJournalRecord(record.getRecord())), err);
-
-      } else {
-
-        if (LOGGER.isTraceEnabled()) {
-          LOGGER.trace(LOG_FORMAT.build(b -> b
-              .event("PublishJournalRecord")
-              .markSuccess()
-              .addRecordMetadata(meta)
-              .addJournalRecordKey(record.getKafkaMessageKey())
-              .addJournalRecord(record.getRecord())));
-        }
-
-        if (record.getIoCompletion() != null) {
-          record.getIoCompletion().done();
-        }
-      }
-    });
+    produceFn.accept((Producer<K, V>)kafkaProducer);
   }
 
+  /* //save for future reference
   public CompletableFuture<KafkaRef> writeMessage(Message message) {
     ICoreMessage coreMessage = message.toCore();
 
@@ -236,6 +245,7 @@ public class KafkaIO {
 
     return future;
   }
+  */
 
   private List<RecordHeader> convertHeaders(ICoreMessage message) {
     final List<RecordHeader> kheaders = new LinkedList<>();
@@ -266,14 +276,16 @@ public class KafkaIO {
     return kheaders;
   }
 
-  public void stop() throws Exception {
+  public void stop() {
 
     if (kafkaProducer != null) {
       kafkaProducer.close();
+      kafkaProducer = null;
     }
 
     if (adminClient != null) {
       adminClient.close();
+      adminClient = null;
     }
   }
 

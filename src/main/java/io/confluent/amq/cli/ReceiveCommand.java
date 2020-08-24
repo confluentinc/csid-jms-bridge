@@ -13,6 +13,7 @@ import com.github.rvesse.airline.annotations.Option;
 import com.github.rvesse.airline.annotations.restrictions.NotBlank;
 import com.github.rvesse.airline.annotations.restrictions.Once;
 import com.github.rvesse.airline.annotations.restrictions.Required;
+import io.confluent.amq.cli.JmsClientOptions.SessionAction;
 import java.nio.charset.StandardCharsets;
 import java.util.Enumeration;
 import java.util.LinkedList;
@@ -21,12 +22,11 @@ import java.util.Objects;
 import javax.inject.Inject;
 import javax.jms.JMSException;
 import javax.jms.Message;
-import javax.jms.Session;
 import javax.jms.Topic;
 import javax.jms.TopicSubscriber;
 
 @Command(name = "receive", description = "receive text messages from a JMS topic")
-public class ReceiveCommand implements BaseCommand {
+public class ReceiveCommand extends DefaultCommand {
 
   @Inject
   JmsClientOptions jmsClientOptions = new JmsClientOptions();
@@ -47,42 +47,34 @@ public class ReceiveCommand implements BaseCommand {
   @Option(name = "--bin2text", description = "Treat binary messages as UTF-8 text.")
   boolean binToText = false;
 
-  private final CommandIo io;
-
-  public ReceiveCommand(CommandIo io) {
-    this.io = io;
-  }
-
-  public ReceiveCommand() {
-    this.io = CommandIo.create();
-  }
-
   @Override
-  public int execute() throws Exception {
-    jmsClientOptions.doWithSession(this::receive);
+  public int run(CommandIo io) throws Exception {
+    jmsClientOptions.doWithSession(this.receive(io));
     return 0;
   }
 
-  private void receive(Session session) throws Exception {
-    Topic jmsTopic = session.createTopic(topic);
+  private SessionAction receive(CommandIo io) {
+    return session -> {
+      Topic jmsTopic = session.createTopic(topic);
 
-    try (TopicSubscriber consumer = session.createDurableSubscriber(jmsTopic, name)) {
-      Channels.output().println("Receiving messages from " + jmsTopic.toString());
+      try (TopicSubscriber consumer = session.createDurableSubscriber(jmsTopic, name)) {
+        Channels.output().println("Receiving messages from " + jmsTopic.toString());
 
-      final String prefix = "  ";
-      while (true) {
-        Message received = consumer.receive();
-        if (received != null) {
-          Channels.output().println("\"message\": {");
-          if (headers) {
-            printHeaders(received, prefix);
+        final String prefix = "  ";
+        while (true) {
+          Message received = consumer.receive();
+          if (received != null) {
+            Channels.output().println("\"message\": {");
+            if (headers) {
+              printHeaders(received, prefix);
+            }
+            final String body = getBody(received);
+            Channels.output().println(prefix + "\"body\": \"" + body + "\"");
+            Channels.output().println("}");
           }
-          final String body = getBody(received);
-          Channels.output().println(prefix + "\"body\": \"" + body + "\"");
-          Channels.output().println("}");
         }
       }
-    }
+    };
   }
 
   private String getBody(Message msg) {

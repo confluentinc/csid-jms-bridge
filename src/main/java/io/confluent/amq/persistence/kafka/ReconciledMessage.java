@@ -4,109 +4,104 @@
 
 package io.confluent.amq.persistence.kafka;
 
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
-import org.apache.kafka.common.serialization.Deserializer;
-import org.apache.kafka.common.serialization.Serde;
-import org.apache.kafka.common.serialization.Serializer;
+import io.confluent.amq.persistence.domain.proto.JournalEntry;
+import io.confluent.amq.persistence.domain.proto.JournalEntryKey;
+import java.util.Optional;
+import org.inferred.freebuilder.FreeBuilder;
 
-public class ReconciledMessage<V> {
+@FreeBuilder
+public interface ReconciledMessage {
 
-  public static ReconciledMessage<Void> tombstone(String topic, byte[] key) {
-    return new ReconciledMessage<>(topic, key, null, TOMBSTONE);
+  boolean isTombstoned();
+
+  boolean isDeadLettered();
+
+  boolean isForwarded();
+
+  Optional<DeadLetter> getDeadLetter();
+
+  Optional<Tombstone> getTombstone();
+
+  Optional<Forward> getForward();
+
+  interface ReconciledKey {
+
+    JournalEntryKey getKey();
   }
 
-  public static ReconciledMessage<byte[]> route(String topic, byte[] key, byte[] value) {
-    return new ReconciledMessage<>(topic, key, value, ROUTED);
+  interface ReconciledEntry extends ReconciledKey {
+
+    JournalEntry getValue();
   }
 
-  public static ReconciledMessage<JournalRecord> forward(
-      String topic, byte[] key, JournalRecord value) {
+  @FreeBuilder
+  interface DeadLetter extends ReconciledEntry {
 
-    return new ReconciledMessage<>(topic, key, value, FORWARD);
-  }
+    String getReasonCode();
 
-  private static final int ROUTED = 0;
-  private static final int FORWARD = 1;
-  private static final int TOMBSTONE = 2;
+    String getReason();
 
-  private final String topic;
-  private final byte[] key;
-  private final V value;
-  private final int disposition;
+    class Builder extends ReconciledMessage_DeadLetter_Builder {
 
-
-  protected ReconciledMessage(String topic, byte[] key, V value, int disposition) {
-    this.topic = topic;
-    this.key = key;
-    this.value = value;
-    this.disposition = disposition;
-  }
-
-  public String getTopic() {
-    return topic;
-  }
-
-  @SuppressFBWarnings("EI_EXPOSE_REP")
-  public byte[] getKey() {
-    return key;
-  }
-
-  public V getValue() {
-    return value;
-  }
-
-  public byte[] getByteValue() {
-    if (value == null) {
-      return null;
-    }
-
-    if (isForwarded()) {
-      JournalRecord jr = (JournalRecord) value;
-      return jr.toByteArray();
-    } else {
-      return (byte[]) value;
     }
   }
 
-  @SuppressWarnings("unchecked")
-  public ReconciledMessage<JournalRecord> asForward() {
-    if (isForwarded()) {
-      return (ReconciledMessage<JournalRecord>) this;
+  @FreeBuilder
+  interface Tombstone extends ReconciledKey {
+    class Builder extends ReconciledMessage_Tombstone_Builder {
+
     }
-
-    return null;
   }
 
-  public boolean isTombstoned() {
-    return disposition == TOMBSTONE;
-  }
+  @FreeBuilder
+  interface Forward extends ReconciledEntry {
+    class Builder extends ReconciledMessage_Forward_Builder {
 
-  public boolean isRouted() {
-    return disposition == ROUTED;
-  }
-
-  public boolean isForwarded() {
-    return disposition == FORWARD;
-  }
-
-  public static class ReconciledMessageSerde implements Serde<ReconciledMessage<?>> {
-
-    @Override
-    public Serializer<ReconciledMessage<?>> serializer() {
-      return (topic, data) -> {
-        if (data == null) {
-          return null;
-        }
-        return data.getByteValue();
-      };
     }
+  }
 
-    @Override
-    public Deserializer<ReconciledMessage<?>> deserializer() {
-      return (topic, data) -> {
-        throw new UnsupportedOperationException(
-            "Deserialization of ReconciledMessage is not supported!");
-      };
+  static ReconciledMessage tombstone(JournalEntryKey key) {
+    return new Builder()
+        .setTombstoned(true)
+        .setTombstone(new Tombstone.Builder().setKey(key).build())
+        .build();
+  }
+
+  static ReconciledMessage deadletter(
+      JournalEntryKey key,
+      JournalEntry value,
+      String reasonCode,
+      String reasonDesc) {
+
+    return new Builder()
+        .setDeadLettered(true)
+        .setDeadLetter(new DeadLetter.Builder()
+            .setReason(reasonDesc)
+            .setReasonCode(reasonCode)
+            .setKey(key)
+            .setValue(value)
+            .build())
+        .build();
+  }
+
+  static ReconciledMessage forward(JournalEntryKey key, JournalEntry value) {
+    return new Builder()
+        .setForwarded(true)
+        .setForward(new Forward.Builder()
+          .setKey(key)
+          .setValue(value)
+          .build())
+        .build();
+  }
+
+
+  class Builder extends ReconciledMessage_Builder {
+
+    public Builder() {
+      this.setTombstoned(false)
+          .setDeadLettered(false)
+          .setForwarded(false);
     }
   }
 }
+

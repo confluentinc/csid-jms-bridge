@@ -4,16 +4,18 @@
 
 package io.confluent.amq.cli;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.github.rvesse.airline.ChannelFactory;
 import com.github.rvesse.airline.Cli;
 import com.github.rvesse.airline.parser.ParseResult;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.ServiceLoader;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,99 +39,147 @@ public class JmsBridgeCliTest {
   }
 
   @Test
+  @DisplayName("call without any arguments")
   public void callNoArgs() throws Exception {
     cli.execute(new String[]{});
-    assertUsage(false);
+    assertUsage();
   }
 
   @Test
+  @DisplayName("call: --help")
   public void callHelpOption() throws Exception {
     cli.execute(new String[]{"--help"});
-    assertUsage(false);
+    assertUsage();
   }
 
   @Test
+  @DisplayName("call: help")
   public void callHelpCommand() throws Exception {
     cli.execute(new String[]{"help"});
-    assertUsage(false);
+    assertUsage();
   }
 
   @Test
-  public void callCommandHelp() throws Exception {
-    cli.execute(new String[]{"help", "send"});
+  @DisplayName("call: help jms send")
+  public void callHelpSend() throws Exception {
+    cli.execute(new String[]{"help", "jms", "send"});
 
-    assertCommandHelp("send", false);
+    assertCommandHelp("jms send");
   }
 
   @Test
-  public void callCommandHelpOption() throws Exception {
-    cli.execute(new String[]{"send", "--help"});
+  @DisplayName("call: jms send --help")
+  public void callSendWithHelpOption() throws Exception {
+    cli.execute(new String[]{"jms", "send", "--help"});
 
-    assertCommandHelp("send", false);
+    assertCommandHelp("jms send");
   }
 
   @Test
+  @DisplayName("call with invalid command chain: send")
   public void callBadArgs() throws Exception {
-    cli.execute(new String[]{"bad", "--args"});
-
-    assertUsage(true);
+    cli.execute(new String[]{"send"});
+    assertLineFound("Unknown command send");
   }
 
   @Test
+  @DisplayName("call with invalid help command chain: help send")
+  public void callInvalidHelpCommandChain() throws Exception {
+    cli.execute(new String[]{"help", "send"});
+    assertLineFound("Unknown command send");
+  }
+
+  @Test
+  @DisplayName("call with invalid option: jms send --args")
   public void callCommandBadArgs() throws Exception {
-    cli.execute(new String[]{"send", "--args"});
+    cli.execute(new String[]{"jms", "send", "--args"});
 
-    List<String> lines = commandIo.readAllErrorLines();
-    assertTrue(lines.size() > 0);
-
-    logCli(lines);
-    assertEquals("Error 1: Found unexpected parameters: [--args]", lines.get(0));
+    assertLineFound("Found unexpected parameters: [--args]");
   }
 
   @Test
+  @DisplayName("call throws an exception")
   public void callWithException() throws Exception {
     JmsBridgeCli mycli = new JmsBridgeCli(commandIo) {
       @Override
       protected Cli<BaseCommand> buildCli() {
-        return new Cli<BaseCommand>(JmsBridgeCli.class) {
+        return new Cli<BaseCommand>(super.buildCli().getMetadata()) {
           @Override
           public ParseResult<BaseCommand> parseWithResult(Iterable<String> args) {
+            throw new RuntimeException("BOOM");
+          }
+
+          @Override
+          public BaseCommand parse(String... args) {
             throw new RuntimeException("BOOM");
           }
         };
       }
     };
 
-    mycli.execute(new String[]{"send"});
-
-    List<String> lines = commandIo.readAllErrorLines();
-    assertTrue(lines.size() > 0);
-
-    logCli(lines);
-
-    assertEquals("Unexpected error: BOOM", lines.get(0));
+    mycli.execute(new String[]{"jms"});
+    assertLineFound("Error: BOOM", true);
   }
 
   //Helper methods below
 
-  public void assertCommandHelp(String command, boolean fromError) {
-    final List<String> lines = readLines(fromError);
+  public void assertCommandHelp(String command) {
+    assertCommandHelp(command, false);
+  }
 
-    assertTrue(lines.size() > 1);
-    logCli(lines);
-    assertEquals("NAME", lines.get(0));
-    String token = " " + command + " - ";
-    assertTrue("Failed to find command name in output: '" + token + "'.",
-        lines.get(1).contains(token));
+  public void assertCommandHelp(String command, boolean fromError) {
+    List<String> lines = assertLinesFound(Arrays.asList(
+        "NAME", "SYNOPSIS", "OPTIONS"
+    ));
+
+    final String fullCommand = "jms-bridge " + command;
+    assertTrue(lines.stream().anyMatch(l -> l.contains(fullCommand)),
+        String.format("Expected %s output to contain %s",
+            fromError ? "error" : "standard",
+            command));
 
   }
 
-  public void assertUsage(boolean fromError) {
-    final List<String> lines = readLines(fromError);
+  public List<String> assertLineFound(String line) {
+    return assertLineFound(line, false);
+  }
 
-    assertTrue(lines.size() > 0);
+  public List<String> assertLineFound(String match, boolean fromError) {
+    final List<String> lines = readLines(fromError);
     logCli(lines);
-    assertEquals("usage: jms-bridge <command> [ <args> ]", lines.get(0));
+    assertTrue(lines.stream().anyMatch(match::equals),
+        String.format("Expected %s output to contain line: '%s'",
+            fromError ? "error" : "standard",
+            match));
+
+    return lines;
+  }
+
+  public List<String> assertLinesFound(Iterable<String> lines) {
+    return assertLinesFound(lines, false);
+  }
+
+  public List<String> assertLinesFound(Iterable<String> matches, boolean fromError) {
+    final List<String> lines = readLines(fromError);
+    logCli(lines);
+
+    for (String match : matches) {
+      assertTrue(lines.stream().anyMatch(match::equals),
+          String.format("Expected %s output to contain line: '%s'",
+              fromError ? "error" : "standard",
+              match));
+
+    }
+
+    return lines;
+  }
+
+  public void assertUsage() {
+    assertUsage(false);
+  }
+
+  public void assertUsage(boolean fromError) {
+    assertLineFound("usage: jms-bridge <command> [ <args> ]", fromError);
   }
 
   public List<String> readLines(boolean fromError) {
@@ -145,7 +195,7 @@ public class JmsBridgeCliTest {
   }
 
   public void logCli(List<String> cliOutputLines) {
-    LOGGER.debug("cli output: {}{}",
+    LOGGER.info("cli output: {}{}",
         System.lineSeparator(),
         String.join(System.lineSeparator(), cliOutputLines));
 
