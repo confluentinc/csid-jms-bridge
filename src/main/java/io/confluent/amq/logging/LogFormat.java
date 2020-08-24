@@ -17,12 +17,19 @@ public class LogFormat {
     Builder specBuilder = new Builder();
     specWriter.accept(specBuilder);
     LogSpec spec = specBuilder.build();
+    return build(spec);
+  }
 
+  public String build(LogSpec.Builder specBuilder) {
+    return build(specBuilder.build());
+  }
+
+  public String build(LogSpec logSpec) {
     return String.format("%s[%s%s]: %s",
         subject,
-        spec.event(),
-        spec.eventResult().map(s -> ">" + s).orElse(""),
-        spec.getKeyValString());
+        logSpec.event(),
+        logSpec.eventResult().map(s -> ">" + s).orElse(""),
+        logSpec.getKeyValString());
   }
 
   private final String subject;

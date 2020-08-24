@@ -5,11 +5,10 @@
 package io.confluent.amq.persistence.kafka;
 
 import com.google.protobuf.Message;
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import io.confluent.amq.logging.LogFormat;
 import io.confluent.amq.persistence.kafka.ConsumerThread.Builder;
-import io.confluent.amq.persistence.kafka.journal.impl.JournalEntryKeyPartitioner;
-import io.confluent.amq.persistence.kafka.journal.impl.ProtoSerializer;
+import io.confluent.amq.persistence.kafka.journal.JournalEntryKeyPartitioner;
+import io.confluent.amq.persistence.kafka.journal.serde.ProtoSerializer;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
@@ -19,7 +18,6 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.activemq.artemis.api.core.ICoreMessage;
 import org.apache.activemq.artemis.api.core.SimpleString;

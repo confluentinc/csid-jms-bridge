@@ -5,33 +5,19 @@
 package io.confluent.amq.cli;
 
 import com.github.rvesse.airline.Cli;
-import com.github.rvesse.airline.annotations.Group;
-import com.github.rvesse.airline.annotations.Parser;
+import com.github.rvesse.airline.builder.CliBuilder;
 import com.github.rvesse.airline.model.GlobalMetadata;
 import com.github.rvesse.airline.parser.ParseResult;
 import com.github.rvesse.airline.parser.errors.ParseException;
 import com.github.rvesse.airline.parser.errors.handlers.CollectAll;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.stream.Stream;
+import io.confluent.amq.logging.StructuredLogger;
 
 @SuppressWarnings("checkstyle:HideUtilityClassConstructor")
-@com.github.rvesse.airline.annotations.Cli(name = "jms-bridge",
-    description = "jms-bridge command line utility",
-    groups = {
-      @Group(name = "jms",
-             defaultCommand = JmsBridgeCliHelp.class,
-             commands = {JmsBridgeCliHelp.class, SendCommand.class, ReceiveCommand.class}),
-      @Group(name = "journal",
-          defaultCommand = JmsBridgeCliHelp.class,
-          commands = {JmsBridgeCliHelp.class, ReadJournalCommand.class})
-    },
-    parserConfiguration = @Parser(
-        useDefaultOptionParsers = true,
-        defaultParsersFirst = false,
-        errorHandler = CollectAll.class
-    ))
 public class JmsBridgeCli {
+
+  private static final StructuredLogger SLOG = StructuredLogger.with(b -> b
+      .loggerClass(JmsBridgeCli.class));
+
   private final CommandIo io;
 
   public JmsBridgeCli(CommandIo io) {
@@ -43,73 +29,95 @@ public class JmsBridgeCli {
   }
 
   public static void main(String[] args) throws Exception {
-    JmsBridgeCli cli = new JmsBridgeCli();
-    System.exit(cli.execute(args));
+
+    JmsBridgeCli jmsBridgeCli = new JmsBridgeCli();
+    System.exit(jmsBridgeCli.execute(args));
+
   }
 
   protected int execute(String[] args) throws Exception {
     Cli<BaseCommand> cli = buildCli();
-
     try {
       // Parse with a result to allow us to inspect the results of parsing
       ParseResult<BaseCommand> result = cli.parseWithResult(args);
 
       if (result.wasSuccessful()) {
         // Parsed successfully, so just run the command and exit
-        return result.getCommand().execute();
+        SLOG.debug(b -> b
+            .event("ParseCommand")
+            .markSuccess()
+            .putTokens("command", result.getCommand().getClass().getSimpleName()));
+
+        //help was requested, either by default command or using -h, --help
+        if (result.getCommand().helpRequested()) {
+          SLOG.debug(b -> b
+              .event("HelpRequested")
+              .putTokens("command", result.getCommand().getClass().getSimpleName()));
+
+          result.getCommand().showHelp(io);
+          return 0;
+        }
+
+        return result.getCommand().execute(io);
 
       } else {
-        return showHelp(cli.getMetadata(), result, args);
+        SLOG.debug(b -> b
+            .event("ParseCommand")
+            .markFailure()
+            .putTokens("command", result.getCommand().getClass().getSimpleName()));
+
+        return showErrors(cli.getMetadata(), result, args);
 
       }
+
     } catch (Exception e) {
+      SLOG.debug(
+          b -> b.event("ExceptionThrown"),
+          e);
+
       // Errors should be being collected so if anything is thrown it is unexpected
-      io.error().println(String.format("Unexpected error: %s", e.getMessage()));
-      showHelp(cli.getMetadata(), null, args);
+      io.error().println(String.format("Error: %s", e.getMessage()));
+      e.printStackTrace(io.error());
     }
 
     return 1;
   }
 
   protected Cli<BaseCommand> buildCli() {
-    return new Cli<>(JmsBridgeCli.class);
+    CliBuilder<BaseCommand> cliBuilder = Cli.<BaseCommand>builder("jms-bridge")
+        .withDescription("jms-bridge command line utility")
+        .withDefaultCommand(JmsBridgeCliHelp.class)
+        .withCommand(JmsBridgeCliHelp.class);
+
+    cliBuilder.withParser()
+        .withErrorHandler(new CollectAll());
+
+    cliBuilder
+        .withGroup("jms")
+        .withCommand(ReceiveCommand.class)
+        .withCommand(SendCommand.class);
+
+    cliBuilder
+        .withGroup("journal")
+        .withCommand(ReadJournalCommand.class);
+
+    return cliBuilder.build();
   }
 
-  protected int showHelp(
+  protected int showErrors(
       GlobalMetadata<?> metadata, ParseResult<BaseCommand> result, String[] args) throws Exception {
 
-    final boolean helpRequested = helpRequested(args);
-    if (result == null) {
-      com.github.rvesse.airline.help.Help.help(metadata, Arrays.asList(args),
-          io.error());
-      return 1;
-    } else if (result.getCommand() == null && helpRequested) {
-      com.github.rvesse.airline.help.Help.help(metadata, Collections.emptyList(),
-          io.output());
+    if (result.getCommand() != null && result.getCommand().helpRequested()) {
+      result.getCommand().showHelp(io);
       return 0;
-    } else if (result.getCommand() == null && !helpRequested) {
-      com.github.rvesse.airline.help.Help.help(metadata, Collections.emptyList(),
-          io.error());
-      return 1;
-    } else if (helpRequested) {
-      com.github.rvesse.airline.help.Help.help(metadata, Arrays.asList(args),
-          io.output());
-      return 0;
+
     } else {
-      // Display any errors and then the help information
-      int i = 1;
-      for (ParseException e : result.getErrors()) {
-        io.error().println(String.format("Error %d: %s", i, e.getMessage()));
-        i++;
-      }
-      com.github.rvesse.airline.help.Help.help(metadata, Arrays.asList(args),
-          io.error());
+      // Display the errors
+      result.getErrors().stream()
+          .map(ParseException::getMessage)
+          .forEach(io.output()::println);
       return 1;
     }
   }
-
-  protected static boolean helpRequested(String[] args) {
-    return args.length == 0 || Stream.of(args)
-        .anyMatch(arg -> "-h".equals(arg) || "--help".equals(arg));
-  }
 }
+

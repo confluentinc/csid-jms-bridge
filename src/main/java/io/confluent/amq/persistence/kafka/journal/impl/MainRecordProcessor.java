@@ -32,37 +32,6 @@ public class MainRecordProcessor extends JournalStreamTransformer {
     super(journalName, storeName);
   }
 
-  private List<KeyValue<JournalEntryKey, JournalEntry>> handleDelete(
-      JournalEntryKey key, JournalEntry value) {
-
-    if (value != null
-        && value.getAppendedRecord().getRecordType() == JournalRecordType.DELETE_RECORD) {
-
-      return Collections.singletonList(
-          KeyValue.pair(
-              KafkaRecordUtils.annotationsKeyFromRecordKey(key),
-              null)
-      );
-    }
-
-    return Collections.emptyList();
-  }
-
-  private List<KeyValue<JournalEntryKey, JournalEntry>> handleTombstones(
-      JournalEntryKey key, JournalEntry value) {
-
-    if (value == null) {
-      return Collections.singletonList(
-          KeyValue.pair(
-              JournalEntryKey.newBuilder(key).build(),
-              null
-          )
-      );
-    }
-
-    return Collections.emptyList();
-  }
-
   @Override
   public Iterable<KeyValue<JournalEntryKey, JournalEntry>> transform(
       JournalEntryKey key, JournalEntry value) {
@@ -87,61 +56,65 @@ public class MainRecordProcessor extends JournalStreamTransformer {
     }
 
     if (value.getAppendedRecord().getRecordType() == JournalRecordType.DELETE_RECORD) {
-      results = new LinkedList<>();
-
-      //delete main record
-      results.add(KeyValue.pair(key, null));
-      getStore().delete(key);
-
-      //delete all annotation references
-      if (annStoreValue != null) {
-        for (JournalEntryKey annRefKey : annRef.getEntryReferencesList()) {
-          results.add(KeyValue.pair(annRefKey, null));
-          getStore().delete(key);
-        }
-      }
-
-      //delete the annotation reference itself
-      results.add(KeyValue.pair(annKey, null));
-      getStore().delete(annKey);
+      results = handleDelete(annRef, key);
 
     } else if (value.getAppendedRecord().getRecordType() == JournalRecordType.ANNOTATE_RECORD) {
-      //aggregate the annotation references
+      results = handleAnnotation(annRef, key, timestamp);
 
-      results = new LinkedList<>();
-
-      //new annotation, update our annotation reference list
-      AnnotationReference currentAnnotations = AnnotationReference.newBuilder()
-          .setMessageId(annKey.getMessageId())
-          .addAllEntryReferences(annRef.getEntryReferencesList())
-          .addEntryReferences(key)
-          .build();
-
-      JournalEntry annEntry = JournalEntry.newBuilder()
-          .setAnnotationReference(currentAnnotations)
-          .build();
-
-      getStore().put(annKey, ValueAndTimestamp.make(annEntry, timestamp));
-      results.add(KeyValue.pair(annKey, annEntry));
     }
 
-    if (SLOG.logger().isDebugEnabled()) {
-      results.forEach(kv ->
-          SLOG.debug(b -> {
-            b.name(getJournalName())
-                .putTokens("timestamp", timestamp);
+    logResults(SLOG, results);
+    return results;
+  }
 
-            if (kv.value != null) {
-              b.event("ENTRY")
-                  .addJournalEntryKey(kv.key)
-                  .addJournalEntry(kv.value);
-            } else {
-              b.event("TOMBSTONE")
-                  .addJournalEntryKey(kv.key);
-            }
-          }));
+  private List<KeyValue<JournalEntryKey, JournalEntry>> handleDelete(
+      AnnotationReference currentRefs, JournalEntryKey key) {
+
+    final List<KeyValue<JournalEntryKey, JournalEntry>> results = new LinkedList<>();
+    final JournalEntryKey annKey = KafkaRecordUtils.annotationsKeyFromRecordKey(key);
+
+    //delete main record
+    results.add(KeyValue.pair(key, null));
+    getStore().delete(key);
+
+    //delete all annotation references
+    if (currentRefs != AnnotationReference.getDefaultInstance()) {
+      for (JournalEntryKey annRefKey : currentRefs.getEntryReferencesList()) {
+        results.add(KeyValue.pair(annRefKey, null));
+        getStore().delete(key);
+      }
     }
+
+    //delete the annotation reference itself
+    results.add(KeyValue.pair(annKey, null));
+    getStore().delete(annKey);
 
     return results;
   }
+
+  //aggregate annotation references for the message Id
+  private List<KeyValue<JournalEntryKey, JournalEntry>> handleAnnotation(
+      AnnotationReference annRef, JournalEntryKey key, long timestamp) {
+
+    final List<KeyValue<JournalEntryKey, JournalEntry>> results = new LinkedList<>();
+    final JournalEntryKey annKey = KafkaRecordUtils.annotationsKeyFromRecordKey(key);
+
+    //new annotation, update our annotation reference list
+    AnnotationReference updatedAnnotations = AnnotationReference.newBuilder()
+        .setMessageId(annKey.getMessageId())
+        .addAllEntryReferences(annRef.getEntryReferencesList())
+        .addEntryReferences(key)
+        .build();
+
+    JournalEntry annEntry = JournalEntry.newBuilder()
+        .setAnnotationReference(updatedAnnotations)
+        .build();
+
+    getStore().put(annKey, ValueAndTimestamp.make(annEntry, timestamp));
+    results.add(KeyValue.pair(annKey, annEntry));
+
+    return results;
+  }
+
+
 }

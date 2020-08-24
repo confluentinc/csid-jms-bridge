@@ -4,20 +4,21 @@
 
 package io.confluent.amq.persistence.kafka.journal.impl;
 
-import com.google.common.base.Preconditions;
 import com.google.common.base.Stopwatch;
 import io.confluent.amq.logging.StructuredLogger;
 import io.confluent.amq.persistence.domain.proto.JournalEntry;
 import io.confluent.amq.persistence.domain.proto.JournalEntryKey;
 import io.confluent.amq.persistence.domain.proto.JournalRecordType;
+import io.confluent.amq.persistence.kafka.journal.JournalEntryKeyPartitioner;
+import io.confluent.amq.persistence.kafka.journal.serde.JournalKeySerde;
+import io.confluent.amq.persistence.kafka.journal.serde.JournalValueSerde;
+import io.confluent.amq.persistence.kafka.streams.StreamsSupport;
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
-import java.util.function.BiConsumer;
+import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.streams.KafkaStreams;
 import org.apache.kafka.streams.KafkaStreams.State;
 import org.apache.kafka.streams.KafkaStreams.StateListener;
@@ -32,7 +33,6 @@ import org.apache.kafka.streams.kstream.KStream;
 import org.apache.kafka.streams.kstream.Materialized;
 import org.apache.kafka.streams.kstream.Named;
 import org.apache.kafka.streams.kstream.Predicate;
-import org.apache.kafka.streams.kstream.Produced;
 import org.apache.kafka.streams.state.KeyValueBytesStoreSupplier;
 import org.apache.kafka.streams.state.QueryableStoreTypes;
 import org.apache.kafka.streams.state.ReadOnlyKeyValueStore;
@@ -44,22 +44,13 @@ import org.apache.kafka.streams.state.Stores;
  * Flows like this:
  * <pre>
  * journalTopic ->
- *    isAppendedRecord or isAnnotation:
- *    |  isTransaction:
- *    |  |  isTransaction_Complete: -> publish records and tombstones -> journalTopic
- *    |  |  |
- *    |  |  isTransaction_NotComplete: -> keep aggregate list of transaction records by TXID
- *    |  isNotTransaction:
- *    |  |  isAnnotation or isAppendedRecord_Annotation:
- *    |  |  |
- *    |  |  isAppendedRecord_Annotation: -> convert to applied annotation
- *    |  |  |
- *    |  |  isAnnotation -> aggregate annotations and publish the result back -> journalTopic
- *    |  isNotAnnotationRecord:
- *    |     isAppendedRecord_Add: -> convert to message and publish -> journalTopic
- *    |     |
- *    |     isAppendedRecord_Delete: -> create tombstones, message and annotations -> journalTopic
- *    isMessage: -> forward on
+ *    isAppendedRecord:
+ *      processTransactions ->
+ *      processAddDeleteAnnotate ->
+ *        isAddRecord:
+ *          processAdd -> STOP //integrate other kafka topics here
+ *      publish -> //publish records from resolved TX's, reference aggregates and tombstones
+ * journalTopic -> STOP
  * </pre>
  * </p>
  */
@@ -92,29 +83,42 @@ public class KafkaJournalProcessor implements StateListener {
   }
 
   public void init() {
-    Properties topoProps = new Properties();
-    topoProps.setProperty(StreamsConfig.TOPOLOGY_OPTIMIZATION, StreamsConfig.OPTIMIZE);
-    Topology topology = createTopology(topoProps);
+    Topology topology = createTopology();
     SLOG.debug(b -> b
         .name(journalTopic)
         .event("TopologyDescription")
         .message(topology.describe().toString()));
 
-    //default the serdes to our journal entry types.
-    Properties kstreamProps = new Properties();
-    kstreamProps.putAll(kafkaStreamProps);
-    kstreamProps.put(StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG,
-        JournalKeySerde.class.getCanonicalName());
-    kstreamProps.put(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG,
-        JournalValueSerde.class.getCanonicalName());
-
-    streams = new KafkaStreams(topology, kstreamProps);
+    streams = new KafkaStreams(topology, effectiveStreamProperties());
   }
 
   public void stop() {
     if (streams != null) {
       streams.close();
     }
+  }
+
+  public String getJournalTopic() {
+    return journalTopic;
+  }
+
+  public String getStoreName() {
+    return storeName;
+  }
+
+  public Properties effectiveStreamProperties() {
+    //default the serdes to our journal entry types.
+    Properties kstreamProps = new Properties();
+    kstreamProps.putAll(kafkaStreamProps);
+    kstreamProps.put(
+        StreamsConfig.producerPrefix(ProducerConfig.PARTITIONER_CLASS_CONFIG),
+        JournalEntryKeyPartitioner.class.getCanonicalName());
+    kstreamProps.put(StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG,
+        JournalKeySerde.class.getCanonicalName());
+    kstreamProps.put(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG,
+        JournalValueSerde.class.getCanonicalName());
+
+    return kstreamProps;
   }
 
   public void startAndLoad(KafkaJournalLoaderCallback callback) {
@@ -236,23 +240,30 @@ public class KafkaJournalProcessor implements StateListener {
     }
   }
 
-  protected Topology createTopology(Properties topoProps) {
+  protected Topology createTopology() {
+    Properties topoProps = new Properties();
+    topoProps.setProperty(StreamsConfig.TOPOLOGY_OPTIMIZATION, StreamsConfig.OPTIMIZE);
+
     KeyValueBytesStoreSupplier supplier =
         Stores.persistentKeyValueStore(storeName);
 
     StreamsBuilder builder = new StreamsBuilder();
 
-    KStream<JournalEntryKey, JournalEntry> journalStream = builder.table(this.journalTopic,
-        Consumed
-            .<JournalEntryKey, JournalEntry>as("journalSourceTable")
-            .withOffsetResetPolicy(AutoOffsetReset.EARLIEST),
-        Materialized.<JournalEntryKey, JournalEntry>as(supplier))
+    KStream<JournalEntryKey, JournalEntry> journalStream = builder
+        .table(this.journalTopic,
+            Consumed
+                .<JournalEntryKey, JournalEntry>as("journalSourceTable")
+                .withOffsetResetPolicy(AutoOffsetReset.EARLIEST),
+            Materialized.<JournalEntryKey, JournalEntry>as(supplier))
         .toStream(Named.as("journalSourceTableToStream"))
-        .filter((k, v) -> v != null, Named.as("removeTombstones"))
-        .filter((k, v) -> !v.hasAnnotationReference() && !v.hasTransactionReference(),
+        .filter(
+            (k, v) -> v != null, Named.as("removeTombstones"))
+        .filter(
+            (k, v) -> !v.hasAnnotationReference() && !v.hasTransactionReference(),
             Named.as("removeAggregates"));
 
-    KStream<JournalEntryKey, JournalEntry> remaining = branchStream(journalStream, builder)
+    KStream<JournalEntryKey, JournalEntry> remaining = StreamsSupport
+        .branchStream(journalStream, builder)
 
         .when((k, v) -> v.hasAppendedRecord())
         .branchTo(this::handleRecordsAndAnnotations)
@@ -275,10 +286,10 @@ public class KafkaJournalProcessor implements StateListener {
       StreamsBuilder sb, KStream<JournalEntryKey, JournalEntry> txStream) {
 
     //allows records to passthough but transates TXs into their records when terminiated
-    KStream<JournalEntryKey, JournalEntry> stream =
-        txStream.flatTransform(() -> new TransactionProcessor(journalTopic, storeName),
-            Named.as("handleTransactions"),
-            storeName);
+    KStream<JournalEntryKey, JournalEntry> stream = txStream.flatTransform(
+        () -> new TransactionProcessor(journalTopic, storeName),
+        Named.as("handleTransactions"),
+        storeName);
 
     handleRecords(sb, stream);
 
@@ -288,11 +299,13 @@ public class KafkaJournalProcessor implements StateListener {
       StreamsBuilder streamsBuilder, KStream<JournalEntryKey, JournalEntry> recordStream) {
 
     //branch off the ADD records to other processing
-    KStream<JournalEntryKey, JournalEntry> deleteAnnotatStream =
-        branchStream(recordStream, streamsBuilder)
-            .when(appendedRecordTypeIs(JournalRecordType.ADD_RECORD))
-            .branchTo(this::handleAddRecord)
-            .done();
+    KStream<JournalEntryKey, JournalEntry> deleteAnnotatStream = StreamsSupport
+        .branchStream(recordStream, streamsBuilder)
+
+        .when(appendedRecordTypeIs(JournalRecordType.ADD_RECORD))
+        .branchTo(this::handleAddRecord)
+
+        .done();
 
     handleDeleteAnnotateRecord(streamsBuilder, deleteAnnotatStream);
   }
@@ -312,11 +325,10 @@ public class KafkaJournalProcessor implements StateListener {
   protected void handleDeleteAnnotateRecord(
       StreamsBuilder sb, KStream<JournalEntryKey, JournalEntry> recordStream) {
 
-    KStream<JournalEntryKey, JournalEntry> stream = recordStream
-        .flatTransform(
-            () -> new MainRecordProcessor(journalTopic, storeName),
-            Named.as("handleDeleteAnnotateRecord"),
-            storeName);
+    KStream<JournalEntryKey, JournalEntry> stream = recordStream.flatTransform(
+        () -> new MainRecordProcessor(journalTopic, storeName),
+        Named.as("handleDeleteAnnotateRecord"),
+        storeName);
 
     publishToJournalTopic(stream);
   }
@@ -335,124 +347,10 @@ public class KafkaJournalProcessor implements StateListener {
   }
 
   protected void publishToJournalTopic(KStream<JournalEntryKey, JournalEntry> entryStream) {
-    Produced<JournalEntryKey, JournalEntry> journalProducedSpec = Produced
-        .streamPartitioner(new JournalEntryKeyPartitioner());
-
-    entryStream
-        .to(journalTopic, journalProducedSpec);
+    entryStream.to(journalTopic);
   }
 
   Predicate<JournalEntryKey, JournalEntry> appendedRecordTypeIs(JournalRecordType rtype) {
-    return (k, v) ->
-        v != null
-            && v.hasAppendedRecord()
-            && v.getAppendedRecord() != null
-            && v.getAppendedRecord().getRecordType() == rtype;
-  }
-
-  /**
-   * Apply given functions to the stream when the predicate is met. Each predicate should be
-   * mutually exclusive since the first one passing will be the one used.
-   * <p>
-   * Returns the stream of entries that do not match any of the given predicates.
-   * </p><p>
-   * See {@link KStream#branch(Predicate[])}.
-   * </p>
-   *
-   * @param stream the KStream to branch from
-   * @param sb     used to add stores to the topology if needed.
-   * @return the stream of entries that do not match any of the given predicate executions.
-   */
-  protected <K, V> BranchStreamBuilder<K, V> branchStream(
-      KStream<K, V> stream,
-      StreamsBuilder sb) {
-
-    return new BranchStreamBuilder<>(stream, sb);
-  }
-
-  interface BranchSpec<K, V> {
-
-    BranchStreamSpec<K, V> branchTo(BiConsumer<StreamsBuilder, KStream<K, V>> executor);
-  }
-
-  interface BranchStreamSpec<K, V> {
-
-    BranchSpec<K, V> when(Predicate<K, V> predicate);
-
-    KStream<K, V> done();
-  }
-
-  static class JournalBranchExecution<K, V> {
-
-    final Predicate<K, V> predicate;
-    final BiConsumer<StreamsBuilder, KStream<K, V>> execution;
-
-    JournalBranchExecution(
-        Predicate<K, V> predicate,
-        BiConsumer<StreamsBuilder, KStream<K, V>> execution) {
-
-      this.predicate = predicate;
-      this.execution = execution;
-    }
-  }
-
-  static class BranchStreamBuilder<K, V> implements BranchSpec<K, V>, BranchStreamSpec<K, V> {
-
-    private final List<JournalBranchExecution<K, V>> execs = new ArrayList<>();
-    private final KStream<K, V> stream;
-    private final StreamsBuilder streamsBuilder;
-
-    private Predicate<K, V> currPredicate;
-
-    BranchStreamBuilder(KStream<K, V> stream,
-        StreamsBuilder streamsBuilder) {
-
-      this.stream = stream;
-      this.streamsBuilder = streamsBuilder;
-    }
-
-    @Override
-    public BranchStreamSpec<K, V> branchTo(BiConsumer<StreamsBuilder, KStream<K, V>> executor) {
-      Preconditions.checkState(currPredicate != null,
-          "When must be called prior to branchTo with a non-null predicate.");
-
-      Preconditions.checkArgument(executor != null,
-          "branchTo requires a non-null execution target.");
-
-      execs.add(new JournalBranchExecution<>(currPredicate, executor));
-      currPredicate = null;
-
-      return this;
-    }
-
-    @Override
-    public BranchSpec<K, V> when(Predicate<K, V> predicate) {
-      currPredicate = predicate;
-      return this;
-    }
-
-    @Override
-    public KStream<K, V> done() {
-      if (execs.isEmpty()) {
-        return stream;
-      }
-
-      @SuppressWarnings({"unchecked", "rawtypes"})
-      Predicate<K, V>[] predicates =
-          new Predicate[execs.size() + 1];
-
-      for (int i = 0; i < execs.size(); i++) {
-        predicates[i] = execs.get(i).predicate;
-      }
-      predicates[execs.size()] = (k, v) -> true;
-
-      KStream<K, V>[] branches = stream
-          .branch(predicates);
-
-      for (int i = 0; i < execs.size(); i++) {
-        execs.get(i).execution.accept(streamsBuilder, branches[i]);
-      }
-      return branches[execs.size()];
-    }
+    return (k, v) -> v != null && v.getAppendedRecord().getRecordType() == rtype;
   }
 }

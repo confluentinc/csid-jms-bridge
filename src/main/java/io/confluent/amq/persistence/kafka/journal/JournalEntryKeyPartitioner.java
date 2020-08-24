@@ -2,7 +2,7 @@
  * Copyright 2020 Confluent Inc.
  */
 
-package io.confluent.amq.persistence.kafka.journal.impl;
+package io.confluent.amq.persistence.kafka.journal;
 
 import com.google.common.primitives.Longs;
 import io.confluent.amq.persistence.domain.proto.JournalEntry;

@@ -101,6 +101,10 @@ public final class KafkaRecordUtils {
     return keyBuilder.build();
   }
 
+  public static JournalEntryKey addDeleteKeyFromMessageId(long messageId) {
+    return JournalEntryKey.newBuilder().setMessageId(messageId).build();
+  }
+
   public static JournalEntryKey transactionKeyFromTxId(long txId) {
     return JournalEntryKey.newBuilder().setTxId(txId).build();
   }

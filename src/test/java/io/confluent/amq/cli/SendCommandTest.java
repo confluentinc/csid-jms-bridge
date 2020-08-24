@@ -38,7 +38,7 @@ public class SendCommandTest {
 
   @BeforeEach
   public void beforeEach(CapturedCommandIo commandIo) {
-    sendCommand = new SendCommand(commandIo);
+    sendCommand = new SendCommand();
   }
 
   public CompletableFuture<Void> goodSetup(CapturedCommandIo commandIo) throws Exception {
@@ -47,7 +47,7 @@ public class SendCommandTest {
     Mockito.when(session.createProducer(topic)).thenReturn(producer);
 
     final CompletableFuture<Void> cmd = CompletableFuture.runAsync(
-        runner(() -> sendCommand.send(session)));
+        runner(() -> sendCommand.send(commandIo).withSession(session)));
 
     retry(5000, 100, () -> assertTrue(commandIo.outputReader().ready()));
 

@@ -12,7 +12,7 @@ import io.confluent.amq.persistence.kafka.journal.KafkaJournalDescriber;
 import javax.inject.Inject;
 
 @Command(name = "read", description = "Read an existing kafka journal from a jms bridge.")
-public class ReadJournalCommand implements BaseCommand {
+public class ReadJournalCommand extends DefaultCommand {
 
   @Inject
   KafkaClientOptions kafkaClientOptions = new KafkaClientOptions();
@@ -31,18 +31,8 @@ public class ReadJournalCommand implements BaseCommand {
   @Required
   String journalName;
 
-  private final CommandIo io;
-
-  public ReadJournalCommand(CommandIo io) {
-    this.io = io;
-  }
-
-  public ReadJournalCommand() {
-    this.io = CommandIo.create();
-  }
-
   @Override
-  public int execute() throws Exception {
+  public int run(CommandIo io) throws Exception {
 
     KafkaJournalDescriber jdesc =  new KafkaJournalDescriber(
         kafkaClientOptions.getKafkaOpts(), journalName, bridgeId);

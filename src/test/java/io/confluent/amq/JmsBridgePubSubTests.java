@@ -7,8 +7,8 @@ package io.confluent.amq;
 import static io.confluent.amq.persistence.domain.proto.JournalRecordType.ADD_RECORD;
 import static io.confluent.amq.test.TestSupport.getCompactedJournal;
 import static io.confluent.amq.test.TestSupport.println;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
@@ -122,8 +122,10 @@ public class JmsBridgePubSubTests {
             println("Duplicate messageId found, ID: {}, dupeCount: {}",
                 en.getKey(), en.getValue()));
 
-    assertEquals("Duplicate IDs found.", 0L,
-        keyCounts.values().stream().filter(c -> c > 1).count());
+    assertEquals(
+        0L,
+        keyCounts.values().stream().filter(c -> c > 1).count(),
+        "Duplicate IDs found.");
   }
 
   @Test
@@ -156,7 +158,7 @@ public class JmsBridgePubSubTests {
     String messagesJournal = "_jms.bridge_junit_messages";
     Map<JournalEntryKey, JournalEntry> table = getCompactedJournal(kafkaContainer, messagesJournal);
     TestSupport.logTable(messagesJournal, table);
-    assertEquals("Compacted table should be empty.", 0, table.size());
+    assertEquals(0, table.size(), "Compacted table should be empty.");
   }
 
   @Test
@@ -226,7 +228,7 @@ public class JmsBridgePubSubTests {
     String messagesJournal = "_jms.bridge_junit_messages";
     Map<JournalEntryKey, JournalEntry> table = getCompactedJournal(kafkaContainer, messagesJournal);
     TestSupport.logTable(messagesJournal, table);
-    assertEquals("Compacted table should be empty.", 0, table.size());
+    assertEquals(0, table.size(), "Compacted table should be empty.");
   }
 
   @Test

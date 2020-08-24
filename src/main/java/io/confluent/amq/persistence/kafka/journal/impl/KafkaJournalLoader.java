@@ -129,8 +129,7 @@ public class KafkaJournalLoader {
           SLOG.warn(b -> b
               .event("LoadAnnotation")
               .markFailure()
-              .message("No record found for annotation reference")
-              .addJournalEntry(annEntry));
+              .message("No record found for annotation reference"));
         }
       }
     }

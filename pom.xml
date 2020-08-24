@@ -225,6 +225,10 @@
       <artifactId>guava</artifactId>
       <version>29.0-jre</version>
     </dependency>
+    <dependency>
+      <groupId>com.github.spotbugs</groupId>
+      <artifactId>spotbugs-annotations</artifactId>
+    </dependency>
 
     <!-- Logging -->
     <dependency>
@@ -275,12 +279,12 @@
     <dependency>
       <artifactId>kafka-clients</artifactId>
       <groupId>org.apache.kafka</groupId>
-      <version>2.5.0</version>
+      <version>${kafka.version}</version>
     </dependency>
     <dependency>
       <groupId>org.apache.kafka</groupId>
       <artifactId>kafka-streams</artifactId>
-      <version>2.5.0</version>
+      <version>${kafka.version}</version>
     </dependency>
     <dependency>
       <groupId>com.google.protobuf</groupId>
@@ -293,25 +297,25 @@
     <dependency>
       <groupId>org.junit.jupiter</groupId>
       <artifactId>junit-jupiter-api</artifactId>
-      <version>5.6.2</version>
+      <version>${myjunit.version}</version>
       <scope>test</scope>
     </dependency>
     <dependency>
       <groupId>org.junit.jupiter</groupId>
       <artifactId>junit-jupiter-engine</artifactId>
-      <version>5.6.2</version>
+      <version>${myjunit.version}</version>
       <scope>test</scope>
     </dependency>
     <dependency>
       <groupId>org.mockito</groupId>
       <artifactId>mockito-core</artifactId>
-      <version>3.3.3</version>
+      <version>${mockito.version}</version>
       <scope>test</scope>
     </dependency>
     <dependency>
       <groupId>org.mockito</groupId>
       <artifactId>mockito-junit-jupiter</artifactId>
-      <version>3.3.3</version>
+      <version>${mockito.version}</version>
       <scope>test</scope>
     </dependency>
     <dependency>
@@ -334,9 +338,11 @@
       <scope>test</scope>
       <version>1.14.3</version>
     </dependency>
-    <dependency>
-      <groupId>com.github.spotbugs</groupId>
-      <artifactId>spotbugs-annotations</artifactId>
+   <dependency>
+      <groupId>org.apache.kafka</groupId>
+      <artifactId>kafka-streams-test-utils</artifactId>
+      <version>${kafka.version}</version>
+      <scope>test</scope>
     </dependency>
   </dependencies>
 
@@ -371,6 +377,9 @@
     <git-commit-id-plugin.version>2.2.6</git-commit-id-plugin.version>
     <main-class>io.confluent.amq.cli.JmsBridgeCli</main-class>
     <protobuf.version>3.12.2</protobuf.version>
+    <kafka.version>2.5.0</kafka.version>
+    <myjunit.version>5.6.2</myjunit.version>
+    <mockito.version>3.3.3</mockito.version>
   </properties>
 
   <repositories>

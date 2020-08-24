@@ -2,7 +2,7 @@
  * Copyright 2020 Confluent Inc.
  */
 
-package io.confluent.amq.persistence.kafka.journal.impl;
+package io.confluent.amq.persistence.kafka.journal.serde;
 
 import com.google.protobuf.Message;
 import org.apache.kafka.common.serialization.Deserializer;

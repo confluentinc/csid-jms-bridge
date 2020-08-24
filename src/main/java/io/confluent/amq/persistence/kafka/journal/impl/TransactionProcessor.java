@@ -13,11 +13,8 @@ import io.confluent.amq.persistence.domain.proto.TransactionReference;
 import io.confluent.amq.persistence.kafka.KafkaRecordUtils;
 import io.confluent.amq.persistence.kafka.journal.JournalStreamTransformer;
 import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.kafka.streams.KeyValue;
 import org.apache.kafka.streams.state.ValueAndTimestamp;
@@ -74,23 +71,7 @@ public class TransactionProcessor extends JournalStreamTransformer {
 
     }
 
-
-    if (SLOG.logger().isDebugEnabled()) {
-      results.forEach(kv ->
-          SLOG.debug(b -> {
-            b.name(getJournalName())
-                .putTokens("timestamp", timestamp);
-            if (kv.value != null) {
-              b.event("ENTRY")
-                  .addJournalEntryKey(kv.key)
-                  .addJournalEntry(kv.value);
-            } else {
-              b.event("TOMBSTONE")
-                  .addJournalEntryKey(kv.key);
-            }
-          }));
-    }
-
+    logResults(SLOG, results);
     return results;
   }
 
@@ -133,35 +114,9 @@ public class TransactionProcessor extends JournalStreamTransformer {
             .message("JournalEntry for transaction reference was not found in store!"));
       } else {
         JournalRecord record = valAndTs.value().getAppendedRecord();
-        JournalRecordType newRecordType = JournalRecordType.UNKNOWN_JOURNAL_RECORD_TYPE;
 
-        switch (record.getRecordType()) {
-          case ADD_RECORD_TX:
-            newRecordType = JournalRecordType.ADD_RECORD;
-            break;
-          case ANNOTATE_RECORD_TX:
-            newRecordType = JournalRecordType.ANNOTATE_RECORD;
-            break;
-          case DELETE_RECORD_TX:
-            newRecordType = JournalRecordType.DELETE_RECORD;
-            break;
-          case PREPARE_TX:
-          case COMMIT_TX:
-          case ROLLBACK_TX:
-            //do nothing, shouldn't happen
-            break;
-          default:
-            //bad ref in TX
-            SLOG.warn(b -> b
-                .name(getJournalName())
-                .event("TxReferenceBad")
-                .addJournalEntryKey(key)
-                .addJournalRecord(record)
-                .putTokens("storeName", getStoreName())
-                .message("JournalEntry for transaction reference is not a transaction record!"));
-            break;
-        }
-
+        //this should not be possible
+        JournalRecordType newRecordType = convertTxRecordType(record.getRecordType());
         if (newRecordType != JournalRecordType.UNKNOWN_JOURNAL_RECORD_TYPE) {
           JournalEntry newEntry = JournalEntry.newBuilder()
               .setAppendedRecord(JournalRecord.newBuilder(record)
@@ -172,15 +127,46 @@ public class TransactionProcessor extends JournalStreamTransformer {
           JournalEntryKey newRecordKey = KafkaRecordUtils.keyFromEntry(newEntry);
           txResults.add(KeyValue.pair(newRecordKey, newEntry));
           getStore().put(newRecordKey, ValueAndTimestamp.make(newEntry, timestamp));
+        } else {
+          //bad ref in TX
+          SLOG.warn(b -> b
+              .name(getJournalName())
+              .event("TxReferenceBad")
+              .addJournalEntryKey(key)
+              .addJournalRecord(record)
+              .putTokens("storeName", getStoreName())
+              .message("JournalEntry for transaction reference is not a transaction record!"));
+
         }
       }
     }
 
-    //delete transaction records
-    List<KeyValue<JournalEntryKey, JournalEntry>> finalResults = new LinkedList<>();
-    finalResults.addAll(tombstones(txReference, timestamp));
-    finalResults.addAll(txResults);
-    return finalResults;
+    txResults.addAll(tombstones(txReference, timestamp));
+    return txResults;
+  }
+
+  private JournalRecordType convertTxRecordType(JournalRecordType txRecordType) {
+    JournalRecordType newRecordType;
+
+    switch (txRecordType) {
+      case ADD_RECORD_TX:
+        newRecordType = JournalRecordType.ADD_RECORD;
+        break;
+      case ANNOTATE_RECORD_TX:
+        newRecordType = JournalRecordType.ANNOTATE_RECORD;
+        break;
+      case DELETE_RECORD_TX:
+        newRecordType = JournalRecordType.DELETE_RECORD;
+        break;
+      case PREPARE_TX:
+      case COMMIT_TX:
+      case ROLLBACK_TX:
+      default:
+        newRecordType = JournalRecordType.UNKNOWN_JOURNAL_RECORD_TYPE;
+        break;
+    }
+
+    return newRecordType;
   }
 
   private List<KeyValue<JournalEntryKey, JournalEntry>> rollback(

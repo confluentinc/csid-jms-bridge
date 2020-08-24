@@ -11,9 +11,9 @@ import io.confluent.amq.persistence.domain.proto.JournalEntryKey;
 import io.confluent.amq.persistence.domain.proto.JournalRecord;
 import io.confluent.amq.persistence.domain.proto.JournalRecordType;
 import io.confluent.amq.persistence.kafka.KafkaRecordUtils;
+import io.confluent.amq.persistence.kafka.journal.JournalEntryKeyPartitioner;
 import io.confluent.amq.persistence.kafka.journal.ProtocolRecordType;
-import io.confluent.amq.persistence.kafka.journal.impl.JournalEntryKeyPartitioner;
-import io.confluent.amq.persistence.kafka.journal.impl.ProtoSerializer;
+import io.confluent.amq.persistence.kafka.journal.serde.ProtoSerializer;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -25,6 +25,9 @@ import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.serialization.ByteArrayDeserializer;
+import org.apache.kafka.streams.StreamsConfig;
+import org.apache.kafka.streams.Topology;
+import org.apache.kafka.streams.TopologyTestDriver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -213,6 +216,16 @@ public final class TestSupport {
         jproducer.send(new ProducerRecord<>(journalTopic, k, v)).get();
       }
     }
+  }
+
+  public static TopologyTestDriver createStreamsTestDriver(
+      Topology topology, Properties streamProps) {
+
+    Properties props = new Properties();
+    props.putAll(streamProps);
+    props.put(StreamsConfig.APPLICATION_ID_CONFIG, "test");
+    props.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, "dummy:1234");
+    return new TopologyTestDriver(topology, props);
   }
 }
 

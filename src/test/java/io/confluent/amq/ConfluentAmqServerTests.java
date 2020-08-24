@@ -5,9 +5,9 @@
 package io.confluent.amq;
 
 import static io.confluent.amq.SerdePool.deserString;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import io.confluent.amq.test.ArtemisTestServer;
