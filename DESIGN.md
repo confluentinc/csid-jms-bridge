@@ -5,7 +5,7 @@
 
 ### Initilization and Loading
 
-![Init and Load Sequence Diagram](docs/_static/init-load-sequence.png)
+![Init and Load Sequence Diagram](jms-bridge-server/docs/_static/init-load-sequence.png)
 
 <sub>
 
@@ -60,7 +60,7 @@
 
 ### Runtime Writing
 
-![Runtime Writing Sequence Diagram](docs/_static/runtime-write-sequence.png)
+![Runtime Writing Sequence Diagram](jms-bridge-server/docs/_static/runtime-write-sequence.png)
 
 <sub>
 
@@ -78,7 +78,7 @@
 
 ### Runtime Reconciliation
 
-![Runtime Reconciliation Sequence Diagram](docs/_static/runtime-record-reconciliation-sequence.png)
+![Runtime Reconciliation Sequence Diagram](jms-bridge-server/docs/_static/runtime-record-reconciliation-sequence.png)
 
 
 <sub>

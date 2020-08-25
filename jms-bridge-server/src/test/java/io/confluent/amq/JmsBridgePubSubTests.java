@@ -225,6 +225,9 @@ public class JmsBridgePubSubTests {
 
     }
 
+    //wait for streams to commit
+    Thread.sleep(1000);
+
     String messagesJournal = "_jms.bridge_junit_messages";
     Map<JournalEntryKey, JournalEntry> table = getCompactedJournal(kafkaContainer, messagesJournal);
     TestSupport.logTable(messagesJournal, table);
