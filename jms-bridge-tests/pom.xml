@@ -145,7 +145,7 @@
         <executions>
           <execution>
             <id>install-integration-tests</id>
-            <phase>initialize</phase>
+            <phase>clean</phase>
             <goals>
               <goal>install-file</goal>
             </goals>
@@ -159,7 +159,7 @@
           </execution>
           <execution>
             <id>install-unit-tests</id>
-            <phase>initialize</phase>
+            <phase>clean</phase>
             <goals>
               <goal>install-file</goal>
             </goals>
@@ -173,7 +173,7 @@
           </execution>
           <execution>
             <id>install-artemis-test-support</id>
-            <phase>initialize</phase>
+            <phase>clean</phase>
             <goals>
               <goal>install-file</goal>
             </goals>

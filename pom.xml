@@ -286,7 +286,7 @@
     <kafka.version>2.5.0</kafka.version>
     <myjunit.version>5.6.2</myjunit.version>
     <mockito.version>3.3.3</mockito.version>
-    <skipIntegrationTests>false</skipIntegrationTests>
+    <skipIntegrationTests>true</skipIntegrationTests>
   </properties>
 
   <repositories>
