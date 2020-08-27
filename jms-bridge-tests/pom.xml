@@ -138,55 +138,6 @@
         </configuration>
       </plugin>
 
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-install-plugin</artifactId>
-        <version>2.5.2</version>
-        <executions>
-          <execution>
-            <id>install-integration-tests</id>
-            <phase>clean</phase>
-            <goals>
-              <goal>install-file</goal>
-            </goals>
-            <configuration>
-              <file>test-lib/integration-tests-2.13.0-tests.jar</file>
-              <groupId>org.apache.activemq</groupId>
-              <artifactId>integration-tests</artifactId>
-              <version>2.13.0</version>
-              <packaging>test-jar</packaging>
-            </configuration>
-          </execution>
-          <execution>
-            <id>install-unit-tests</id>
-            <phase>clean</phase>
-            <goals>
-              <goal>install-file</goal>
-            </goals>
-            <configuration>
-              <file>test-lib/unit-tests-2.13.0-tests.jar</file>
-              <groupId>org.apache.activemq</groupId>
-              <artifactId>unit-tests</artifactId>
-              <version>2.13.0</version>
-              <packaging>test-jar</packaging>
-            </configuration>
-          </execution>
-          <execution>
-            <id>install-artemis-test-support</id>
-            <phase>clean</phase>
-            <goals>
-              <goal>install-file</goal>
-            </goals>
-            <configuration>
-              <file>test-lib/artemis-test-support-2.13.0.jar</file>
-              <groupId>org.apache.activemq</groupId>
-              <artifactId>artemis-test-support</artifactId>
-              <version>2.13.0</version>
-              <packaging>jar</packaging>
-            </configuration>
-          </execution>
-        </executions>
-      </plugin>
 
     </plugins>
   </build>
