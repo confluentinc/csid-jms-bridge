@@ -7,12 +7,13 @@ In this section we will provide the following information for each release:
     - Note: Follow the general upgrade procedure outlined in the Upgrading the Broker chapter in addition to any version-specific upgrade instructions outlined here.
     
 ## v. 1.0
-[Release Notes](https://www.google.com "Google's Homepage")
+[Release Notes]()
+
 ### Feature Changelog
 | Feature        | Description           | Jira  |
 | ------------- |-------------|-----|
 | JMS-Bridge HA  | Active/Standby HA support  for the JMS Bridge| [CSID-337](https://confluentinc.atlassian.net/browse/CSID-337) |
-| Artemis Jounal storage in Kafka |All JMS-Bridge journal data stored in Kafka |[CSID-242](https://confluentinc.atlassian.net/browse/CSID-242)|
+| JMS-Bridge Storage in Kafka |All JMS-Bridge journal data stored in Kafka |[CSID-242](https://confluentinc.atlassian.net/browse/CSID-242)|
 | Documentation Improvements | Add documentation about collecting telemetry, identify missing telemetry | [CSID-338](https://confluentinc.atlassian.net/browse/CSID-338) |
 
 
@@ -20,6 +21,6 @@ In this section we will provide the following information for each release:
 
 | Feature        | Caveats    |
 | ------------- |-------------| 
-| JMS-Bridge HA | Shared Storage, JDBC, and VM HA methods found in ActiveMQ Artemis will no longer be available nor relevant for the JMS-Bridge Project  |
-|               |             | 
-|               |             | 
+| JMS-Bridge HA | Shared Storage, JDBC, and VM HA methods found in ActiveMQ Artemis will no longer be available nor relevant for the JMS-Bridge Project.  |
+| JMS-Bridge Storage | Alternative storage schema like JdBC, and shared disk, are nolonger applicable in the broker.xml configurations. | 
+| JMS-Bridge Storage | Large Message Support has been depricated. | 
