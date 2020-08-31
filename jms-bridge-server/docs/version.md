@@ -10,16 +10,16 @@ In this section we will provide the following information for each release:
 [Release Notes](https://www.google.com "Google's Homepage")
 ### Feature Changelog
 | Feature        | Description           | Jira  |
-| ------------- |:-------------:| -----:|
-|               |               |  |
-|       |       |    |
-|  |       |     |
+| ------------- |-------------|-----|
+| JMS-Bridge HA  | Active/Standby HA support  for the JMS Bridge| [CSID-337](https://confluentinc.atlassian.net/browse/CSID-337) |
+| Artemis Jounal storage in Kafka |All JMS-Bridge journal data stored in Kafka |[CSID-242](https://confluentinc.atlassian.net/browse/CSID-242)|
+| Documentation Improvements | Add documentation about collecting telemetry, identify missing telemetry | [CSID-338](https://confluentinc.atlassian.net/browse/CSID-338) |
 
 
 ### Caveats
 
 | Feature        | Caveats    |
 | ------------- |-------------| 
-|               |             |
+| JMS-Bridge HA | Shared Storage, JDBC, and VM HA methods found in ActiveMQ Artemis will no longer be available nor relevant for the JMS-Bridge Project  |
 |               |             | 
 |               |             | 
