@@ -7,6 +7,9 @@ package io.confluent.amq;
 import io.confluent.amq.persistence.kafka.KafkaJournalStorageManager;
 import java.io.File;
 import javax.management.MBeanServer;
+
+import io.confluent.amq.persistence.kafka.journal.impl.KafkaJournal;
+import io.confluent.amq.server.kafka.KafkaNodeManager;
 import org.apache.activemq.artemis.core.config.HAPolicyConfiguration;
 import org.apache.activemq.artemis.core.config.storage.DatabaseStorageConfiguration;
 import org.apache.activemq.artemis.core.persistence.StorageManager;
@@ -21,6 +24,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class ConfluentAmqServer extends ActiveMQServerImpl {
+  private volatile KafkaJournalStorageManager kafKaStorageManager;
 
   private static final Logger LOGGER = LoggerFactory.getLogger(ConfluentAmqServer.class);
 
@@ -68,7 +72,9 @@ public class ConfluentAmqServer extends ActiveMQServerImpl {
   @Override
   protected NodeManager createNodeManager(File directory, boolean replicatingBackup) {
     NodeManager manager;
-    JmsBridgeConfiguration configuration = (JmsBridgeConfiguration) getConfiguration();
+    KafkaJournalStorageManager journal = (KafkaJournalStorageManager) createStorageManager();
+    final JmsBridgeConfiguration configuration = (JmsBridgeConfiguration) getConfiguration();
+
     final HAPolicyConfiguration.TYPE haType =
         configuration.getHAPolicyConfiguration() == null
         ? null
@@ -81,14 +87,10 @@ public class ConfluentAmqServer extends ActiveMQServerImpl {
         throw new IllegalArgumentException(
             "replicatingBackup is not supported yet while using Kafka persistence");
       }
+      KafkaNodeManager kafkaManager = new KafkaNodeManager();
+      journal.registerListener(kafkaManager);
+      manager = kafkaManager;
 
-      final DatabaseStorageConfiguration dbConf =
-          (DatabaseStorageConfiguration) configuration .getStoreConfiguration();
-
-      //todo: Kafka node manager
-      manager = JdbcNodeManager
-          .with(dbConf, scheduledPool, executorFactory, shutdownOnCriticalIO);
-      //manager = KafkaStorageManager(configuration, scheduledPool, executorFactory, shutdownOnCriticalIO);
     } else if (haType == null || haType == HAPolicyConfiguration.TYPE.LIVE_ONLY) {
 
       if (LOGGER.isDebugEnabled()) {
@@ -109,16 +111,18 @@ public class ConfluentAmqServer extends ActiveMQServerImpl {
   }
 
   @Override
-  protected StorageManager createStorageManager() {
-    final JmsBridgeConfiguration configuration = (JmsBridgeConfiguration) getConfiguration();
+  protected synchronized StorageManager createStorageManager() {
+    if (kafKaStorageManager == null) {
+      final JmsBridgeConfiguration configuration = (JmsBridgeConfiguration) getConfiguration();
 
-    final KafkaJournalStorageManager journal = new KafkaJournalStorageManager(
-        configuration, getCriticalAnalyzer(), executorFactory, scheduledPool,
-        ioExecutorFactory, shutdownOnCriticalIO);
+      final KafkaJournalStorageManager journal = new KafkaJournalStorageManager(
+              configuration, getCriticalAnalyzer(), executorFactory, scheduledPool,
+              ioExecutorFactory, shutdownOnCriticalIO);
 
-    this.getCriticalAnalyzer().add(journal);
-    return journal;
+      this.getCriticalAnalyzer().add(journal);
+      kafKaStorageManager = journal;
+    }
+    return kafKaStorageManager;
   }
-
 
 }
