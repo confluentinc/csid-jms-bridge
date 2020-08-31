@@ -48,50 +48,55 @@ public class KafkaJournalLoader {
 
     List<TransactionReference> foundTransactions = new LinkedList<>();
     List<AnnotationReference> annotations = new LinkedList<>();
-    try (KeyValueIterator<JournalEntryKey, JournalEntry> kvIter = store.all()) {
-      //only add messages and annotations
-      while (kvIter.hasNext()) {
+    KeyValueIterator<JournalEntryKey, JournalEntry> kvIter = store.all();
+    if (kvIter != null) {
+      try {
+        //only add messages and annotations
+        while (kvIter.hasNext()) {
 
-        KeyValue<JournalEntryKey, JournalEntry> kv = kvIter.next();
-        JournalEntry entry = kv.value;
+          KeyValue<JournalEntryKey, JournalEntry> kv = kvIter.next();
+          JournalEntry entry = kv.value;
 
-        if (entry != null) {
-          if (entry.hasAnnotationReference()) {
-            annotations.add(entry.getAnnotationReference());
+          if (entry != null) {
+            if (entry.hasAnnotationReference()) {
+              annotations.add(entry.getAnnotationReference());
 
-          } else if (entry.hasTransactionReference()) {
-            foundTransactions.add(entry.getTransactionReference());
+            } else if (entry.hasTransactionReference()) {
+              foundTransactions.add(entry.getTransactionReference());
 
-          } else {
-            switch (entry.getAppendedRecord().getRecordType()) {
-              case ADD_RECORD:
-                SLOG.trace(b -> b
-                    .event("LoadAddRecord")
-                    .addJournalEntryKey(kv.key)
-                    .addJournalEntry(entry));
-                callback.addRecord(KafkaRecordUtils.toRecordInfo(entry.getAppendedRecord()));
+            } else {
+              switch (entry.getAppendedRecord().getRecordType()) {
+                case ADD_RECORD:
+                  SLOG.trace(b -> b
+                      .event("LoadAddRecord")
+                      .addJournalEntryKey(kv.key)
+                      .addJournalEntry(entry));
+                  callback.addRecord(KafkaRecordUtils.toRecordInfo(entry.getAppendedRecord()));
 
-                recordCount++;
-                break;
-              case DELETE_RECORD:
-                //this does not need to be recorded since it overwrote the ADD_RECORD already
-                //
-                //callback.deleteRecord(entry.getAppendedRecord().getMessageId());
-                //recordCount--;
-                SLOG.trace(b -> b
-                    .event("LoadDeleteRecord")
-                    .addJournalEntryKey(kv.key)
-                    .addJournalEntry(entry));
-                break;
-              case ANNOTATE_RECORD:
-                //unprocessed annotation
-                //callback.updateRecord(KafkaRecordUtils.toRecordInfo(entry.getAppendedRecord()));
-                break;
-              default:
-                //skip it, don't care
+                  recordCount++;
+                  break;
+                case DELETE_RECORD:
+                  //this does not need to be recorded since it overwrote the ADD_RECORD already
+                  //
+                  //callback.deleteRecord(entry.getAppendedRecord().getMessageId());
+                  //recordCount--;
+                  SLOG.trace(b -> b
+                      .event("LoadDeleteRecord")
+                      .addJournalEntryKey(kv.key)
+                      .addJournalEntry(entry));
+                  break;
+                case ANNOTATE_RECORD:
+                  //unprocessed annotation
+                  //callback.updateRecord(KafkaRecordUtils.toRecordInfo(entry.getAppendedRecord()));
+                  break;
+                default:
+                  //skip it, don't care
+              }
             }
           }
         }
+      } finally {
+        kvIter.close();
       }
     }
     //process annotations

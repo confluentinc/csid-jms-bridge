@@ -49,11 +49,11 @@ public class KafkaIO {
   }
 
   private final Properties kafkaProps;
+  private final StringSerializer stringSerializer = new StringSerializer();
+  private final LongSerializer longSerializer = new LongSerializer();
 
-  private KafkaProducer<? extends Message, ? extends Message> kafkaProducer;
-  private AdminClient adminClient;
-  private StringSerializer stringSerializer = new StringSerializer();
-  private LongSerializer longSerializer = new LongSerializer();
+  private volatile KafkaProducer<? extends Message, ? extends Message> kafkaProducer;
+  private volatile AdminClient adminClient;
 
   public static boolean isKafkaMessage(ICoreMessage message) {
     return message.getPropertyNames().contains(KafkaRef.SS_HEADER);
