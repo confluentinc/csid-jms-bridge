@@ -88,7 +88,7 @@ public class ConfluentAmqServer extends ActiveMQServerImpl {
       //todo: Kafka node manager
       manager = JdbcNodeManager
           .with(dbConf, scheduledPool, executorFactory, shutdownOnCriticalIO);
-
+      //manager = KafkaStorageManager(configuration, scheduledPool, executorFactory, shutdownOnCriticalIO);
     } else if (haType == null || haType == HAPolicyConfiguration.TYPE.LIVE_ONLY) {
 
       if (LOGGER.isDebugEnabled()) {
