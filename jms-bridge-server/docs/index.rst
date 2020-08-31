@@ -40,9 +40,12 @@ Contents:
 .. toctree::
     :maxdepth: 2
 
+    legal-notice
+    version
     quick-start
-    install
+    installation
+    upgrade
+    Administration
     clients
     cli
-    configuration
-    
+    uninstall
