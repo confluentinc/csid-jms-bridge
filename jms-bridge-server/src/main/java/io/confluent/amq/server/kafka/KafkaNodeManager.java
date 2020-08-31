@@ -4,6 +4,7 @@
 
 package io.confluent.amq.server.kafka;
 
+import io.confluent.amq.persistence.kafka.KafkaJournalStorageManager;
 import io.confluent.amq.persistence.kafka.journal.KJournalAssignment;
 import io.confluent.amq.persistence.kafka.journal.KJournalListener;
 import io.confluent.amq.persistence.kafka.journal.KJournalState;
@@ -105,15 +106,19 @@ public class KafkaNodeManager extends NodeManager implements KJournalListener {
   public void onNewAssignment(List<KJournalAssignment> assignmentList) {
     hasLock = assignmentList
         .stream()
-        .anyMatch(a -> a.journalName().equals("bindings") && a.partition() == 0);
+        .filter(a -> a.journalName().equals(KafkaJournalStorageManager.BINDINGS_NAME))
+        .anyMatch(a -> a.partition() == 0);
   }
 
   @Override
   public void onStateChange(String journalName, KJournalState oldState, KJournalState newState) {
 
-    if (newState == KJournalState.RUNNING) {
+    if (KafkaJournalStorageManager.BINDINGS_NAME.equals(journalName)
+        && newState == KJournalState.RUNNING) {
+
       LOGGER.debug("Node Manager released state");
       isAlive = true;
+
     } else {
       isAlive = false;
     }

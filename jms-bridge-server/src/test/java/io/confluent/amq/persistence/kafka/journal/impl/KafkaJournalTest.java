@@ -15,6 +15,7 @@ import io.confluent.amq.persistence.domain.proto.JournalEntryKey;
 import io.confluent.amq.persistence.domain.proto.JournalRecord;
 import io.confluent.amq.persistence.domain.proto.JournalRecordType;
 import io.confluent.amq.persistence.kafka.KafkaRecordUtils;
+import io.confluent.amq.persistence.kafka.journal.KJournalListener;
 import io.confluent.amq.persistence.kafka.journal.ProtocolRecordType;
 import io.confluent.amq.persistence.kafka.journal.serde.JournalKeySerde;
 import io.confluent.amq.persistence.kafka.journal.serde.JournalValueSerde;
@@ -263,7 +264,8 @@ public class KafkaJournalTest {
     final TopologyTestDriver driver;
 
     public TestHelper(Properties properties) {
-      this.processor = new KafkaJournalProcessor(journalTopic, properties);
+      this.processor = new KafkaJournalProcessor(
+          "testJournal", journalTopic, properties, KJournalListener.NO_OP);
 
       driver =
           createStreamsTestDriver(

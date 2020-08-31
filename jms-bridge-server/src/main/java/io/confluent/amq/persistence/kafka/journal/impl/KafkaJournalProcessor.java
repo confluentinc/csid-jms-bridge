@@ -178,7 +178,7 @@ public class KafkaJournalProcessor implements StateListener {
 
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
   private KJournalState journalStateFromStreamsState(State oldState, State newState) {
-    KJournalState state = KJournalState.CREATED;
+    KJournalState state;
 
     if (oldState != State.RUNNING && newState == State.RUNNING) {
       if (streamsReady.getCount() > 0) {
@@ -276,11 +276,13 @@ public class KafkaJournalProcessor implements StateListener {
             .event("WaitForFullJournalRead")
             .markCompleted()
             .putTokens("elapsedSeconds", stopwatch.elapsed().getSeconds()));
-        break;
 
         if (this.journalState == KJournalState.LOADING) {
           this.journalState = KJournalState.RUNNING;
+          journalListener.onStateChange(journalName, KJournalState.LOADING, KJournalState.RUNNING);
         }
+
+        break;
 
       } else {
         try {

@@ -26,12 +26,12 @@ import org.apache.activemq.artemis.utils.ExecutorFactory;
 import org.apache.activemq.artemis.utils.critical.CriticalAnalyzer;
 
 public class KafkaJournalStorageManager extends JournalStorageManager {
+  public static final String BINDINGS_NAME = "bindings";
+  public static final String MESSAGES_NAME = "messages";
 
   private static final StructuredLogger LOGGER = StructuredLogger.with(b -> b
       .loggerClass(KafkaJournalStorageManager.class));
 
-  private static final String BINDINGS_NAME = "bindings";
-  private static final String MESSAGES_NAME = "messages";
 
   private KafkaIO kafkaIO;
 

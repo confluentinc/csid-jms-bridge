@@ -11,6 +11,7 @@ import io.confluent.amq.persistence.domain.proto.JournalEntryKey;
 import io.confluent.amq.persistence.domain.proto.JournalRecord;
 import io.confluent.amq.persistence.domain.proto.JournalRecordType;
 import io.confluent.amq.persistence.kafka.KafkaIO;
+import io.confluent.amq.persistence.kafka.journal.KJournalListener;
 import io.confluent.amq.persistence.kafka.journal.KafkaJournalRecord;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -81,23 +82,37 @@ public class KafkaJournal implements Journal {
   private final String journalName;
   private final ExecutorFactory executor;
   private final IOCriticalErrorListener criticalIOErrorListener;
+  private final KJournalListener journalListener;
 
   private final String destTopic;
 
   private volatile JournalState state;
   private KafkaJournalProcessor processor;
 
-  public KafkaJournal(KafkaIO kafkaIO,
+  public KafkaJournal(
+      KafkaIO kafkaIO,
       String bridgeId,
       String journalName,
       ExecutorFactory executor,
       IOCriticalErrorListener criticalIOErrorListener) {
+
+    this(kafkaIO, bridgeId, journalName, executor, criticalIOErrorListener, KJournalListener.NO_OP);
+  }
+
+  public KafkaJournal(
+      KafkaIO kafkaIO,
+      String bridgeId,
+      String journalName,
+      ExecutorFactory executor,
+      IOCriticalErrorListener criticalIOErrorListener,
+      KJournalListener journalListener) {
 
     this.kafkaIO = kafkaIO;
     this.bridgeId = bridgeId;
     this.journalName = journalName;
     this.executor = executor;
     this.criticalIOErrorListener = criticalIOErrorListener;
+    this.journalListener = journalListener;
 
     this.destTopic = journalTopic(this.bridgeId, this.journalName);
   }
@@ -260,7 +275,9 @@ public class KafkaJournal implements Journal {
     //requires 3 brokers at minimum
     //streamProps.put(StreamsConfig.PROCESSING_GUARANTEE_CONFIG, StreamsConfig.EXACTLY_ONCE);
 
-    this.processor = new KafkaJournalProcessor(this.destTopic, streamProps);
+    this.processor = new KafkaJournalProcessor(
+        journalName, this.destTopic, streamProps, journalListener);
+
     this.processor.init();
 
     state = JournalState.STARTED;

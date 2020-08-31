@@ -8,10 +8,12 @@ import org.inferred.freebuilder.FreeBuilder;
 
 @FreeBuilder
 public interface KJournalAssignment {
-    String journalName();
-    int partition();
 
-    class Builder extends KJournalAssignment_Builder {
+  String journalName();
 
-    }
+  int partition();
+
+  class Builder extends KJournalAssignment_Builder {
+
+  }
 }
