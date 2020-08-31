@@ -6,6 +6,7 @@ package io.confluent.amq.persistence.kafka;
 
 import io.confluent.amq.JmsBridgeConfiguration;
 import io.confluent.amq.logging.StructuredLogger;
+import io.confluent.amq.persistence.kafka.journal.KJournalListener;
 import io.confluent.amq.persistence.kafka.journal.impl.KafkaJournal;
 import java.nio.ByteBuffer;
 import java.util.concurrent.ScheduledExecutorService;
@@ -53,6 +54,10 @@ public class KafkaJournalStorageManager extends JournalStorageManager {
 
     super(config, analyzer, executorFactory, scheduledExecutorService, ioExecutorFactory,
         criticalErrorListener);
+  }
+
+  public void registerListener(KJournalListener journalListener) {
+    //implement me
   }
 
   @Override
