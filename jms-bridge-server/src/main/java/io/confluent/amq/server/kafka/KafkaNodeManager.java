@@ -7,9 +7,13 @@ package io.confluent.amq.server.kafka;
 import io.confluent.amq.persistence.kafka.KafkaJournalStorageManager;
 import io.confluent.amq.persistence.kafka.journal.KJournalAssignment;
 import io.confluent.amq.persistence.kafka.journal.KJournalListener;
+import io.confluent.amq.persistence.kafka.journal.KJournalMetadata;
 import io.confluent.amq.persistence.kafka.journal.KJournalState;
 import java.io.IOException;
 import java.util.List;
+import java.util.Optional;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import org.apache.activemq.artemis.api.core.ActiveMQIllegalStateException;
 import org.apache.activemq.artemis.api.core.SimpleString;
 import org.apache.activemq.artemis.core.server.ActivateCallback;
@@ -20,9 +24,9 @@ import org.slf4j.LoggerFactory;
 public class KafkaNodeManager extends NodeManager implements KJournalListener {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(KafkaNodeManager.class);
-  private volatile boolean isAlive = false;
-  private volatile boolean hasLock = false;
-  private final String brokerId = java.util.UUID.randomUUID().toString();
+  private final AtomicBoolean isAlive = new AtomicBoolean(false);
+  private final AtomicBoolean hasLock = new AtomicBoolean(false);
+  private final AtomicReference<SimpleString> nodeId = new AtomicReference<>(null);
 
   public KafkaNodeManager() {
     super(false, null);
@@ -31,7 +35,7 @@ public class KafkaNodeManager extends NodeManager implements KJournalListener {
   @Override
   public void awaitLiveNode() throws Exception {
     LOGGER.debug("ENTER awaitLiveStatus");
-    while (!isAlive | !hasLock) {
+    while (!isAlive.get() | !hasLock.get()) {
       Thread.sleep(50);
     }
   }
@@ -39,7 +43,7 @@ public class KafkaNodeManager extends NodeManager implements KJournalListener {
   @Override
   public void awaitLiveStatus() throws Exception {
     LOGGER.debug("ENTER awaitLiveStatus");
-    while (!isAlive) {
+    while (!isAlive.get()) {
       Thread.sleep(50);
     }
   }
@@ -61,15 +65,18 @@ public class KafkaNodeManager extends NodeManager implements KJournalListener {
   @Override
   public void pauseLiveServer() throws Exception {
     LOGGER.debug("Paused LiveServer");
-    hasLock = false;
-    isAlive = false;
+    close();
   }
 
   @Override
   public void crashLiveServer() throws Exception {
     LOGGER.debug("Paused LiveServer");
-    hasLock = false;
-    isAlive = false;
+    close();
+  }
+
+  private void close() {
+    hasLock.set(false);
+    isAlive.set(false);
   }
 
   @Override
@@ -79,7 +86,12 @@ public class KafkaNodeManager extends NodeManager implements KJournalListener {
 
   @Override
   public SimpleString readNodeId() throws ActiveMQIllegalStateException, IOException {
-    return SimpleString.toSimpleString(brokerId);
+    return getNodeId();
+  }
+
+  @Override
+  public SimpleString getNodeId() {
+    return Optional.ofNullable(nodeId.get()).orElse(SimpleString.toSimpleString("UNKNOWN"));
   }
 
   @Override
@@ -98,29 +110,32 @@ public class KafkaNodeManager extends NodeManager implements KJournalListener {
   }
 
   @Override
-  public void onRevokedAssignment(List<KJournalAssignment> assignmentList) {
+  public void onAssignmentChange(
+      KJournalMetadata metadata, List<KJournalAssignment> assignmentList) {
 
+    if (KafkaJournalStorageManager.BINDINGS_NAME.equals(metadata.journalName())) {
+      boolean locked = assignmentList
+          .stream()
+          .filter(a -> a.journalName().equals(KafkaJournalStorageManager.BINDINGS_NAME))
+          .anyMatch(a -> a.partition() == 0);
+      hasLock.set(locked);
+    }
+
+    nodeId.compareAndSet(null, SimpleString.toSimpleString(metadata.nodeId()));
   }
 
   @Override
-  public void onNewAssignment(List<KJournalAssignment> assignmentList) {
-    hasLock = assignmentList
-        .stream()
-        .filter(a -> a.journalName().equals(KafkaJournalStorageManager.BINDINGS_NAME))
-        .anyMatch(a -> a.partition() == 0);
-  }
+  public void onStateChange(
+      KJournalMetadata metadata, KJournalState oldState, KJournalState newState) {
 
-  @Override
-  public void onStateChange(String journalName, KJournalState oldState, KJournalState newState) {
-
-    if (KafkaJournalStorageManager.BINDINGS_NAME.equals(journalName)
+    if (KafkaJournalStorageManager.BINDINGS_NAME.equals(metadata.journalName())
         && newState == KJournalState.RUNNING) {
 
       LOGGER.debug("Node Manager released state");
-      isAlive = true;
+      isAlive.set(true);
 
     } else {
-      isAlive = false;
+      isAlive.set(false);
     }
 
   }

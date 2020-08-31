@@ -265,7 +265,7 @@ public class KafkaJournalTest {
 
     public TestHelper(Properties properties) {
       this.processor = new KafkaJournalProcessor(
-          "testJournal", journalTopic, properties, KJournalListener.NO_OP);
+          "testJournal", journalTopic, "testNode", properties, KJournalListener.NO_OP);
 
       driver =
           createStreamsTestDriver(

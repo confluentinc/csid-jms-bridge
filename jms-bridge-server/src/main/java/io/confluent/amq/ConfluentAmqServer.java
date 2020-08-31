@@ -5,8 +5,9 @@
 package io.confluent.amq;
 
 import io.confluent.amq.persistence.kafka.KafkaJournalStorageManager;
-import io.confluent.amq.server.kafka.KafkaNodeManager;
+import io.confluent.amq.server.kafka.KNodeManager;
 import java.io.File;
+import java.util.concurrent.atomic.AtomicReference;
 import javax.management.MBeanServer;
 import org.apache.activemq.artemis.core.config.HAPolicyConfiguration;
 import org.apache.activemq.artemis.core.persistence.StorageManager;
@@ -14,8 +15,9 @@ import org.apache.activemq.artemis.core.server.ActiveMQServer;
 import org.apache.activemq.artemis.core.server.NodeManager;
 import org.apache.activemq.artemis.core.server.ServiceRegistry;
 import org.apache.activemq.artemis.core.server.impl.ActiveMQServerImpl;
-import org.apache.activemq.artemis.core.server.impl.FileLockNodeManager;
 import org.apache.activemq.artemis.spi.core.security.ActiveMQSecurityManager;
+import org.apache.activemq.artemis.utils.UUID;
+import org.apache.activemq.artemis.utils.UUIDGenerator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -121,6 +123,5 @@ public class ConfluentAmqServer extends ActiveMQServerImpl {
     }
     return kafKaStorageManager;
   }
-
 
 }

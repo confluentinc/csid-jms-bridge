@@ -12,11 +12,13 @@ import io.confluent.amq.persistence.domain.proto.JournalRecordType;
 import io.confluent.amq.persistence.kafka.journal.JournalEntryKeyPartitioner;
 import io.confluent.amq.persistence.kafka.journal.KJournalAssignment;
 import io.confluent.amq.persistence.kafka.journal.KJournalListener;
+import io.confluent.amq.persistence.kafka.journal.KJournalMetadata;
 import io.confluent.amq.persistence.kafka.journal.KJournalState;
 import io.confluent.amq.persistence.kafka.journal.serde.JournalKeySerde;
 import io.confluent.amq.persistence.kafka.journal.serde.JournalValueSerde;
 import io.confluent.amq.persistence.kafka.streams.StreamsSupport;
 import java.time.Duration;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
@@ -73,6 +75,7 @@ public class KafkaJournalProcessor implements StateListener {
   private final CountDownLatch streamsReady;
   private final KJournalListener journalListener;
   private final String journalName;
+  private final String nodeId;
 
   private KJournalState journalState;
   private KafkaStreams streams;
@@ -80,9 +83,12 @@ public class KafkaJournalProcessor implements StateListener {
   public KafkaJournalProcessor(
       String journalName,
       String journalTopic,
+      String nodeId,
       Properties kafkaStreamProps,
       KJournalListener journalListener) {
 
+    System.out.println("journalListener: " + journalListener);
+    this.nodeId = nodeId;
     this.journalName = journalName;
     this.journalListener = journalListener;
     this.streamsReady = new CountDownLatch(1);
@@ -122,6 +128,7 @@ public class KafkaJournalProcessor implements StateListener {
     //default the serdes to our journal entry types.
     Properties kstreamProps = new Properties();
     kstreamProps.putAll(kafkaStreamProps);
+    kstreamProps.put(StreamsConfig.CLIENT_ID_CONFIG, journalName + "_" + nodeId);
     kstreamProps.put(
         StreamsConfig.producerPrefix(ProducerConfig.PARTITIONER_CLASS_CONFIG),
         JournalEntryKeyPartitioner.class.getCanonicalName());
@@ -161,10 +168,25 @@ public class KafkaJournalProcessor implements StateListener {
     KJournalState prevState = journalState;
     journalState = journalStateFromStreamsState(oldState, newState);
 
-    journalListener.onStateChange(journalName, prevState, journalState);
+    KJournalMetadata metadata = fetchMetadata();
+    journalListener.onStateChange(metadata, prevState, journalState);
 
     if (oldState == State.REBALANCING && newState == State.RUNNING) {
-      List<KJournalAssignment> assignments = streams.allMetadata().stream()
+      List<KJournalAssignment> assignments = fetchAssignments();
+      journalListener.onAssignmentChange(metadata, assignments);
+    }
+  }
+
+  private KJournalMetadata fetchMetadata() {
+    return new KJournalMetadata.Builder()
+        .journalName(journalName)
+        .nodeId(nodeId)
+        .build();
+  }
+
+  private List<KJournalAssignment> fetchAssignments() {
+    if (streams != null) {
+      return streams.allMetadata().stream()
           .flatMap(md -> md.topicPartitions().stream())
           .filter(tp -> tp.topic().equals(this.journalTopic))
           .map(tp -> new KJournalAssignment.Builder()
@@ -172,8 +194,8 @@ public class KafkaJournalProcessor implements StateListener {
               .partition(tp.partition())
               .build())
           .collect(Collectors.toList());
-      journalListener.onNewAssignment(assignments);
     }
+    return Collections.emptyList();
   }
 
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
@@ -279,7 +301,8 @@ public class KafkaJournalProcessor implements StateListener {
 
         if (this.journalState == KJournalState.LOADING) {
           this.journalState = KJournalState.RUNNING;
-          journalListener.onStateChange(journalName, KJournalState.LOADING, KJournalState.RUNNING);
+          journalListener.onStateChange(
+              fetchMetadata(), KJournalState.LOADING, KJournalState.RUNNING);
         }
 
         break;

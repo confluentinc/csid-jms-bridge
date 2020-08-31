@@ -49,6 +49,7 @@ import org.apache.activemq.artemis.utils.critical.CriticalAnalyzerPolicy;
 @SuppressWarnings("deprecation")
 public class JmsBridgeConfiguration implements Configuration {
 
+  private String nodeId;
   private final Configuration delegate;
   private final Properties jmsBridgeProperties;
 
@@ -59,6 +60,15 @@ public class JmsBridgeConfiguration implements Configuration {
 
   public Properties getJmsBridgeProperties() {
     return jmsBridgeProperties;
+  }
+
+  public String getNodeId() {
+    return nodeId;
+  }
+
+  public JmsBridgeConfiguration setNodeId(String nodeId) {
+    this.nodeId = nodeId;
+    return this;
   }
 
   @Override

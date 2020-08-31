@@ -79,6 +79,7 @@ public class KafkaJournal implements Journal {
 
   private final KafkaIO kafkaIO;
   private final String bridgeId;
+  private final String nodeId;
   private final String journalName;
   private final ExecutorFactory executor;
   private final IOCriticalErrorListener criticalIOErrorListener;
@@ -92,23 +93,17 @@ public class KafkaJournal implements Journal {
   public KafkaJournal(
       KafkaIO kafkaIO,
       String bridgeId,
-      String journalName,
-      ExecutorFactory executor,
-      IOCriticalErrorListener criticalIOErrorListener) {
-
-    this(kafkaIO, bridgeId, journalName, executor, criticalIOErrorListener, KJournalListener.NO_OP);
-  }
-
-  public KafkaJournal(
-      KafkaIO kafkaIO,
-      String bridgeId,
+      String nodeId,
       String journalName,
       ExecutorFactory executor,
       IOCriticalErrorListener criticalIOErrorListener,
       KJournalListener journalListener) {
 
+    System.out.println("KafkaJournal(journalListener): " + journalListener);
+
     this.kafkaIO = kafkaIO;
     this.bridgeId = bridgeId;
+    this.nodeId = nodeId;
     this.journalName = journalName;
     this.executor = executor;
     this.criticalIOErrorListener = criticalIOErrorListener;
@@ -275,8 +270,9 @@ public class KafkaJournal implements Journal {
     //requires 3 brokers at minimum
     //streamProps.put(StreamsConfig.PROCESSING_GUARANTEE_CONFIG, StreamsConfig.EXACTLY_ONCE);
 
+    System.out.println("KafkaJournal.start.nodeId: " + this.nodeId);
     this.processor = new KafkaJournalProcessor(
-        journalName, this.destTopic, streamProps, journalListener);
+        journalName, this.destTopic, this.nodeId, streamProps, journalListener);
 
     this.processor.init();
 

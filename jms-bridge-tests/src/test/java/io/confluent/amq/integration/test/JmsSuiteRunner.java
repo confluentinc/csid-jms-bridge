@@ -4,6 +4,9 @@
 
 package io.confluent.amq.integration.test;
 
+import static net.bytebuddy.matcher.ElementMatchers.named;
+import static net.bytebuddy.matcher.ElementMatchers.takesArguments;
+
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
@@ -11,7 +14,10 @@ import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.agent.ByteBuddyAgent;
 import net.bytebuddy.dynamic.ClassFileLocator;
 import net.bytebuddy.dynamic.loading.ClassReloadingStrategy;
+import net.bytebuddy.implementation.MethodDelegation;
+import net.bytebuddy.matcher.ElementMatchers;
 import net.bytebuddy.pool.TypePool;
+import org.apache.activemq.artemis.core.server.ActiveMQServers;
 import org.apache.activemq.artemis.tests.integration.jms.RedeployTempTest;
 import org.apache.activemq.artemis.tests.integration.jms.largemessage.JMSLargeMessageTest;
 import org.apache.activemq.artemis.tests.util.JMSTestBase;
@@ -24,13 +30,35 @@ import org.junit.runners.model.RunnerBuilder;
 import org.testcontainers.containers.KafkaContainer;
 
 public class JmsSuiteRunner extends Suite {
+  //
+  // Look into overriding this static method with byte buddy as an alternative
+  /*
+     public static ActiveMQServer newActiveMQServer(final Configuration config,
+                                                  final MBeanServer mbeanServer,
+                                                  final ActiveMQSecurityManager securityManager,
+                                                  final boolean enablePersistence) {
+      config.setPersistenceEnabled(enablePersistence);
+
+      ActiveMQServer server = new ActiveMQServerImpl(config, mbeanServer, securityManager);
+
+      return server;
+   }
+
+   */
   static {
     ByteBuddyAgent.install();
     new ByteBuddy()
-        .redefine(MyJmsTestBase.class)
-        .name(JMSTestBase.class.getName())
+        .redefine(ActiveMQServers.class)
+        .method(named("newActiveMQServer").and(takesArguments(4)))
+        .intercept(MethodDelegation.to(ActiveMQServersRedefined.class))
         .make()
-        .load(MyJmsTestBase.class.getClassLoader(), ClassReloadingStrategy.fromInstalledAgent());
+        .load(ActiveMQServers.class.getClassLoader(), ClassReloadingStrategy.fromInstalledAgent());
+
+//    new ByteBuddy()
+//        .redefine(MyJmsTestBase.class)
+//        .name(JMSTestBase.class.getName())
+//        .make()
+//        .load(MyJmsTestBase.class.getClassLoader(), ClassReloadingStrategy.fromInstalledAgent());
   }
 
   private static final String JMS_PACKAGE = "org.apache.activemq.artemis.tests.integration.jms";

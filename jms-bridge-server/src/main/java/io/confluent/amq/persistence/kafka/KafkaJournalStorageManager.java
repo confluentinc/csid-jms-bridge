@@ -6,9 +6,14 @@ package io.confluent.amq.persistence.kafka;
 
 import io.confluent.amq.JmsBridgeConfiguration;
 import io.confluent.amq.logging.StructuredLogger;
+import io.confluent.amq.persistence.kafka.journal.KJournalAssignment;
 import io.confluent.amq.persistence.kafka.journal.KJournalListener;
+import io.confluent.amq.persistence.kafka.journal.KJournalMetadata;
+import io.confluent.amq.persistence.kafka.journal.KJournalState;
 import io.confluent.amq.persistence.kafka.journal.impl.KafkaJournal;
 import java.nio.ByteBuffer;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.concurrent.ScheduledExecutorService;
 import org.apache.activemq.artemis.api.core.ActiveMQBuffer;
 import org.apache.activemq.artemis.api.core.ActiveMQException;
@@ -26,6 +31,7 @@ import org.apache.activemq.artemis.utils.ExecutorFactory;
 import org.apache.activemq.artemis.utils.critical.CriticalAnalyzer;
 
 public class KafkaJournalStorageManager extends JournalStorageManager {
+
   public static final String BINDINGS_NAME = "bindings";
   public static final String MESSAGES_NAME = "messages";
 
@@ -33,6 +39,7 @@ public class KafkaJournalStorageManager extends JournalStorageManager {
       .loggerClass(KafkaJournalStorageManager.class));
 
 
+  private BroadcastListener broadcastListener;
   private KafkaIO kafkaIO;
 
   public KafkaJournalStorageManager(
@@ -57,7 +64,7 @@ public class KafkaJournalStorageManager extends JournalStorageManager {
   }
 
   public void registerListener(KJournalListener journalListener) {
-    //implement me
+    this.broadcastListener.listeners.add(journalListener);
   }
 
   @Override
@@ -66,6 +73,7 @@ public class KafkaJournalStorageManager extends JournalStorageManager {
     //need to create these journals
     LOGGER.info(b -> b.event("Init"));
 
+    this.broadcastListener = new BroadcastListener();
     JmsBridgeConfiguration jbConfig = (JmsBridgeConfiguration) config;
 
     if (!jbConfig.getJmsBridgeProperties().containsKey("bridge.id")) {
@@ -79,10 +87,10 @@ public class KafkaJournalStorageManager extends JournalStorageManager {
     this.kafkaIO = new KafkaIO(jbConfig.getJmsBridgeProperties());
     this.kafkaIO.start();
 
-    this.bindingsJournal = new KafkaJournal(kafkaIO, bridgeId, BINDINGS_NAME,
-        executorFactory, criticalErrorListener);
-    this.messageJournal = new KafkaJournal(kafkaIO, bridgeId, MESSAGES_NAME,
-        executorFactory, criticalErrorListener);
+    this.bindingsJournal = new KafkaJournal(kafkaIO, bridgeId, jbConfig.getNodeId(), BINDINGS_NAME,
+        executorFactory, criticalErrorListener, broadcastListener);
+    this.messageJournal = new KafkaJournal(kafkaIO, bridgeId, jbConfig.getNodeId(), MESSAGES_NAME,
+        executorFactory, criticalErrorListener, broadcastListener);
 
     LOGGER.info(b -> b.event("Init").markSuccess());
   }
@@ -224,5 +232,36 @@ public class KafkaJournalStorageManager extends JournalStorageManager {
       throws ActiveMQException {
     LOGGER.debug(
         b -> b.event("UnsupportedOperationCalled").message("deleteLargeMessageBody"));
+  }
+
+  static class BroadcastListener implements KJournalListener {
+
+    private final List<KJournalListener> listeners = new LinkedList<>();
+
+    @Override
+    public void onAssignmentChange(KJournalMetadata metadata,
+        List<KJournalAssignment> newAssignmentList) {
+
+      for (KJournalListener listener : listeners) {
+        try {
+          listener.onAssignmentChange(metadata, newAssignmentList);
+        } catch (Throwable t) {
+          //
+        }
+      }
+    }
+
+    @Override
+    public void onStateChange(KJournalMetadata metadata, KJournalState oldState,
+        KJournalState newState) {
+
+      for (KJournalListener listener : listeners) {
+        try {
+          listener.onStateChange(metadata, oldState, newState);
+        } catch (Throwable t) {
+          //
+        }
+      }
+    }
   }
 }

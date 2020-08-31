@@ -10,27 +10,21 @@ public interface KJournalListener {
 
   KJournalListener NO_OP = new KJournalListener() {
     @Override
-    public void onRevokedAssignment(List<KJournalAssignment> assignmentList) {
-
+    public void onAssignmentChange(KJournalMetadata metadata,
+        List<KJournalAssignment> newAssignmentList) {
+      //
     }
 
     @Override
-    public void onNewAssignment(List<KJournalAssignment> assignmentList) {
-
-    }
-
-    @Override
-    public void onStateChange(String journalName, KJournalState oldState,
+    public void onStateChange(KJournalMetadata metadata, KJournalState oldState,
         KJournalState newState) {
-
+        //
     }
   };
 
-  void onRevokedAssignment(List<KJournalAssignment> assignmentList);
-
-  void onNewAssignment(List<KJournalAssignment> assignmentList);
+  void onAssignmentChange(KJournalMetadata metadata, List<KJournalAssignment> newAssignmentList);
 
   void onStateChange(
-      String journalName, KJournalState oldState, KJournalState newState);
+      KJournalMetadata metadata, KJournalState oldState, KJournalState newState);
 
 }
