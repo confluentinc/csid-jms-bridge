@@ -5,25 +5,22 @@
 package io.confluent.amq;
 
 import io.confluent.amq.persistence.kafka.KafkaJournalStorageManager;
+import io.confluent.amq.server.kafka.KafkaNodeManager;
 import java.io.File;
 import javax.management.MBeanServer;
-
-import io.confluent.amq.persistence.kafka.journal.impl.KafkaJournal;
-import io.confluent.amq.server.kafka.KafkaNodeManager;
 import org.apache.activemq.artemis.core.config.HAPolicyConfiguration;
-import org.apache.activemq.artemis.core.config.storage.DatabaseStorageConfiguration;
 import org.apache.activemq.artemis.core.persistence.StorageManager;
 import org.apache.activemq.artemis.core.server.ActiveMQServer;
 import org.apache.activemq.artemis.core.server.NodeManager;
 import org.apache.activemq.artemis.core.server.ServiceRegistry;
 import org.apache.activemq.artemis.core.server.impl.ActiveMQServerImpl;
 import org.apache.activemq.artemis.core.server.impl.FileLockNodeManager;
-import org.apache.activemq.artemis.core.server.impl.jdbc.JdbcNodeManager;
 import org.apache.activemq.artemis.spi.core.security.ActiveMQSecurityManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class ConfluentAmqServer extends ActiveMQServerImpl {
+
   private volatile KafkaJournalStorageManager kafKaStorageManager;
 
   private static final Logger LOGGER = LoggerFactory.getLogger(ConfluentAmqServer.class);
@@ -77,8 +74,8 @@ public class ConfluentAmqServer extends ActiveMQServerImpl {
 
     final HAPolicyConfiguration.TYPE haType =
         configuration.getHAPolicyConfiguration() == null
-        ? null
-        : configuration.getHAPolicyConfiguration().getType();
+            ? null
+            : configuration.getHAPolicyConfiguration().getType();
 
     if (haType == HAPolicyConfiguration.TYPE.SHARED_STORE_MASTER
         || haType == HAPolicyConfiguration.TYPE.SHARED_STORE_SLAVE) {
@@ -116,8 +113,8 @@ public class ConfluentAmqServer extends ActiveMQServerImpl {
       final JmsBridgeConfiguration configuration = (JmsBridgeConfiguration) getConfiguration();
 
       final KafkaJournalStorageManager journal = new KafkaJournalStorageManager(
-              configuration, getCriticalAnalyzer(), executorFactory, scheduledPool,
-              ioExecutorFactory, shutdownOnCriticalIO);
+          configuration, getCriticalAnalyzer(), executorFactory, scheduledPool,
+          ioExecutorFactory, shutdownOnCriticalIO);
 
       this.getCriticalAnalyzer().add(journal);
       kafKaStorageManager = journal;

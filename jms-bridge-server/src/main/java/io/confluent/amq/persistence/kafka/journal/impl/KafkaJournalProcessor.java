@@ -10,14 +10,19 @@ import io.confluent.amq.persistence.domain.proto.JournalEntry;
 import io.confluent.amq.persistence.domain.proto.JournalEntryKey;
 import io.confluent.amq.persistence.domain.proto.JournalRecordType;
 import io.confluent.amq.persistence.kafka.journal.JournalEntryKeyPartitioner;
+import io.confluent.amq.persistence.kafka.journal.KJournalAssignment;
+import io.confluent.amq.persistence.kafka.journal.KJournalListener;
+import io.confluent.amq.persistence.kafka.journal.KJournalState;
 import io.confluent.amq.persistence.kafka.journal.serde.JournalKeySerde;
 import io.confluent.amq.persistence.kafka.journal.serde.JournalValueSerde;
 import io.confluent.amq.persistence.kafka.streams.StreamsSupport;
 import java.time.Duration;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.stream.Collectors;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.streams.KafkaStreams;
 import org.apache.kafka.streams.KafkaStreams.State;
@@ -66,13 +71,20 @@ public class KafkaJournalProcessor implements StateListener {
   private final Properties kafkaStreamProps;
   private final KafkaJournalLoader loader;
   private final CountDownLatch streamsReady;
+  private final KJournalListener journalListener;
+  private final String journalName;
 
+  private KJournalState journalState;
   private KafkaStreams streams;
 
   public KafkaJournalProcessor(
+      String journalName,
       String journalTopic,
-      Properties kafkaStreamProps) {
+      Properties kafkaStreamProps,
+      KJournalListener journalListener) {
 
+    this.journalName = journalName;
+    this.journalListener = journalListener;
     this.streamsReady = new CountDownLatch(1);
 
     this.journalTopic = journalTopic;
@@ -146,11 +158,59 @@ public class KafkaJournalProcessor implements StateListener {
 
   @Override
   public void onChange(State newState, State oldState) {
+    KJournalState prevState = journalState;
+    journalState = journalStateFromStreamsState(oldState, newState);
+
+    journalListener.onStateChange(journalName, prevState, journalState);
+
+    if (oldState == State.REBALANCING && newState == State.RUNNING) {
+      List<KJournalAssignment> assignments = streams.allMetadata().stream()
+          .flatMap(md -> md.topicPartitions().stream())
+          .filter(tp -> tp.topic().equals(this.journalTopic))
+          .map(tp -> new KJournalAssignment.Builder()
+              .journalName(this.journalName)
+              .partition(tp.partition())
+              .build())
+          .collect(Collectors.toList());
+      journalListener.onNewAssignment(assignments);
+    }
+  }
+
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
+  private KJournalState journalStateFromStreamsState(State oldState, State newState) {
+    KJournalState state = KJournalState.CREATED;
+
     if (oldState != State.RUNNING && newState == State.RUNNING) {
       if (streamsReady.getCount() > 0) {
         streamsReady.countDown();
       }
     }
+
+    switch (newState) {
+      case CREATED:
+        state = KJournalState.CREATED;
+        break;
+      case REBALANCING:
+        state = KJournalState.ASSIGNING;
+        break;
+      case PENDING_SHUTDOWN:
+      case NOT_RUNNING:
+        state = KJournalState.STOPPED;
+        break;
+      case ERROR:
+        state = KJournalState.FAILED;
+        break;
+      case RUNNING:
+        if (streamsReady.getCount() == 0) {
+          state = KJournalState.RUNNING;
+        } else {
+          state = KJournalState.LOADING;
+        }
+        break;
+      default:
+        throw new IllegalStateException("Unexpected value: " + newState);
+    }
+    return state;
   }
 
   private void waitForStreamReady() {
@@ -217,6 +277,10 @@ public class KafkaJournalProcessor implements StateListener {
             .markCompleted()
             .putTokens("elapsedSeconds", stopwatch.elapsed().getSeconds()));
         break;
+
+        if (this.journalState == KJournalState.LOADING) {
+          this.journalState = KJournalState.RUNNING;
+        }
 
       } else {
         try {
