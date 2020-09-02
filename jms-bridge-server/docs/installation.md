@@ -169,9 +169,14 @@ Configure each host in the cluster as follows to ensure that all members can com
 ## Installing the JMS Bridge
 
 ### Obtaining a copy of the JMS Bridge
-To obtain a copy of the 
+To obtain a copy of the JMS-Bridge, please contact your Account Executive or Confluent Support.
 
 ### Unzip the JMS Bridge Archive
+        ```console
+        cd /usr/local
+        unzip jms-bridge-1.0.0-M1.zip 
+         ```
+
 #### Place Archive in your organizations preffered deployment directory.
 
 ```The recommended location for instation is '/opt' or '/usr/local' depending on the use of a service user account for installation.```
@@ -189,12 +194,33 @@ chmod -R a=r,u+w etc/ share/
 
 ### The JMS bridge is now ready to 
 
-#### Starting
-'Optional' Starting in 
+#### Starting 
+To start the JMS-Bridge there is the `jms-bridge-server-start` script that can be called.
+One argument is required and that is the path to the `jms-bridge.properties` file, a default one can be found in the `etc/jms-bridge/` directory.
+```shell
+bin/jms-bridge-server-start etc/jms-bridge/jms-bridge.properties
+```
 
+By default it will run in the foreground and can be killed with `^C`.
+Alternatively you can start it in the background using the `-daemon` option.
+```shell
+bin/jms-bridge-server-start -daemon etc/jms-bridge/jms-bridge.properties
+```
 
-#### Stopping
+As a companion to the `jms-bridge-server-start` script there is a `jms-bridge-server-stop` script which can be used to stop the JMS-Bridge.
+```shell
+bin/jms-bridge-server-stop
+```
 
+``` note::
+    Default location of runtime files of interest:
+
+     * Log files  -> `./logs`
+     * Data files -> `./data`
+```
+##### Systemd
+
+It is possible to run it via systemd but I leave that as an exercise for the reader for now.
 
 ## Configuration Options
 
@@ -269,10 +295,7 @@ To configure High Availability, perform the following steps:
       </shared-store>
     </ha-policy>
     ```
-    > Be aware that if you restart a live server while after failover has occurred then
-    check-for-live-server must be set to true . If not the live server will restart and
-    server the same messages that the backup has already handled causing
-    duplicates.
+```Be aware that if you restart a live server while after failover has occurred then check-for-live-server must be set to true . If not the live server will restart and server the same messages that the backup has already handled causing duplicates.```
                                                                                                                                                                                                                                                                                                                              >
 3. On the 'slave' node, define the preffered state of the slave JMS-Bridge Server.
     ```xml
