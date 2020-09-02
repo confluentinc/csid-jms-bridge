@@ -44,8 +44,6 @@ Contents:
     version
     quick-start
     installation
-    upgrade
     Administration
     clients
     cli
-    uninstall

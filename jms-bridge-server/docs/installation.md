@@ -215,6 +215,41 @@ https://activemq.apache.org/components/artemis/documentation/latest/configuratio
 #### Configuration Caveats
 
 #### Clusters
+JMS-Bridge clusters allow groups of JMS-bridge servers to be grouped together in order to share message processing load. Each active node in the cluster is an active JMS-Bridge server which manages its own messages and handles its own connections.
+
+The cluster is formed by each node declaring cluster connections to other nodes in the core configuration file broker.xml . 
+When a node forms a cluster connection to another node, internally it creates a core bridge (as described in Core Bridges) connection between it and the other node, this is done transparently behind the scenes - you don't have to declare an explicit bridge for each node. 
+
+Clustering for the JMS-Bridge was tested by explicitly setting host connections. This can only be done using a static list of connectors and is configured as follows:
+
+1. Define 'cluster-connections':
+    ```xml
+    <cluster-connection name="my-cluster">
+        <address>jms</address>
+        <connector-ref>netty-connector</connector-ref>
+        <retry-interval>500</retry-interval>
+        <use-duplicate-detection>true</use-duplicate-detection>
+        <message-load-balancing>STRICT</message-load-balancing>
+        <max-hops>1</max-hops>
+        <static-connectors allow-direct-connections-only="true">
+        <connector-ref>server1-connector</connector-ref>
+        </static-connectors>
+    </cluster-connection>
+    ```
+2. Add the new connector defined in the 'cluster-connection' node to the connectors xml node.
+    ```xml
+    <connectors>
+      <!-- Default Connector.  Returned to clients during broadcast and distributed around cluster.  See broadcast and discovery-groups -->
+      <connector name="activemq">
+        tcp://${activemq.remoting.default.host:localhost}:${activemq.remoting.default.port:61616}
+      </connector>
+      <connector name="server1-connector">tcp://hostname:61616</connector>
+    </connectors>
+    ```
+
+> Conector names in both the cluster-connections and the connectors node, must match.
+
+
 #### High Availability and Failover
 The JMS-Bridge allows servers to be linked  together as live - backup groups where each live server can have 1 or more backup servers. A backup server is owned by only one live server. Backup servers are not operational until failover occurs, however 1 chosen backup, which will be in passive mode, announces its status and waits to take over the live servers work
 Before failover, only the live server is serving the Apache ActiveMQ Artemis clients while the backup servers remain passive or awaiting to become a backup server. When a live server crashes or is brought down in the correct mode, the backup server currently in passive mode will become live and another backup server will become passive. If a live server restarts after a failover then it will have priority and be the next server to become live when the current live server goes down, if the current live server is configured to allow automatic failback then it will detect the live server coming back up and automatically stop.
@@ -223,4 +258,29 @@ Due to the addition of Kafka as a storage mechanism for the JMS Bridge, only one
 
 To configure High Availability, perform the following steps:
 
-1. ToDo: Steps for configuring High Availability.
+1. Cluster two or odes together using a telopolgy of the organizations choise. Please note that any topology that uses the redistribution of journals will ot be supported.
+2. On the 'master' node, please set the following configuration. the configurations 'failover-on-shutdown'
+    ```xml
+    <ha-policy>
+      <shared-store>
+        <master>
+          <failover-on-shutdown>true</failover-on-shutdown>
+        </master>
+      </shared-store>
+    </ha-policy>
+    ```
+    > Be aware that if you restart a live server while after failover has occurred then
+    check-for-live-server must be set to true . If not the live server will restart and
+    server the same messages that the backup has already handled causing
+    duplicates.
+                                                                                                                                                                                                                                                                                                                             >
+3. On the 'slave' node, define the preffered state of the slave JMS-Bridge Server.
+    ```xml
+    <ha-policy>
+      <shared-store>
+        <slave>
+          <allow-failback>true</allow-failback>
+        </slave>
+      </shared-store>
+    </ha-policy>
+    ```
