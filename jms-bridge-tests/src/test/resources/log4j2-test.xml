@@ -11,11 +11,11 @@
   </Appenders>
 
   <Loggers>
-    <Logger name="io.confluent.amq" level="WARN" additivity="false">
+    <Logger name="io.confluent.amq" level="TRACE" additivity="false">
       <AppenderRef ref="stdout"/>
     </Logger>
 
-    <Logger name="org.apache.activemq.artemis.core" level="WARN" additivity="false">
+    <Logger name="io.confluent.amq.server.kafka.KNodeManager" level="INFO" additivity="false">
       <AppenderRef ref="stdout"/>
     </Logger>
 

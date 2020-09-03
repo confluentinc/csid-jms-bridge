@@ -6,14 +6,8 @@ package io.confluent.amq.persistence.kafka;
 
 import io.confluent.amq.JmsBridgeConfiguration;
 import io.confluent.amq.logging.StructuredLogger;
-import io.confluent.amq.persistence.kafka.journal.KJournalAssignment;
-import io.confluent.amq.persistence.kafka.journal.KJournalListener;
-import io.confluent.amq.persistence.kafka.journal.KJournalMetadata;
-import io.confluent.amq.persistence.kafka.journal.KJournalState;
 import io.confluent.amq.persistence.kafka.journal.impl.KafkaJournal;
 import java.nio.ByteBuffer;
-import java.util.LinkedList;
-import java.util.List;
 import java.util.concurrent.ScheduledExecutorService;
 import org.apache.activemq.artemis.api.core.ActiveMQBuffer;
 import org.apache.activemq.artemis.api.core.ActiveMQException;
@@ -26,7 +20,9 @@ import org.apache.activemq.artemis.core.io.SequentialFile;
 import org.apache.activemq.artemis.core.io.nio.NIOSequentialFileFactory;
 import org.apache.activemq.artemis.core.persistence.OperationContext;
 import org.apache.activemq.artemis.core.persistence.impl.journal.JournalStorageManager;
+import org.apache.activemq.artemis.core.postoffice.Binding;
 import org.apache.activemq.artemis.core.server.LargeServerMessage;
+import org.apache.activemq.artemis.core.server.impl.AddressInfo;
 import org.apache.activemq.artemis.utils.ExecutorFactory;
 import org.apache.activemq.artemis.utils.critical.CriticalAnalyzer;
 
@@ -35,74 +31,83 @@ public class KafkaJournalStorageManager extends JournalStorageManager {
   public static final String BINDINGS_NAME = "bindings";
   public static final String MESSAGES_NAME = "messages";
 
-  private static final StructuredLogger LOGGER = StructuredLogger.with(b -> b
+  private static final StructuredLogger SLOG = StructuredLogger.with(b -> b
       .loggerClass(KafkaJournalStorageManager.class));
 
 
-  private BroadcastListener broadcastListener;
   private KafkaIO kafkaIO;
+  private KafkaIntegration kafkaIntegration;
 
   public KafkaJournalStorageManager(
+      KafkaIntegration kafkaIntegration,
       JmsBridgeConfiguration config,
       CriticalAnalyzer analyzer, ExecutorFactory executorFactory,
       ScheduledExecutorService scheduledExecutorService,
       ExecutorFactory ioExecutorFactory) {
 
-    this(config, analyzer, executorFactory, scheduledExecutorService, ioExecutorFactory,
+    this(kafkaIntegration, config, analyzer, executorFactory,
+        scheduledExecutorService, ioExecutorFactory,
         null);
   }
 
   public KafkaJournalStorageManager(
+      KafkaIntegration kafkaIntegration,
       JmsBridgeConfiguration config,
       CriticalAnalyzer analyzer, ExecutorFactory executorFactory,
       ScheduledExecutorService scheduledExecutorService,
       ExecutorFactory ioExecutorFactory,
       IOCriticalErrorListener criticalErrorListener) {
 
-    super(config, analyzer, executorFactory, scheduledExecutorService, ioExecutorFactory,
+    super(new InitWorkAroundWrapper(config, kafkaIntegration),
+        analyzer,
+        executorFactory,
+        scheduledExecutorService,
+        ioExecutorFactory,
         criticalErrorListener);
   }
 
-  public void registerListener(KJournalListener journalListener) {
-    this.broadcastListener.listeners.add(journalListener);
+  @Override
+  public synchronized void start() throws Exception {
+    this.kafkaIntegration.start();
+    super.start();
   }
 
   @Override
   protected synchronized void init(Configuration config,
       IOCriticalErrorListener criticalErrorListener) {
-    //need to create these journals
-    LOGGER.info(b -> b.event("Init"));
+    SLOG.info(b -> b.event("Init"));
 
-    this.broadcastListener = new BroadcastListener();
-    JmsBridgeConfiguration jbConfig = (JmsBridgeConfiguration) config;
+    InitWorkAroundWrapper jbConfig = (InitWorkAroundWrapper) config;
 
-    if (!jbConfig.getJmsBridgeProperties().containsKey("bridge.id")) {
-      LOGGER.error(
-          b -> b.event("Init").markFailure().message("'bridge.id' is a required configuration"));
+    this.kafkaIntegration = jbConfig.kafkaIntegration;
+    this.kafkaIO = this.kafkaIntegration.getKafkaIO();
+    this.messageJournal = new KafkaJournal(
+        this.kafkaIntegration.getMessagesJournal(),
+        this.kafkaIO,
+        this.executorFactory,
+        this.ioCriticalErrorListener);
 
-      throw new IllegalStateException("A bridge id is required for using the Kafka Journal");
-    }
-    String bridgeId = jbConfig.getJmsBridgeProperties().getProperty("bridge.id");
+    this.bindingsJournal = new KafkaJournal(
+        this.kafkaIntegration.getBindingsJournal(),
+        this.kafkaIO,
+        this.executorFactory,
+        this.ioCriticalErrorListener);
 
-    this.kafkaIO = new KafkaIO(jbConfig.getJmsBridgeProperties());
-    this.kafkaIO.start();
-
-    this.bindingsJournal = new KafkaJournal(kafkaIO, bridgeId, jbConfig.getNodeId(), BINDINGS_NAME,
-        executorFactory, criticalErrorListener, broadcastListener);
-    this.messageJournal = new KafkaJournal(kafkaIO, bridgeId, jbConfig.getNodeId(), MESSAGES_NAME,
-        executorFactory, criticalErrorListener, broadcastListener);
-
-    LOGGER.info(b -> b.event("Init").markSuccess());
+    SLOG.info(b -> b.event("Init").markSuccess());
   }
 
   @Override
   public void stop(boolean ioCriticalError, boolean sendFailover) throws Exception {
-    LOGGER.info(b -> b.event("Stop"));
+    SLOG.info(b -> b.event("Stop"));
 
     super.stop(ioCriticalError, sendFailover);
-    this.kafkaIO.stop();
+    this.kafkaIntegration.stop();
+    SLOG.info(b -> b.event("Stop").markSuccess());
+  }
 
-    LOGGER.info(b -> b.event("Stop").markSuccess());
+  @Override
+  public long generateID() {
+    return super.generateID() + 1;
   }
 
   @Override
@@ -199,7 +204,7 @@ public class KafkaJournalStorageManager extends JournalStorageManager {
   @Override
   protected void performCachedLargeMessageDeletes() {
     //not supporting large messages
-    LOGGER.debug(
+    SLOG.debug(
         b -> b.event("UnsupportedOperationCalled").message("performCachedLargeMessageDeletes"));
   }
 
@@ -230,38 +235,74 @@ public class KafkaJournalStorageManager extends JournalStorageManager {
   @Override
   public void deleteLargeMessageBody(LargeServerMessage largeServerMessage)
       throws ActiveMQException {
-    LOGGER.debug(
+    SLOG.debug(
         b -> b.event("UnsupportedOperationCalled").message("deleteLargeMessageBody"));
   }
 
-  static class BroadcastListener implements KJournalListener {
+  @Override
+  public void updateQueueBinding(long tx, Binding binding) throws Exception {
+    super.updateQueueBinding(tx, binding);
+    SLOG.info(b -> b
+        .event("UpdateQueueBinding")
+        .putTokens("binding", binding.toManagementString())
+        .putTokens("bindingId", binding.getID())
+        .putTokens("tx", tx)
+    );
+  }
 
-    private final List<KJournalListener> listeners = new LinkedList<>();
+  @Override
+  public void addQueueBinding(long tx, Binding binding) throws Exception {
+    super.addQueueBinding(tx, binding);
+    SLOG.info(b -> b
+        .event("AddQueueBinding")
+        .putTokens("binding", binding.toManagementString())
+        .putTokens("bindingId", binding.getID())
+        .putTokens("tx", tx)
+    );
+  }
 
-    @Override
-    public void onAssignmentChange(KJournalMetadata metadata,
-        List<KJournalAssignment> newAssignmentList) {
+  @Override
+  public void deleteQueueBinding(long tx, long queueBindingID) throws Exception {
+    super.deleteQueueBinding(tx, queueBindingID);
+    SLOG.info(b -> b
+        .event("DeleteQueueBinding")
+        .putTokens("queueBindingId", queueBindingID)
+        .putTokens("tx", tx)
+    );
+  }
 
-      for (KJournalListener listener : listeners) {
-        try {
-          listener.onAssignmentChange(metadata, newAssignmentList);
-        } catch (Throwable t) {
-          //
-        }
-      }
-    }
+  @Override
+  public void addAddressBinding(long tx, AddressInfo addressInfo) throws Exception {
+    super.addAddressBinding(tx, addressInfo);
+    SLOG.info(b -> b
+        .event("AddAddressBinding")
+        .putTokens("addressName", addressInfo.getName())
+        .putTokens("addressId", addressInfo.getId())
+        .putTokens("tx", tx)
+    );
+  }
 
-    @Override
-    public void onStateChange(KJournalMetadata metadata, KJournalState oldState,
-        KJournalState newState) {
+  @Override
+  public void deleteAddressBinding(long tx, long addressBindingID) throws Exception {
+    super.deleteAddressBinding(tx, addressBindingID);
+    SLOG.info(b -> b
+        .event("DeleteAddressBinding")
+        .putTokens("addressId", addressBindingID)
+        .putTokens("tx", tx)
+    );
+  }
 
-      for (KJournalListener listener : listeners) {
-        try {
-          listener.onStateChange(metadata, oldState, newState);
-        } catch (Throwable t) {
-          //
-        }
-      }
+  static class InitWorkAroundWrapper extends JmsBridgeConfiguration {
+
+    final KafkaIntegration kafkaIntegration;
+
+    InitWorkAroundWrapper(
+        JmsBridgeConfiguration configuration,
+        KafkaIntegration kafkaIntegration) {
+
+      super(configuration.getDelegate(), configuration.getJmsBridgeProperties());
+      this.kafkaIntegration = kafkaIntegration;
     }
   }
 }
+

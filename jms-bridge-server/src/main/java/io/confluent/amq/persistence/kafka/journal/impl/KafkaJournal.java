@@ -11,14 +11,12 @@ import io.confluent.amq.persistence.domain.proto.JournalEntryKey;
 import io.confluent.amq.persistence.domain.proto.JournalRecord;
 import io.confluent.amq.persistence.domain.proto.JournalRecordType;
 import io.confluent.amq.persistence.kafka.KafkaIO;
-import io.confluent.amq.persistence.kafka.journal.KJournalListener;
+import io.confluent.amq.persistence.kafka.journal.KJournal;
 import io.confluent.amq.persistence.kafka.journal.KafkaJournalRecord;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Properties;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.activemq.artemis.api.core.ActiveMQBuffer;
 import org.apache.activemq.artemis.api.core.ActiveMQBuffers;
@@ -41,8 +39,6 @@ import org.apache.activemq.artemis.core.persistence.Persister;
 import org.apache.activemq.artemis.utils.ExecutorFactory;
 import org.apache.activemq.artemis.utils.collections.SparseArrayLinkedList;
 import org.apache.kafka.clients.producer.ProducerRecord;
-import org.apache.kafka.common.config.TopicConfig;
-import org.apache.kafka.streams.StreamsConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -78,38 +74,27 @@ public class KafkaJournal implements Journal {
   private final AtomicBoolean failed = new AtomicBoolean(false);
 
   private final KafkaIO kafkaIO;
-  private final String bridgeId;
-  private final String nodeId;
   private final String journalName;
   private final ExecutorFactory executor;
   private final IOCriticalErrorListener criticalIOErrorListener;
-  private final KJournalListener journalListener;
 
   private final String destTopic;
 
   private volatile JournalState state;
-  private KafkaJournalProcessor processor;
+  private final KJournal processor;
 
   public KafkaJournal(
+      KJournal processor,
       KafkaIO kafkaIO,
-      String bridgeId,
-      String nodeId,
-      String journalName,
       ExecutorFactory executor,
-      IOCriticalErrorListener criticalIOErrorListener,
-      KJournalListener journalListener) {
+      IOCriticalErrorListener criticalIOErrorListener) {
 
-    System.out.println("KafkaJournal(journalListener): " + journalListener);
-
+    this.processor = processor;
     this.kafkaIO = kafkaIO;
-    this.bridgeId = bridgeId;
-    this.nodeId = nodeId;
-    this.journalName = journalName;
+    this.journalName = processor.name();
     this.executor = executor;
     this.criticalIOErrorListener = criticalIOErrorListener;
-    this.journalListener = journalListener;
-
-    this.destTopic = journalTopic(this.bridgeId, this.journalName);
+    this.destTopic = processor.topic();
   }
 
 
@@ -249,33 +234,6 @@ public class KafkaJournal implements Journal {
 
   @Override
   public void start() throws Exception {
-    SLOG.debug(b -> b.name(journalName).event("Start"));
-
-    Map<String, String> topicProps = new HashMap<>();
-    topicProps.put(TopicConfig.CLEANUP_POLICY_CONFIG, TopicConfig.CLEANUP_POLICY_COMPACT);
-    topicProps.put(TopicConfig.SEGMENT_BYTES_CONFIG, Integer.toString(SEGMENT_MAX_BYTES));
-
-    // default to 1MB plus extra space for extra byte flags
-    //todo: fix these things so they are configurable
-    topicProps.put(TopicConfig.MAX_MESSAGE_BYTES_CONFIG, Integer.toString(MAX_RECORD_SIZE + 1024));
-    kafkaIO.createTopicIfNotExists(this.destTopic, 1, 1, topicProps);
-
-    Properties streamProps = this.kafkaIO.getKafkaProps();
-    streamProps.put(
-        StreamsConfig.APPLICATION_ID_CONFIG,
-        String.format("jms.bridge.%s.%s", this.bridgeId, this.journalName));
-
-    streamProps.put(StreamsConfig.COMMIT_INTERVAL_MS_CONFIG, "500");
-    streamProps.put(StreamsConfig.CACHE_MAX_BYTES_BUFFERING_CONFIG, "0");
-    //requires 3 brokers at minimum
-    //streamProps.put(StreamsConfig.PROCESSING_GUARANTEE_CONFIG, StreamsConfig.EXACTLY_ONCE);
-
-    System.out.println("KafkaJournal.start.nodeId: " + this.nodeId);
-    this.processor = new KafkaJournalProcessor(
-        journalName, this.destTopic, this.nodeId, streamProps, journalListener);
-
-    this.processor.init();
-
     state = JournalState.STARTED;
     SLOG.debug(b -> b.name(journalName).event("Start").markSuccess());
   }
@@ -283,12 +241,9 @@ public class KafkaJournal implements Journal {
   @Override
   public void stop() throws Exception {
     SLOG.debug(b -> b.name(journalName).event("Stop"));
-    if (this.processor != null) {
-      this.processor.stop();
-    }
+    this.processor.stop();
     this.state = JournalState.STOPPED;
     SLOG.debug(b -> b.name(journalName).event("Stop").markSuccess());
-
   }
 
   @Override
@@ -340,7 +295,7 @@ public class KafkaJournal implements Journal {
     SLOG.debug(b -> b.name(journalName).event("Load"));
 
     KafkaJournalLoaderCallback klc = KafkaJournalLoaderCallback.wrap(reloadManager);
-    processor.startAndLoad(klc);
+    processor.load(klc);
 
     JournalLoadInformation jli = klc.getLoadInfo();
     this.state = JournalState.LOADED;

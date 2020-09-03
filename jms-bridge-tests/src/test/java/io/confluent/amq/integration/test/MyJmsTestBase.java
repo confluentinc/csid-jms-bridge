@@ -145,14 +145,14 @@ public class MyJmsTestBase extends ActiveMQTestBase {
     config.getConnectorConfigurations()
         .put("netty", new TransportConfiguration(NETTY_CONNECTOR_FACTORY));
     Properties kafkaProps = new Properties();
-    String bridgeId = "unit-test-" + JmsTestSuiteTest.BRIDGE_ID_SEQUENCE.incrementAndGet();
+    String bridgeId = "unit-test-" + JmsSuiteRunner.BRIDGE_ID_SEQUENCE.incrementAndGet();
     kafkaProps.setProperty(
         ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG,
-        JmsTestSuiteTest.kafkaContainer.getBootstrapServers());
+        JmsSuiteRunner.kafkaContainer.getBootstrapServers());
     kafkaProps.setProperty("bridge.id", bridgeId);
     kafkaProps.setProperty(
         StreamsConfig.STATE_DIR_CONFIG,
-        JmsTestSuiteTest.temporaryFolder.newFolder(bridgeId).getAbsolutePath());
+        JmsSuiteRunner.temporaryFolder.newFolder(bridgeId).getAbsolutePath());
     kafkaProps.setProperty(StreamsConfig.COMMIT_INTERVAL_MS_CONFIG, "500");
     kafkaProps.setProperty(
         StreamsConfig.consumerPrefix(ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG), "6000");

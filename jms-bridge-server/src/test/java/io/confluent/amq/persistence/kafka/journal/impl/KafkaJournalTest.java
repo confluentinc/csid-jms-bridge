@@ -15,12 +15,13 @@ import io.confluent.amq.persistence.domain.proto.JournalEntryKey;
 import io.confluent.amq.persistence.domain.proto.JournalRecord;
 import io.confluent.amq.persistence.domain.proto.JournalRecordType;
 import io.confluent.amq.persistence.kafka.KafkaRecordUtils;
-import io.confluent.amq.persistence.kafka.journal.KJournalListener;
 import io.confluent.amq.persistence.kafka.journal.ProtocolRecordType;
+import io.confluent.amq.persistence.kafka.journal.impl.KafkaJournalProcessor.JournalSpec;
 import io.confluent.amq.persistence.kafka.journal.serde.JournalKeySerde;
 import io.confluent.amq.persistence.kafka.journal.serde.JournalValueSerde;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -95,7 +96,7 @@ public class KafkaJournalTest {
     try (TestHelper test = new TestHelper(defaultStreamProps())) {
 
       withAddRecord(1, kv -> test.inputTopic.pipeInput(kv.key, kv.value));
-      final JournalEntryKey annKey1 = withAnnotateRecord(1, "Ann-1",kv ->
+      final JournalEntryKey annKey1 = withAnnotateRecord(1, "Ann-1", kv ->
           test.inputTopic.pipeInput(kv.key, kv.value));
       final JournalEntryKey annKey2 = withAnnotateRecord(1, "Ann-2", kv ->
           test.inputTopic.pipeInput(kv.key, kv.value));
@@ -264,8 +265,12 @@ public class KafkaJournalTest {
     final TopologyTestDriver driver;
 
     public TestHelper(Properties properties) {
+      JournalSpec journalSpec = new JournalSpec.Builder()
+          .journalName("testJournal")
+          .journalTopic(journalTopic)
+          .build();
       this.processor = new KafkaJournalProcessor(
-          "testJournal", journalTopic, "testNode", properties, KJournalListener.NO_OP);
+          Collections.singletonList(journalSpec), "testNode", properties);
 
       driver =
           createStreamsTestDriver(
@@ -284,7 +289,7 @@ public class KafkaJournalTest {
 
     public void withJournalStore(Consumer<KeyValueStore<JournalEntryKey, JournalEntry>> consumer) {
       KeyValueStore<JournalEntryKey, JournalEntry> store = driver
-          .getKeyValueStore(processor.getStoreName());
+          .getKeyValueStore(processor.getJournals().get(0).storeName());
 
       consumer.accept(store);
     }
