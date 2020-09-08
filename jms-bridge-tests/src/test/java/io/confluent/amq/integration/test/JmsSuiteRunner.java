@@ -13,6 +13,8 @@ import java.lang.annotation.Inherited;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
@@ -30,7 +32,6 @@ import org.apache.activemq.artemis.core.config.Configuration;
 import org.apache.activemq.artemis.core.server.ActiveMQServers;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.streams.StreamsConfig;
-import org.junit.ClassRule;
 import org.junit.internal.builders.AllDefaultPossibilitiesBuilder;
 import org.junit.platform.commons.support.ReflectionSupport;
 import org.junit.rules.TemporaryFolder;
@@ -43,32 +44,16 @@ import org.junit.runner.notification.RunNotifier;
 import org.junit.runners.BlockJUnit4ClassRunner;
 import org.junit.runners.JUnit4;
 import org.junit.runners.Suite;
-import org.junit.runners.model.FrameworkMethod;
 import org.junit.runners.model.InitializationError;
 import org.junit.runners.model.RunnerBuilder;
 import org.junit.runners.model.TestClass;
 import org.testcontainers.containers.KafkaContainer;
 
+@SuppressWarnings("checkstyle:ClassDataAbstractionCoupling")
 public class JmsSuiteRunner extends Suite {
 
-  //
-  // Look into overriding this static method with byte buddy as an alternative
-  /*
-     public static ActiveMQServer newActiveMQServer(final Configuration config,
-                                                  final MBeanServer mbeanServer,
-                                                  final ActiveMQSecurityManager securityManager,
-                                                  final boolean enablePersistence) {
-      config.setPersistenceEnabled(enablePersistence);
-
-      ActiveMQServer server = new ActiveMQServerImpl(config, mbeanServer, securityManager);
-
-      return server;
-   }
-
-   */
   static {
-    //rebase this class
-    // InVMNodeManagerServer extends ActiveMQServerImpl
+    //override the static method for creating active mq servers which is used by many of the tests.
     ByteBuddyAgent.install();
     new ByteBuddy()
         .redefine(ActiveMQServers.class)
@@ -77,52 +62,13 @@ public class JmsSuiteRunner extends Suite {
         .make()
         .load(ActiveMQServers.class.getClassLoader(), ClassReloadingStrategy.fromInstalledAgent());
 
-//    new ByteBuddy()
-//        .redefine(ActiveMQTestBase.class)
-//        .visit(Advice.to(JmsFailoverTestRedefined.class).on(named("addServer")))
-//        .make()
-//        .load(ActiveMQTestBase.class.getClassLoader(), ClassReloadingStrategy.fromInstalledAgent());
-
   }
 
-  private static final String JMS_PACKAGE = "org.apache.activemq.artemis.tests.integration.jms";
-  private static final String FAILOVER_PACKAGE = "org.apache.activemq.artemis.tests.integration.cluster.failover";
-  private static final Set<String> EXCLUDED_TEST_CLASSES = new HashSet<>(Arrays.asList(
-      //The below test does not work with the default ActiveMQ implementation
-      //---------------------------------------------------------------------
-      "RedeployTempTest",
-
-      //These are being excluded because they test features not supported by the kafka backend
-      //--------------------------------------------------------------------------------------
-      "JMSLargeMessageTest"
-  ));
-  private static final Set<String> EXCLUDED_TESTS = new HashSet<>(Arrays.asList(
-      //these below do not work with the default ActiveMQ implementation
-      //----------------------------------------------------------------
-      "SimpleJNDIClientTest#testRemoteCFWithUDP",
-      "SimpleJNDIClientTest#testConnectionFactoryStringWithInvalidParameter",
-      "ActiveMQConnectionFactoryTest#testDiscoveryConstructor",
-      "ManualReconnectionToSingleServerTest#testExceptionListener",
-
-      //These are being excluded because they test features not supported by the kafka backend
-      //--------------------------------------------------------------------------------------
-      //--The below require large message support
-      "JMSLargeMessageTest#testResendWithLargeMessage",
-      "TextMessageTest#testSendReceiveWithBody0xffffplus1",
-      "TextMessageTest#testSendReceiveWithBody0xfffftimes2",
-      "TextMessageTest#testSendReceiveWithBody0xffff",
-      "ReSendMessageTest#testResendWithLargeMessage"
-  ));
-  private static final Set<String> INCLUDED_TESTS = new HashSet<>(Arrays.asList(
-      "testTransactedMessagesSentSoRollbackAndContinueWork",
-      ""
-  ));
   private static final Set<String> EXCLUDED_PARAMERATIZED_TESTS = new HashSet<>(Arrays.asList(
       "[persistenceEnabled = AMQP]"
   ));
 
   public static AtomicInteger BRIDGE_ID_SEQUENCE = new AtomicInteger(1);
-  public static AtomicInteger NODED_ID_SEQUENCE = new AtomicInteger(1);
 
   public static TemporaryFolder temporaryFolder = new TemporaryFolder();
 
@@ -135,15 +81,18 @@ public class JmsSuiteRunner extends Suite {
     try {
       Properties kafkaProps = new Properties();
       String bridgeId = "unit-test-" + BRIDGE_ID_SEQUENCE.get();
+      Path stateDir = temporaryFolder.getRoot().toPath().resolve(bridgeId);
+      if (!stateDir.toFile().exists()) {
+        Files.createDirectory(stateDir);
+      }
+
       kafkaProps.setProperty(
           ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG,
           kafkaContainer.getBootstrapServers());
       kafkaProps.setProperty("bridge.id", bridgeId);
-      kafkaProps.setProperty(
-          StreamsConfig.STATE_DIR_CONFIG,
-          temporaryFolder
-              .newFolder(bridgeId + "-" + NODED_ID_SEQUENCE.incrementAndGet()).getAbsolutePath());
+      kafkaProps.setProperty(StreamsConfig.STATE_DIR_CONFIG, stateDir.toAbsolutePath().toString());
       kafkaProps.setProperty(StreamsConfig.COMMIT_INTERVAL_MS_CONFIG, "500");
+      kafkaProps.setProperty(StreamsConfig.CACHE_MAX_BYTES_BUFFERING_CONFIG, "0");
       kafkaProps.setProperty(
           StreamsConfig.consumerPrefix(ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG), "6000");
       kafkaProps.setProperty(
@@ -200,7 +149,7 @@ public class JmsSuiteRunner extends Suite {
   }
 
   public JmsSuiteRunner(Class<?> klass, RunnerBuilder builder) throws InitializationError {
-    super(new CustomRunnerBuilder(), klass, scanClasses(klass));
+    super(klass, scanClasses(klass));
 
     JmsSuitePackages annotation = klass.getAnnotation(JmsSuitePackages.class);
     if (annotation == null) {
@@ -237,7 +186,7 @@ public class JmsSuiteRunner extends Suite {
     final Set<String> excludeTests;
 
     public JmsTestFilter(String[] includeTests, String[] excludeTests) {
-      this.includeTests = includeTests  != null
+      this.includeTests = includeTests != null
           ? new HashSet<>(Arrays.asList(includeTests))
           : Collections.emptySet();
       this.excludeTests = excludeTests != null
@@ -315,10 +264,6 @@ public class JmsSuiteRunner extends Suite {
 
       return super.getTestRules(target);
     }
-    //    @Override
-//    protected boolean isIgnored(FrameworkMethod child) {
-//      return !INCLUDED_TESTS.contains(child.getMethod().getName());
-//    }
   }
 
   /**

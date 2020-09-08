@@ -25,18 +25,23 @@ public class ActiveMQServersRedefined {
       final boolean enablePersistence) {
 
     config.setPersistenceEnabled(enablePersistence);
-    try {
-      Files.createDirectory(new File(config.getBindingsDirectory()).toPath());
-      Files.createDirectory(new File(config.getJournalDirectory()).toPath());
-      Files.createDirectory(new File(config.getPagingDirectory()).toPath());
-      Files.createDirectory(new File(config.getLargeMessagesDirectory()).toPath());
-    } catch (Exception e) {
-      throw new RuntimeException(e);
-    }
+    tryTocreateDirectory(config.getBindingsDirectory());
+    tryTocreateDirectory(config.getJournalDirectory());
+    tryTocreateDirectory(config.getPagingDirectory());
+    tryTocreateDirectory(config.getLargeMessagesDirectory());
 
     return new ConfluentAmqServer(
         JmsSuiteRunner.wrapConfig(config),
         mbeanServer,
         securityManager);
+  }
+
+  public static void tryTocreateDirectory(String path) {
+    try {
+      Files.createDirectory(new File(path).toPath());
+    } catch (Exception e) {
+      //
+    }
+
   }
 }

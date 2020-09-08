@@ -17,11 +17,14 @@ import java.util.Map.Entry;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.activemq.artemis.api.core.ICoreMessage;
 import org.apache.activemq.artemis.api.core.SimpleString;
 import org.apache.kafka.clients.admin.AdminClient;
+import org.apache.kafka.clients.admin.ConsumerGroupDescription;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.admin.OffsetSpec;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
@@ -38,6 +41,10 @@ import org.slf4j.LoggerFactory;
 @SuppressWarnings("checkstyle:ClassDataAbstractionCoupling")
 public class KafkaIO {
 
+  private static final int CREATED = 0;
+  private static final int STARTED = 1;
+  private static final int STOPPED = 2;
+
   private static final Logger LOGGER = LoggerFactory.getLogger(KafkaIO.class);
   private static final LogFormat LOG_FORMAT = LogFormat.forSubject("KafkaIO");
 
@@ -52,6 +59,9 @@ public class KafkaIO {
   private final StringSerializer stringSerializer = new StringSerializer();
   private final LongSerializer longSerializer = new LongSerializer();
 
+
+  private final ReentrantReadWriteLock rwlock = new ReentrantReadWriteLock();
+  private volatile int state = 0;
   private volatile KafkaProducer<? extends Message, ? extends Message> kafkaProducer;
   private volatile AdminClient adminClient;
 
@@ -74,60 +84,82 @@ public class KafkaIO {
   }
 
   public synchronized void start() {
-    if (this.kafkaProducer == null) {
-      ProtoSerializer<com.google.protobuf.Message> protoSerializer = new ProtoSerializer<>();
-      kafkaProducer = new KafkaProducer<>(kafkaProps, protoSerializer, protoSerializer);
-      adminClient = AdminClient.create(kafkaProps);
-      Runtime.getRuntime().addShutdownHook(new Thread(this::stop));
+    try {
+      rwlock.writeLock().lock();
+      if (state == CREATED) {
+        ProtoSerializer<com.google.protobuf.Message> protoSerializer = new ProtoSerializer<>();
+        kafkaProducer = new KafkaProducer<>(kafkaProps, protoSerializer, protoSerializer);
+        adminClient = AdminClient.create(kafkaProps);
+        Runtime.getRuntime().addShutdownHook(new Thread(this::stop));
+        state = STARTED;
+      }
+    } finally {
+      rwlock.writeLock().unlock();
     }
+  }
+
+  public ConsumerGroupDescription describeConsumerGroup(String consumerGroup) {
+    return fetchWithAdminClient(admin -> {
+      try {
+        Map<String, ConsumerGroupDescription> results = admin
+            .describeConsumerGroups(Collections.singletonList(consumerGroup)).all().get();
+        return results.get(consumerGroup);
+      } catch (Exception e) {
+        throw new RuntimeException(e);
+      }
+    });
   }
 
   public Map<TopicPartition, Long> fetchLatestOffsets(String topic) {
-    try {
-      //get the partitions for the topic
-      List<TopicPartition> tpList = adminClient
-          .describeTopics(Collections.singleton(topic))
-          .all()
-          .get()
-          .get(topic)
-          .partitions()
-          .stream()
-          .map(tpi -> new TopicPartition(topic, tpi.partition()))
-          .collect(Collectors.toList());
+    return fetchWithAdminClient(admin -> {
+      try {
+        //get the partitions for the topic
+        List<TopicPartition> tpList = adminClient
+            .describeTopics(Collections.singleton(topic))
+            .all()
+            .get()
+            .get(topic)
+            .partitions()
+            .stream()
+            .map(tpi -> new TopicPartition(topic, tpi.partition()))
+            .collect(Collectors.toList());
 
-      //get the highwater marks (latest offsets)
-      return adminClient
-          .listOffsets(
-              tpList.stream().collect(Collectors.toMap(tp -> tp, tp -> OffsetSpec.latest())))
-          .all()
-          .get()
-          .entrySet()
-          .stream()
-          .collect(
-              Collectors.toMap(Entry::getKey, v -> v.getValue().offset()));
+        //get the highwater marks (latest offsets)
+        return adminClient
+            .listOffsets(
+                tpList.stream().collect(Collectors.toMap(tp -> tp, tp -> OffsetSpec.latest())))
+            .all()
+            .get()
+            .entrySet()
+            .stream()
+            .collect(
+                Collectors.toMap(Entry::getKey, v -> v.getValue().offset()));
 
-    } catch (Exception e) {
-      throw new RuntimeException(e);
-    }
+      } catch (Exception e) {
+        throw new RuntimeException(e);
+      }
+    });
   }
 
   public void resetConsumerGroupOffsetsLatest(String consumerGroup, String topic) {
-    try {
-      Map<TopicPartition, OffsetAndMetadata> groupOffsetMap = fetchLatestOffsets(topic)
-          .entrySet()
-          .stream()
-          .collect(
-              Collectors.toMap(Entry::getKey, v -> new OffsetAndMetadata(v.getValue())));
+    withAdminClient(admin -> {
+      try {
+        Map<TopicPartition, OffsetAndMetadata> groupOffsetMap = fetchLatestOffsets(topic)
+            .entrySet()
+            .stream()
+            .collect(
+                Collectors.toMap(Entry::getKey, v -> new OffsetAndMetadata(v.getValue())));
 
-      adminClient.alterConsumerGroupOffsets(
-          consumerGroup,
-          groupOffsetMap)
-          .all()
-          .get();
-      //done moving offsets around ... whew!
-    } catch (Exception e) {
-      throw new RuntimeException(e);
-    }
+        admin.alterConsumerGroupOffsets(
+            consumerGroup,
+            groupOffsetMap)
+            .all()
+            .get();
+        //done moving offsets around ... whew!
+      } catch (Exception e) {
+        throw new RuntimeException(e);
+      }
+    });
   }
 
   /**
@@ -149,8 +181,12 @@ public class KafkaIO {
   }
 
   public Set<String> listTopics() {
+    return fetchWithAdminClient(this::listTopics);
+  }
+
+  private Set<String> listTopics(AdminClient admin) {
     try {
-      return adminClient.listTopics().names().get();
+      return admin.listTopics().names().get();
     } catch (ExecutionException | InterruptedException e) {
       throw new RuntimeException(e);
     }
@@ -164,38 +200,94 @@ public class KafkaIO {
   public boolean createTopicIfNotExists(String name, int partitions, int replication,
       Map<String, String> options) {
 
-    if (listTopics().contains(name)) {
-      return false;
-    } else {
-      createTopic(name, partitions, replication, options);
-      return true;
-    }
+    return createTopic(name, partitions, replication, true, options);
   }
 
   public void createTopic(String name, int partitions, int replication,
       Map<String, String> options) {
 
-    LOGGER.info(LOG_FORMAT.build(b -> b
-        .event("CreateTopic")
-        .putTokens("topic", name)
-        .putTokens("partitions", partitions)
-        .putTokens("replication", replication)));
+    createTopic(name, partitions, replication, false, options);
+  }
 
-    NewTopic topic = new NewTopic(name, partitions, (short) replication);
-    topic.configs(options);
-    try {
-      adminClient.createTopics(Collections.singletonList(topic)).all().get();
-    } catch (ExecutionException | InterruptedException e) {
-      throw new RuntimeException(e);
-    }
+  /**
+   * Returns true if it did create the topic false if it did not because it already exists and the
+   * checkIfExists option was true.
+   *
+   * @param name          the name of the topic
+   * @param partitions    the desired number of partitions
+   * @param replication   the desired replication factor
+   * @param checkIfExists check if the topic exists before creating it
+   * @param options       any other topic options
+   * @return true if the topic was created false if it was not (due to existence check)
+   */
+  private boolean createTopic(
+      String name,
+      int partitions,
+      int replication,
+      boolean checkIfExists,
+      Map<String, String> options) {
+
+    return fetchWithAdminClient(admin -> {
+      LOGGER.info(LOG_FORMAT.build(b -> b
+          .event("CreateTopic")
+          .putTokens("topic", name)
+          .putTokens("partitions", partitions)
+          .putTokens("replication", replication)));
+
+      if (checkIfExists) {
+        if (listTopics(admin).contains(name)) {
+          return false;
+        }
+      }
+
+      NewTopic topic = new NewTopic(name, partitions, (short) replication);
+      topic.configs(options);
+      try {
+        adminClient.createTopics(Collections.singletonList(topic)).all().get();
+      } catch (ExecutionException | InterruptedException e) {
+        throw new RuntimeException(e);
+      }
+
+      return true;
+    });
   }
 
   @SuppressWarnings("unchecked")
   public <K extends Message, V extends Message> void withProducer(
       Consumer<Producer<K, V>> produceFn) {
 
-    produceFn.accept((Producer<K, V>)kafkaProducer);
+    try {
+      rwlock.readLock().lock();
+      if (state == STARTED) {
+        produceFn.accept((Producer<K, V>) kafkaProducer);
+      } else {
+        throw new IllegalStateException("KafkaIO must be started before being used.");
+      }
+    } finally {
+      rwlock.readLock().unlock();
+    }
   }
+
+  public void withAdminClient(Consumer<AdminClient> adminClientFn) {
+    this.fetchWithAdminClient(admin -> {
+      adminClientFn.accept(admin);
+      return null;
+    });
+  }
+
+  public <T> T fetchWithAdminClient(Function<AdminClient, T> adminClientFn) {
+    try {
+      rwlock.readLock().lock();
+      if (state == STARTED) {
+        return adminClientFn.apply(adminClient);
+      } else {
+        throw new IllegalStateException("KafkaIO must be started before being used.");
+      }
+    } finally {
+      rwlock.readLock().unlock();
+    }
+  }
+
 
   /* //save for future reference
   public CompletableFuture<KafkaRef> writeMessage(Message message) {
@@ -277,15 +369,15 @@ public class KafkaIO {
   }
 
   public void stop() {
-
-    if (kafkaProducer != null) {
-      kafkaProducer.close();
-      kafkaProducer = null;
-    }
-
-    if (adminClient != null) {
-      adminClient.close();
-      adminClient = null;
+    try {
+      rwlock.writeLock().lock();
+      if (state == STARTED) {
+        kafkaProducer.close();
+        adminClient.close();
+      }
+      state = STOPPED;
+    } finally {
+      rwlock.writeLock().unlock();
     }
   }
 

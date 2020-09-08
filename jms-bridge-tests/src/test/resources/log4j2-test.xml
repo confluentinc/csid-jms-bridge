@@ -6,12 +6,17 @@
 <Configuration status="WARN">
   <Appenders>
     <Console name="stdout" target="SYSTEM_OUT">
-      <PatternLayout pattern="[%d] %p %m (%c:%L)%n"/>
+      <PatternLayout pattern="[%d]%t: %p %m %n"/>
     </Console>
   </Appenders>
 
+
   <Loggers>
-    <Logger name="io.confluent.amq" level="TRACE" additivity="false">
+    <Logger name="org.apache.kafka.streams" level="INFO" additivity="false">
+      <AppenderRef ref="stdout"/>
+    </Logger>
+
+    <Logger name="io.confluent.amq" level="DEBUG" additivity="false">
       <AppenderRef ref="stdout"/>
     </Logger>
 

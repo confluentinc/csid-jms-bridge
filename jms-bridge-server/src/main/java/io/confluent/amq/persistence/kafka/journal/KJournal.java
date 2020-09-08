@@ -19,4 +19,6 @@ public interface KJournal {
   void load(KafkaJournalLoaderCallback callback);
 
   boolean isAssignedPartition(int partition);
+
+  boolean isRunning();
 }

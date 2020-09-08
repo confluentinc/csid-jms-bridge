@@ -67,12 +67,6 @@ public class KafkaJournalStorageManager extends JournalStorageManager {
   }
 
   @Override
-  public synchronized void start() throws Exception {
-    this.kafkaIntegration.start();
-    super.start();
-  }
-
-  @Override
   protected synchronized void init(Configuration config,
       IOCriticalErrorListener criticalErrorListener) {
     SLOG.info(b -> b.event("Init"));
@@ -80,6 +74,12 @@ public class KafkaJournalStorageManager extends JournalStorageManager {
     InitWorkAroundWrapper jbConfig = (InitWorkAroundWrapper) config;
 
     this.kafkaIntegration = jbConfig.kafkaIntegration;
+    try {
+      this.kafkaIntegration.start();
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
+
     this.kafkaIO = this.kafkaIntegration.getKafkaIO();
     this.messageJournal = new KafkaJournal(
         this.kafkaIntegration.getMessagesJournal(),
@@ -98,11 +98,9 @@ public class KafkaJournalStorageManager extends JournalStorageManager {
 
   @Override
   public void stop(boolean ioCriticalError, boolean sendFailover) throws Exception {
-    SLOG.info(b -> b.event("Stop"));
-
     super.stop(ioCriticalError, sendFailover);
-    this.kafkaIntegration.stop();
-    SLOG.info(b -> b.event("Stop").markSuccess());
+    kafkaIntegration.stop();
+    SLOG.info(b -> b.event("Stop"));
   }
 
   @Override

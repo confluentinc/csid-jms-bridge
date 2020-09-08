@@ -134,7 +134,7 @@ public class KafkaJournal implements Journal {
         callback
             .onError(ActiveMQExceptionType.ILLEGAL_STATE.getCode(), "Kafka Journal is not loaded");
       }
-      throw new ActiveMQShutdownException("Kafka Journal is not loaded");
+      throw new ActiveMQShutdownException("Kafka Journal is not ready");
     }
 
     if (failed.get()) {
@@ -255,7 +255,7 @@ public class KafkaJournal implements Journal {
    * Indicates that the journal is ready to accept writes, meaning it has been started and loaded.
    */
   public boolean isReady() {
-    return state == JournalState.LOADED;
+    return processor.isRunning();
   }
 
   @Override

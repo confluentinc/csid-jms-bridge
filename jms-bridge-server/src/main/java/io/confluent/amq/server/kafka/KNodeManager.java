@@ -6,27 +6,15 @@ package io.confluent.amq.server.kafka;
 
 import io.confluent.amq.JmsBridgeConfiguration;
 import io.confluent.amq.logging.StructuredLogger;
-import io.confluent.amq.persistence.kafka.KafkaIO;
-import io.confluent.amq.persistence.kafka.KafkaJournalStorageManager;
-import io.confluent.amq.persistence.kafka.journal.KJournal;
-import io.confluent.amq.persistence.kafka.journal.impl.KafkaJournal;
-import io.confluent.amq.persistence.kafka.journal.impl.KafkaJournalProcessor;
-import io.confluent.amq.persistence.kafka.journal.impl.KafkaJournalProcessor.JournalSpec;
+import io.confluent.amq.persistence.kafka.KafkaIntegration;
 import java.io.File;
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
 import org.apache.activemq.artemis.api.core.ActiveMQIllegalStateException;
 import org.apache.activemq.artemis.api.core.SimpleString;
 import org.apache.activemq.artemis.core.server.ActivateCallback;
 import org.apache.activemq.artemis.core.server.NodeManager;
 import org.apache.activemq.artemis.core.server.impl.CleaningActivateCallback;
-import org.apache.activemq.artemis.utils.UUIDGenerator;
-import org.apache.kafka.common.config.TopicConfig;
-import org.apache.kafka.streams.StreamsConfig;
+import org.apache.kafka.clients.admin.ConsumerGroupDescription;
 
 public class KNodeManager extends NodeManager {
 
@@ -37,145 +25,43 @@ public class KNodeManager extends NodeManager {
     LIVE, PAUSED, FAILING_BACK, NOT_STARTED
   }
 
-  private static final Integer MAX_RECORD_SIZE = 1024 * 1024;
-  public static final int SEGMENT_MAX_BYTES = 100 * 1024 * 1024;
-
   private final JmsBridgeConfiguration config;
-  private final KafkaIO kafkaIO;
-  private final KafkaJournalProcessor journalProcessor;
-  private final KJournal bindingsJournal;
-  private final KJournal messagesJournal;
-  private final String bridgeId;
-  private final String haType;
+  private final KafkaIntegration kafkaIntegration;
 
   private volatile State state = State.NOT_STARTED;
   private volatile boolean interrupted = false;
 
   public long failoverPause = 0L;
 
-  public KNodeManager(JmsBridgeConfiguration config, boolean replicatedBackup) {
-    this(config, replicatedBackup, null);
+  public KNodeManager(
+      JmsBridgeConfiguration config, KafkaIntegration kafkaIntegration, boolean replicatedBackup) {
+    this(config, kafkaIntegration, replicatedBackup, null);
   }
 
-  public KNodeManager(JmsBridgeConfiguration config, boolean replicatedBackup, File directory) {
+  public KNodeManager(
+      JmsBridgeConfiguration config,
+      KafkaIntegration kafkaIntegration,
+      boolean replicatedBackup,
+      File directory) {
+
     super(replicatedBackup, directory);
-    setUUID(UUIDGenerator.getInstance().generateUUID());
+    setUUID(kafkaIntegration.getNodeUuid());
+    this.kafkaIntegration = kafkaIntegration;
     this.config = config;
-
-    this.haType =
-        config.getHAPolicyConfiguration() == null
-            ? "null"
-            : config.getHAPolicyConfiguration().getType().toString();
-
-    if (!config.getJmsBridgeProperties().containsKey("bridge.id")) {
-      SLOG.error(
-          b -> b.event("Init").markFailure().message("'bridge.id' is a required configuration"));
-
-      throw new IllegalStateException("A bridge id is required for using the Kafka Journal");
-    }
-
-    bridgeId = config.getJmsBridgeProperties().getProperty("bridge.id");
-
-    List<JournalSpec> jspecs = new LinkedList<>();
-    jspecs.add(createProcessor(KafkaJournalStorageManager.BINDINGS_NAME, config));
-    jspecs.add(createProcessor(KafkaJournalStorageManager.MESSAGES_NAME, config));
-    journalProcessor = new KafkaJournalProcessor(
-        jspecs,
-        getNodeId().toString(),
-        getEffectiveProcessorProps(config));
-    kafkaIO = new KafkaIO(config.getJmsBridgeProperties());
-
-    bindingsJournal = journalProcessor.getJournal(KafkaJournalStorageManager.BINDINGS_NAME);
-    messagesJournal = journalProcessor.getJournal(KafkaJournalStorageManager.MESSAGES_NAME);
   }
-
-  private KafkaJournalProcessor.JournalSpec createProcessor(
-      String journalName, JmsBridgeConfiguration config) {
-
-    return new JournalSpec.Builder()
-        .journalName(journalName)
-        .journalTopic(KafkaJournal.journalTopic(bridgeId, journalName))
-        .build();
-  }
-
-  public Map<String, String> getEffectiveJournalTopicProps(JmsBridgeConfiguration config) {
-    Map<String, String> topicProps = new HashMap<>();
-    topicProps.put(TopicConfig.CLEANUP_POLICY_CONFIG, TopicConfig.CLEANUP_POLICY_COMPACT);
-    topicProps.put(TopicConfig.SEGMENT_BYTES_CONFIG, Integer.toString(SEGMENT_MAX_BYTES));
-    topicProps.put(TopicConfig.MAX_MESSAGE_BYTES_CONFIG, Integer.toString(MAX_RECORD_SIZE + 1024));
-
-    return topicProps;
-  }
-
-  public Properties getEffectiveProcessorProps(JmsBridgeConfiguration config) {
-
-    Properties streamProps = config.getJmsBridgeProperties();
-    streamProps.put(
-        StreamsConfig.APPLICATION_ID_CONFIG,
-        String.format("jms.bridge.%s", this.bridgeId));
-
-    streamProps.put(StreamsConfig.COMMIT_INTERVAL_MS_CONFIG, "500");
-    streamProps.put(StreamsConfig.CACHE_MAX_BYTES_BUFFERING_CONFIG, "0");
-    //requires 3 brokers at minimum
-    //streamProps.put(StreamsConfig.PROCESSING_GUARANTEE_CONFIG, StreamsConfig.EXACTLY_ONCE);
-    return streamProps;
-  }
-
 
   @Override
   public synchronized void start() throws Exception {
     super.start();
-    doStart();
-  }
-
-  private void doStart() {
-    kafkaIO.start();
-
-    for (KJournal j : this.journalProcessor.getJournals()) {
-      kafkaIO.createTopicIfNotExists(
-          j.topic(),
-          1,
-          1,
-          getEffectiveJournalTopicProps(config));
-    }
-
-    this.journalProcessor.start();
+    kafkaIntegration.start();
     SLOG.info(
-        b -> b.event("Starting").markSuccess().name(this.haType));
+        b -> b.event("StartedNodeManager").markSuccess());
   }
 
   @Override
   public synchronized void stop() throws Exception {
     super.stop();
-    doStop();
-  }
-
-  private void waitForProcessorRunning() throws Exception {
-    while (!journalProcessor.isRunning()) {
-      Thread.sleep(100);
-    }
-  }
-
-  private void waitForProcessorObtainPartition() throws Exception {
-    while (true) {
-      if (this.bindingsJournal.isAssignedPartition(0)) {
-        break;
-      } else {
-        checkInterrupted();
-        Thread.sleep(100);
-      }
-    }
-  }
-
-  private void waitForProcessorReleasePartition() throws Exception {
-    while (true) {
-      if (!this.bindingsJournal.isAssignedPartition(0)) {
-        break;
-      } else {
-        checkInterrupted();
-        Thread.sleep(100);
-      }
-    }
+    SLOG.info(b -> b.event("StoppedNodeManager"));
   }
 
   private void checkInterrupted() throws InterruptedException {
@@ -187,36 +73,53 @@ public class KNodeManager extends NodeManager {
 
   @Override
   public void awaitLiveNode() throws Exception {
-    SLOG.info(b -> b.event("AwaitLiveNode").name(this.haType));
-    waitForProcessorObtainPartition();
+    SLOG.info(b -> b.event("AwaitLiveNode"));
+    do {
+      while (state == State.NOT_STARTED) {
+        Thread.sleep(10);
+      }
+
+      kafkaIntegration.waitForProcessorRunning();
+
+      if (state == State.PAUSED) {
+        Thread.sleep(10);
+      } else if (state == State.FAILING_BACK) {
+        Thread.sleep(10);
+      } else if (state == State.LIVE) {
+        break;
+      }
+    }
+    while (true);
+    if (failoverPause > 0L) {
+      Thread.sleep(failoverPause);
+    }
   }
 
   @Override
   public void awaitLiveStatus() throws Exception {
-    SLOG.info(b -> b.event("AwaitLiveStatus").name(this.haType));
-    waitForProcessorRunning();
+    SLOG.info(b -> b.event("AwaitLiveStatus"));
+    while (state != State.LIVE) {
+      Thread.sleep(10);
+    }
   }
 
   @Override
   public void startBackup() throws Exception {
-    SLOG.info(b -> b.event("StartBackup").name(this.haType));
-    //backup can always start
+    SLOG.info(b -> b.event("StartBackup"));
   }
 
   @Override
   public ActivateCallback startLiveNode() throws Exception {
-    SLOG.info(b -> b.event("StartLiveNode").name(this.haType));
+    SLOG.info(
+        b -> b.event("StartLiveNode"));
     state = State.FAILING_BACK;
-    waitForProcessorRunning();
     return new CleaningActivateCallback() {
       @Override
       public void activationComplete() {
         try {
           state = State.LIVE;
         } catch (Exception e) {
-          SLOG.warn(b -> b
-              .event("StartLiveNode")
-              .markFailure(), e);
+          SLOG.warn(b -> b.event("StartLiveNode").markFailure(), e);
         }
       }
     };
@@ -224,30 +127,29 @@ public class KNodeManager extends NodeManager {
 
   @Override
   public void pauseLiveServer() throws Exception {
-    SLOG.info(b -> b.event("PauseLiveServer").name(this.haType));
     state = State.PAUSED;
-//    doStop();
-//    waitForProcessorReleasePartition();
+    SLOG.info(b -> b.event("PauseLiveServer"));
   }
 
   @Override
   public void crashLiveServer() throws Exception {
-    SLOG.info(b -> b.event("CrashLiveServer").name(this.haType));
-//    doStop();
-//    waitForProcessorReleasePartition();
+    SLOG.info(b -> b.event("CrashLiveServer"));
   }
 
   @Override
   public boolean isAwaitingFailback() throws Exception {
     SLOG.info(
-        b -> b.event("IsAwaitingFallback").name(this.haType));
-    return false;
+        b -> b.event("IsAwaitingFallback"));
+    return state == State.FAILING_BACK;
   }
 
   @Override
   public boolean isBackupLive() throws Exception {
-    SLOG.info(b -> b.event("IsBackupLive").name(this.haType));
-    return true;
+    ConsumerGroupDescription groupDescription = kafkaIntegration.getKafkaIO()
+        .describeConsumerGroup(kafkaIntegration.getApplicationId());
+    boolean isLive = groupDescription.members().size() > 0;
+    SLOG.info(b -> b.event("IsBackupLive").putTokens("isLive", isLive));
+    return isLive;
   }
 
   @Override
@@ -256,31 +158,18 @@ public class KNodeManager extends NodeManager {
   }
 
   @Override
-  public void releaseBackup() {
-    SLOG.info(b -> b.event("ReleaseBackup").name(this.haType));
-    //kafka is always backing up
+  public void releaseBackup() throws Exception {
+    //
+  }
+
+  public void reset() throws Exception {
+    super.stop();
+    state = State.NOT_STARTED;
   }
 
   @Override
   public SimpleString readNodeId() throws ActiveMQIllegalStateException, IOException {
     return getNodeId();
-  }
-
-  public KafkaIO getKafkaIO() {
-    return kafkaIO;
-  }
-
-  public KJournal getBindingsJournal() {
-    return bindingsJournal;
-  }
-
-  public KJournal getMessagesJournal() {
-    return messagesJournal;
-  }
-
-  private void doStop() {
-    SLOG.info(b -> b.event("Stopping").name(this.haType));
-    this.journalProcessor.stop();
   }
 }
 

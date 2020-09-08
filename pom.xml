@@ -295,20 +295,6 @@
   </dependencies>
   </dependencyManagement>
 
-  <profiles>
-    <profile>
-      <!-- runs integration tests, can take a while -->
-      <id>itests</id>
-      <modules>
-        <module>jms-bridge-server</module>
-        <module>jms-bridge-tests</module>
-      </modules>
-      <properties>
-        <skipIntegrationTests>false</skipIntegrationTests>
-      </properties>
-    </profile>
-  </profiles>
-
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
@@ -340,7 +326,6 @@
     <kafka.version>2.5.0</kafka.version>
     <myjunit.version>5.6.2</myjunit.version>
     <mockito.version>3.3.3</mockito.version>
-    <skipIntegrationTests>true</skipIntegrationTests>
   </properties>
 
   <repositories>

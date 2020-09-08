@@ -4,6 +4,8 @@
 
 package io.confluent.amq.persistence.kafka.journal.impl;
 
+import static io.confluent.amq.persistence.kafka.journal.KJournalState.CREATED;
+
 import com.google.common.base.Stopwatch;
 import io.confluent.amq.logging.StructuredLogger;
 import io.confluent.amq.persistence.domain.proto.JournalEntry;
@@ -69,25 +71,25 @@ public class KafkaJournalProcessor implements StateListener {
   private final Properties kafkaStreamProps;
   private final CountDownLatch streamsReady;
   private final Map<String, KJournalImpl> journals;
-  private final String nodeId;
+  private final String clientId;
 
   private volatile KJournalState journalState;
   private volatile KafkaStreams streams;
 
   public KafkaJournalProcessor(
       List<JournalSpec> journalSpecs,
-      String nodeId,
+      String clientId,
       Properties kafkaStreamProps) {
 
     journals = journalSpecs.stream()
         .map(js -> new KJournalImpl(js, this))
         .collect(Collectors.toMap(KJournalImpl::name, Function.identity()));
 
-    this.nodeId = nodeId;
+    this.clientId = clientId;
     this.streamsReady = new CountDownLatch(1);
 
     this.kafkaStreamProps = kafkaStreamProps;
-    this.journalState = KJournalState.CREATED;
+    this.journalState = CREATED;
   }
 
   public boolean isRunning() {
@@ -114,7 +116,7 @@ public class KafkaJournalProcessor implements StateListener {
   }
 
   public synchronized void start() {
-    if (!isRunning()) {
+    if (journalState == CREATED) {
       Topology topology = createTopology();
       SLOG.debug(b -> b
           .event("TopologyDescription")
@@ -164,7 +166,7 @@ public class KafkaJournalProcessor implements StateListener {
     //default the serdes to our journal entry types.
     Properties kstreamProps = new Properties();
     kstreamProps.putAll(kafkaStreamProps);
-    kstreamProps.put(StreamsConfig.CLIENT_ID_CONFIG, "jms-bridge_" + nodeId);
+    kstreamProps.put(StreamsConfig.CLIENT_ID_CONFIG, "jms-bridge_" + clientId);
     kstreamProps.put(
         StreamsConfig.producerPrefix(ProducerConfig.PARTITIONER_CLASS_CONFIG),
         JournalEntryKeyPartitioner.class.getCanonicalName());
@@ -192,7 +194,8 @@ public class KafkaJournalProcessor implements StateListener {
 
     } else {
       throw new IllegalStateException(
-          "KafkaJournalProcessor must be started before being loaded.");
+          "KafkaJournalProcessor must be started before being loaded. Current state is: "
+              + journalState);
     }
   }
 
@@ -213,7 +216,7 @@ public class KafkaJournalProcessor implements StateListener {
 
     switch (newState) {
       case CREATED:
-        state = KJournalState.CREATED;
+        state = CREATED;
         break;
       case REBALANCING:
         state = KJournalState.ASSIGNING;
@@ -266,6 +269,7 @@ public class KafkaJournalProcessor implements StateListener {
         .event("WaitForFullJournalRead")
         .markStarted());
 
+    int count = 1;
     Stopwatch stopwatch = Stopwatch.createStarted();
     while (true) {
       if (timeout.minus(stopwatch.elapsed()).isNegative()) {
@@ -296,6 +300,9 @@ public class KafkaJournalProcessor implements StateListener {
           .allMatch(entry -> entry.getValue().offsetLag() == 0);
 
       if (allCaughtUp) {
+        count++;
+      }
+      if (count >= 2) {
         SLOG.info(b -> b
             .event("WaitForFullJournalRead")
             .markCompleted()
@@ -354,7 +361,7 @@ public class KafkaJournalProcessor implements StateListener {
             Consumed
                 .<JournalEntryKey, JournalEntry>as(kjournal.prefix("journalSourceTable"))
                 .withOffsetResetPolicy(AutoOffsetReset.EARLIEST),
-            Materialized.<JournalEntryKey, JournalEntry>as(supplier))
+            Materialized.<JournalEntryKey, JournalEntry>as(supplier).withCachingDisabled())
         .toStream(Named.as(kjournal.prefix("journalSourceTableToStream")))
         .filter(
             (k, v) -> v != null, Named.as(kjournal.prefix("removeTombstones")))
@@ -458,8 +465,8 @@ public class KafkaJournalProcessor implements StateListener {
     return (k, v) -> v != null && v.getAppendedRecord().getRecordType() == rtype;
   }
 
-  public String getNodeId() {
-    return nodeId;
+  public String getClientId() {
+    return clientId;
   }
 
   @FreeBuilder
@@ -527,6 +534,11 @@ public class KafkaJournalProcessor implements StateListener {
     @Override
     public boolean isAssignedPartition(int partition) {
       return processor.isAssignedPartition(this, partition);
+    }
+
+    @Override
+    public boolean isRunning() {
+      return processor.isRunning();
     }
   }
 }
