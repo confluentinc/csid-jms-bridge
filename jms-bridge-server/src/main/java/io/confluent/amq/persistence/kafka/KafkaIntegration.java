@@ -154,6 +154,11 @@ public class KafkaIntegration {
     doStop();
   }
 
+  public synchronized void stopProcessor() throws Exception {
+    SLOG.info(b -> b.event("StoppingProcessor"));
+    this.journalProcessor.stop();
+  }
+
   public void waitForProcessorRunning() throws Exception {
     while (!journalProcessor.isRunning()) {
       Thread.sleep(100);

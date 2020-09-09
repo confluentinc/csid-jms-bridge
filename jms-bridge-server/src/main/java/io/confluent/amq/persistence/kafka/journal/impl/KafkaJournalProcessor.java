@@ -5,6 +5,7 @@
 package io.confluent.amq.persistence.kafka.journal.impl;
 
 import static io.confluent.amq.persistence.kafka.journal.KJournalState.CREATED;
+import static io.confluent.amq.persistence.kafka.journal.KJournalState.STARTED;
 
 import com.google.common.base.Stopwatch;
 import io.confluent.amq.logging.StructuredLogger;
@@ -23,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Semaphore;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.kafka.clients.producer.ProducerConfig;
@@ -69,7 +71,7 @@ public class KafkaJournalProcessor implements StateListener {
       .with(b -> b.loggerClass(KafkaJournalProcessor.class));
 
   private final Properties kafkaStreamProps;
-  private final CountDownLatch streamsReady;
+  private final Semaphore streamsReady;
   private final Map<String, KJournalImpl> journals;
   private final String clientId;
 
@@ -86,7 +88,7 @@ public class KafkaJournalProcessor implements StateListener {
         .collect(Collectors.toMap(KJournalImpl::name, Function.identity()));
 
     this.clientId = clientId;
-    this.streamsReady = new CountDownLatch(1);
+    this.streamsReady = new Semaphore(0);
 
     this.kafkaStreamProps = kafkaStreamProps;
     this.journalState = CREATED;
@@ -116,7 +118,7 @@ public class KafkaJournalProcessor implements StateListener {
   }
 
   public synchronized void start() {
-    if (journalState == CREATED) {
+    if (journalState.validTransition(STARTED)) {
       Topology topology = createTopology();
       SLOG.debug(b -> b
           .event("TopologyDescription")
@@ -126,6 +128,7 @@ public class KafkaJournalProcessor implements StateListener {
       streams.setStateListener(this);
       streams.start();
 
+      //may have already gone to assigning
       if (journalState.validTransition(KJournalState.STARTED)) {
         transitionState(KJournalState.STARTED);
       }
@@ -182,12 +185,18 @@ public class KafkaJournalProcessor implements StateListener {
     if (streams != null && journalState.isRunningState()) {
 
       waitForStreamReady();
-      waitForFullRead(Duration.ofSeconds(10), Duration.ofSeconds(1));
+      waitForFullRead(Duration.ofSeconds(60), Duration.ofSeconds(1));
+
+      StoreQueryParameters<ReadOnlyKeyValueStore<JournalEntryKey, JournalEntry>>
+          storeQueryParameters = StoreQueryParameters
+          .fromNameAndType(
+              kjournal.storeName(),
+              QueryableStoreTypes.<JournalEntryKey, JournalEntry>keyValueStore())
+          .enableStaleStores();
 
       //grab the state store now that we are loaded
-      ReadOnlyKeyValueStore<JournalEntryKey, JournalEntry> store = streams
-          .store(StoreQueryParameters.fromNameAndType(
-              kjournal.storeName(), QueryableStoreTypes.keyValueStore()));
+      ReadOnlyKeyValueStore<JournalEntryKey, JournalEntry> store =
+          streams.store(storeQueryParameters);
 
       //finish the callback
       kjournal.loader().executeLoadCallback(store, callback);
@@ -202,10 +211,12 @@ public class KafkaJournalProcessor implements StateListener {
   @Override
   public void onChange(State newState, State oldState) {
 
-    if (oldState != State.RUNNING && newState == State.RUNNING) {
-      if (streamsReady.getCount() > 0) {
-        streamsReady.countDown();
-      }
+    if (newState == State.RUNNING) {
+      SLOG.info(b -> b.event("ReleasePermit"));
+      streamsReady.release();
+    } else {
+      SLOG.info(b -> b.event("DrainingPermits"));
+      streamsReady.drainPermits();
     }
     transitionState(journalStateFromStreamsState(oldState, newState));
   }
@@ -229,7 +240,7 @@ public class KafkaJournalProcessor implements StateListener {
         state = KJournalState.FAILED;
         break;
       case RUNNING:
-        if (streamsReady.getCount() == 0) {
+        if (streamsReady.availablePermits() > 0) {
           state = KJournalState.RUNNING;
         } else {
           state = KJournalState.LOADING;
@@ -247,13 +258,15 @@ public class KafkaJournalProcessor implements StateListener {
         .markStarted());
 
     try {
-      streamsReady.await();
+      streamsReady.acquire();
     } catch (Exception e) {
       String err = SLOG.logFormat().build(b -> b
           .event("WaitForJournalReady")
           .markFailure());
 
       throw new RuntimeException(err, e);
+    } finally {
+      streamsReady.release();
     }
 
     SLOG.info(b -> b
@@ -302,6 +315,7 @@ public class KafkaJournalProcessor implements StateListener {
       if (allCaughtUp) {
         count++;
       }
+
       if (count >= 2) {
         SLOG.info(b -> b
             .event("WaitForFullJournalRead")
@@ -318,6 +332,7 @@ public class KafkaJournalProcessor implements StateListener {
           SLOG.info(b -> b
               .event("WaitForFullJournalRead")
               .eventResult("InProgress"));
+
 
         } catch (Exception e) {
           SLOG.info(b -> b
@@ -355,6 +370,7 @@ public class KafkaJournalProcessor implements StateListener {
   private void addJournalTopology(KJournalImpl kjournal, StreamsBuilder streamsBuilder) {
     KeyValueBytesStoreSupplier supplier =
         Stores.persistentKeyValueStore(kjournal.storeName());
+    Stores.keyValueStoreBuilder(supplier, new JournalKeySerde(), new JournalValueSerde());
 
     KStream<JournalEntryKey, JournalEntry> journalStream = streamsBuilder
         .table(kjournal.topic(),

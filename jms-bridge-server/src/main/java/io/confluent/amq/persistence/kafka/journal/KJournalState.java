@@ -17,7 +17,7 @@ public enum KJournalState {
   ASSIGNING(true, asList("LOADING", "RUNNING", "STOPPED", "FAILED")),
   LOADING(true, asList("ASSIGNING", "RUNNING", "STOPPED", "FAILED")),
   RUNNING(true, asList("ASSIGNING", "LOADING", "STOPPED", "FAILED")),
-  STOPPED(false, Collections.singletonList("FAILED")),
+  STOPPED(false, asList("FAILED", "STARTED")),
   FAILED(false, Collections.emptyList());
 
   private final boolean isRunningState;

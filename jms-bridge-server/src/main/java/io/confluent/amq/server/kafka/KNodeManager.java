@@ -113,6 +113,7 @@ public class KNodeManager extends NodeManager {
     SLOG.info(
         b -> b.event("StartLiveNode"));
     state = State.FAILING_BACK;
+//    kafkaIntegration.waitForProcessorObtainPartition();
     return new CleaningActivateCallback() {
       @Override
       public void activationComplete() {
@@ -129,11 +130,13 @@ public class KNodeManager extends NodeManager {
   public void pauseLiveServer() throws Exception {
     state = State.PAUSED;
     SLOG.info(b -> b.event("PauseLiveServer"));
+    kafkaIntegration.stopProcessor();
   }
 
   @Override
   public void crashLiveServer() throws Exception {
     SLOG.info(b -> b.event("CrashLiveServer"));
+    kafkaIntegration.stopProcessor();
   }
 
   @Override
@@ -147,7 +150,7 @@ public class KNodeManager extends NodeManager {
   public boolean isBackupLive() throws Exception {
     ConsumerGroupDescription groupDescription = kafkaIntegration.getKafkaIO()
         .describeConsumerGroup(kafkaIntegration.getApplicationId());
-    boolean isLive = groupDescription.members().size() > 0;
+    boolean isLive = groupDescription.members().size() > 1;
     SLOG.info(b -> b.event("IsBackupLive").putTokens("isLive", isLive));
     return isLive;
   }

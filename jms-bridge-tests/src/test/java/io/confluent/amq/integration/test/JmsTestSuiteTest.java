@@ -5,6 +5,7 @@
 package io.confluent.amq.integration.test;
 
 import org.apache.activemq.artemis.tests.integration.jms.RedeployTempTest;
+import org.apache.activemq.artemis.tests.integration.jms.cluster.BindingsClusterTest;
 import org.apache.activemq.artemis.tests.integration.jms.largemessage.JMSLargeMessageTest;
 import org.junit.runner.RunWith;
 

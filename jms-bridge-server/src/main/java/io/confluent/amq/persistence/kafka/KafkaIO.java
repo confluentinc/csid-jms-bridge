@@ -86,7 +86,7 @@ public class KafkaIO {
   public synchronized void start() {
     try {
       rwlock.writeLock().lock();
-      if (state == CREATED) {
+      if (state == CREATED || state == STOPPED) {
         ProtoSerializer<com.google.protobuf.Message> protoSerializer = new ProtoSerializer<>();
         kafkaProducer = new KafkaProducer<>(kafkaProps, protoSerializer, protoSerializer);
         adminClient = AdminClient.create(kafkaProps);

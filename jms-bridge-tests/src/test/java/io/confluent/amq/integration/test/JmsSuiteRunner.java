@@ -69,6 +69,8 @@ public class JmsSuiteRunner extends Suite {
   ));
 
   public static AtomicInteger BRIDGE_ID_SEQUENCE = new AtomicInteger(1);
+  public static AtomicInteger NODE_SEQUENCE = new AtomicInteger(1);
+
 
   public static TemporaryFolder temporaryFolder = new TemporaryFolder();
 
@@ -81,7 +83,9 @@ public class JmsSuiteRunner extends Suite {
     try {
       Properties kafkaProps = new Properties();
       String bridgeId = "unit-test-" + BRIDGE_ID_SEQUENCE.get();
-      Path stateDir = temporaryFolder.getRoot().toPath().resolve(bridgeId);
+      Path stateDir = temporaryFolder.getRoot().toPath().resolve(bridgeId
+          + "-"
+          + NODE_SEQUENCE.getAndIncrement());
       if (!stateDir.toFile().exists()) {
         Files.createDirectory(stateDir);
       }
