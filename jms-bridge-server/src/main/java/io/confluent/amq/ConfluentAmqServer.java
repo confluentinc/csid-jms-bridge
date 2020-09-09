@@ -21,7 +21,7 @@ import org.apache.activemq.artemis.spi.core.security.ActiveMQSecurityManager;
 public class ConfluentAmqServer extends ActiveMQServerImpl {
 
   private static final StructuredLogger SLOG = StructuredLogger.with(b -> b
-      .loggerClass(ConfluentAmqServer.class));
+      .loggerClass(DelegatingConfluentAmqServer.class));
 
   private final KafkaIntegration kafkaIntegration;
 
@@ -74,11 +74,63 @@ public class ConfluentAmqServer extends ActiveMQServerImpl {
     kafkaIntegration = new KafkaIntegration(configuration);
   }
 
+  public void doStop(boolean failoverOnServerShutdown, boolean isExit) throws Exception {
+    super.stop(failoverOnServerShutdown, isExit);
+    kafkaIntegration.stop();
+
+  }
+
   @Override
-  public void checkJournalDirectory() {
-    super.checkJournalDirectory();
+  public void stop() throws Exception {
+    super.stop();
+    afterStop();
+  }
+
+  @Override
+  public void stop(boolean isShutdown) throws Exception {
+    super.stop(isShutdown);
+    afterStop();
+  }
+
+  @Override
+  public void stop(boolean failoverOnServerShutdown, boolean criticalIOError, boolean restarting) {
+    super.stop(failoverOnServerShutdown, criticalIOError, restarting);
+    afterStop();
+  }
+
+  public void doStopTheServer(final boolean criticalIOError) {
+    Thread thread = new Thread(() -> {
+      try {
+        this.stop(false, criticalIOError, false);
+      } catch (Exception e) {
+        SLOG.error(b -> b.event("StopServer").markFailure(), e);
+      }
+    });
+
+    thread.start();
+  }
+
+  public void doFail(boolean failoverOnServerShutdown) throws Exception {
+    super.fail(failoverOnServerShutdown);
+    afterStop();
+  }
+
+  private void afterStop() {
     try {
-      initKafkaIntegration();
+      kafkaIntegration.stop();
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  public void doStart() throws Exception {
+    beforeStart();
+    super.start();
+  }
+
+  private void beforeStart() {
+    try {
+      kafkaIntegration.start();
     } catch (Exception e) {
       throw new RuntimeException(e);
     }
@@ -86,11 +138,6 @@ public class ConfluentAmqServer extends ActiveMQServerImpl {
 
   private JmsBridgeConfiguration getJmsBridgeConfiguration() {
     return (JmsBridgeConfiguration) getConfiguration();
-  }
-
-  private void initKafkaIntegration() throws Exception {
-    this.kafkaIntegration.startKafkaIo();
-    this.kafkaIntegration.createJournalTopics();
   }
 
   @Override
@@ -158,6 +205,7 @@ public class ConfluentAmqServer extends ActiveMQServerImpl {
     return journal;
   }
 
+
   @Override
   public void resetNodeManager() throws Exception {
     SLOG.info(b -> b.event("ResetNodeManager"));
@@ -167,11 +215,5 @@ public class ConfluentAmqServer extends ActiveMQServerImpl {
     } else {
       super.resetNodeManager();
     }
-  }
-
-  @Override
-  public void stop(boolean failoverOnServerShutdown, boolean criticalIOError, boolean restarting) {
-    super.stop(failoverOnServerShutdown, criticalIOError, restarting);
-    SLOG.info(b -> b.event("Stop"));
   }
 }

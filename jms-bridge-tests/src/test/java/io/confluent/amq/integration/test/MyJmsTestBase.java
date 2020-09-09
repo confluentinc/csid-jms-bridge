@@ -20,7 +20,7 @@
 
 package io.confluent.amq.integration.test;
 
-import io.confluent.amq.ConfluentAmqServer;
+import io.confluent.amq.DelegatingConfluentAmqServer;
 import io.confluent.amq.JmsBridgeConfiguration;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -168,7 +168,7 @@ public class MyJmsTestBase extends ActiveMQTestBase {
             InVMLoginModule.class.getName(), new SecurityConfiguration());
 
     server = addServer(
-        new ConfluentAmqServer(jmsBridgeConfiguration, mbeanServer, securityManager));
+        new DelegatingConfluentAmqServer(jmsBridgeConfiguration, mbeanServer, securityManager));
 
     jmsServer = new org.apache.activemq.artemis.jms.server.impl.JMSServerManagerImpl(server);
     namingContext = new InVMNamingContext();

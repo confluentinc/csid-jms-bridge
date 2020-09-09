@@ -4,7 +4,7 @@
 
 package io.confluent.amq.integration.test;
 
-import io.confluent.amq.ConfluentAmqServer;
+import io.confluent.amq.DelegatingConfluentAmqServer;
 import java.io.File;
 import java.nio.file.Files;
 import javax.management.MBeanServer;
@@ -25,18 +25,18 @@ public class ActiveMQServersRedefined {
       final boolean enablePersistence) {
 
     config.setPersistenceEnabled(enablePersistence);
-    tryTocreateDirectory(config.getBindingsDirectory());
-    tryTocreateDirectory(config.getJournalDirectory());
-    tryTocreateDirectory(config.getPagingDirectory());
-    tryTocreateDirectory(config.getLargeMessagesDirectory());
+    tryToCreateDirectory(config.getBindingsDirectory());
+    tryToCreateDirectory(config.getJournalDirectory());
+    tryToCreateDirectory(config.getPagingDirectory());
+    tryToCreateDirectory(config.getLargeMessagesDirectory());
 
-    return new ConfluentAmqServer(
+    return new DelegatingConfluentAmqServer(
         JmsSuiteRunner.wrapConfig(config),
         mbeanServer,
         securityManager);
   }
 
-  public static void tryTocreateDirectory(String path) {
+  public static void tryToCreateDirectory(String path) {
     try {
       Files.createDirectory(new File(path).toPath());
     } catch (Exception e) {

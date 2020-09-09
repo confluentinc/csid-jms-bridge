@@ -113,7 +113,7 @@ public class KNodeManager extends NodeManager {
     SLOG.info(
         b -> b.event("StartLiveNode"));
     state = State.FAILING_BACK;
-//    kafkaIntegration.waitForProcessorObtainPartition();
+    //kafkaIntegration.waitForProcessorObtainPartition();
     return new CleaningActivateCallback() {
       @Override
       public void activationComplete() {

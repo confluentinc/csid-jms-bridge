@@ -16,7 +16,7 @@
  */
 package org.apache.activemq.artemis.tests.util;
 
-import io.confluent.amq.ConfluentAmqServer;
+import io.confluent.amq.DelegatingConfluentAmqServer;
 import io.confluent.amq.integration.test.JmsSuiteRunner;
 import java.io.File;
 import javax.management.MBeanServer;
@@ -24,23 +24,23 @@ import org.apache.activemq.artemis.core.config.Configuration;
 import org.apache.activemq.artemis.core.server.NodeManager;
 import org.apache.activemq.artemis.spi.core.security.ActiveMQSecurityManager;
 
-public final class InVMNodeManagerServer extends ConfluentAmqServer {
+public final class InVMNodeManagerServerDelegating extends DelegatingConfluentAmqServer {
 
   final NodeManager nodeManager;
 
-  public InVMNodeManagerServer(final NodeManager nodeManager) {
+  public InVMNodeManagerServerDelegating(final NodeManager nodeManager) {
     super();
     System.out.println("Creating InVMNodeManagerServer for ConfluentAmqServer");
     this.nodeManager = nodeManager;
   }
 
-  public InVMNodeManagerServer(final Configuration configuration, final NodeManager nodeManager) {
+  public InVMNodeManagerServerDelegating(final Configuration configuration, final NodeManager nodeManager) {
     super(JmsSuiteRunner.wrapConfig(configuration));
     System.out.println("Creating InVMNodeManagerServer for ConfluentAmqServer");
     this.nodeManager = nodeManager;
   }
 
-  public InVMNodeManagerServer(final Configuration configuration,
+  public InVMNodeManagerServerDelegating(final Configuration configuration,
       final MBeanServer mbeanServer,
       final NodeManager nodeManager) {
     super(JmsSuiteRunner.wrapConfig(configuration), mbeanServer);
@@ -48,7 +48,7 @@ public final class InVMNodeManagerServer extends ConfluentAmqServer {
     this.nodeManager = nodeManager;
   }
 
-  public InVMNodeManagerServer(final Configuration configuration,
+  public InVMNodeManagerServerDelegating(final Configuration configuration,
       final ActiveMQSecurityManager securityManager,
       final NodeManager nodeManager) {
     super(JmsSuiteRunner.wrapConfig(configuration), securityManager);
@@ -56,7 +56,7 @@ public final class InVMNodeManagerServer extends ConfluentAmqServer {
     this.nodeManager = nodeManager;
   }
 
-  public InVMNodeManagerServer(final Configuration configuration,
+  public InVMNodeManagerServerDelegating(final Configuration configuration,
       final MBeanServer mbeanServer,
       final ActiveMQSecurityManager securityManager,
       final NodeManager nodeManager) {
@@ -65,7 +65,6 @@ public final class InVMNodeManagerServer extends ConfluentAmqServer {
     this.nodeManager = nodeManager;
   }
 
-  @Override
   protected NodeManager createNodeManager(File directory, boolean replicatingBackup) {
     return nodeManager;
   }

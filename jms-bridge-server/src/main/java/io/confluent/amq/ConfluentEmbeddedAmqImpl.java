@@ -112,13 +112,13 @@ public class ConfluentEmbeddedAmqImpl implements ConfluentEmbeddedAmq {
         this.securityManager = new ActiveMQJAASSecurityManager();
       }
 
-      ConfluentAmqServer amqServer = null;
+      DelegatingConfluentAmqServer amqServer = null;
       JmsBridgeConfiguration jmsBridgeConfiguration = (JmsBridgeConfiguration) configuration;
 
       if (this.mbeanServer == null) {
-        amqServer = new ConfluentAmqServer(jmsBridgeConfiguration, this.securityManager);
+        amqServer = new DelegatingConfluentAmqServer(jmsBridgeConfiguration, this.securityManager);
       } else {
-        amqServer = new ConfluentAmqServer(
+        amqServer = new DelegatingConfluentAmqServer(
             jmsBridgeConfiguration, this.mbeanServer, this.securityManager);
       }
       this.activeMQServer = amqServer;

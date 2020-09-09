@@ -99,7 +99,6 @@ public class KafkaJournalStorageManager extends JournalStorageManager {
   @Override
   public void stop(boolean ioCriticalError, boolean sendFailover) throws Exception {
     super.stop(ioCriticalError, sendFailover);
-    kafkaIntegration.stop();
     SLOG.info(b -> b.event("Stop"));
   }
 
