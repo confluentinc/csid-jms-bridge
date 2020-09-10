@@ -1,4 +1,4 @@
-# JMS Bridge Design
+# JMS Bridge Architecture
 
 This is an overview of how different features within the JMS-Bridge were implemented.
 
@@ -104,17 +104,17 @@ Each route will require a unique name, routing predicate, destination kafka topi
 The configuration will be processed from the top down, any duplicate keys will override the preceding one.
 
 ```
-routing.dead-letter.topic=jms-bridge-to-kafka-dead-letter-topic
+routing.dead-letter-topic=jms-bridge-to-kafka-dead-letter-topic
 
-routes.foo-route.name=foo-route
-routes.foo-route.predicate=msg.address==foo-topic
-routes.foo-route.dest.topic=foobar-topic
-routes.foo-route.conv.key=msg.header.CorrelationId
+routes.fooRoute.name=fooRoute
+routes.fooRoute.in.include=msg.address==foo-topic
+routes.fooRoute.out.topic=foobar-topic
+routes.fooRoute.conv.key=msg.header.CorrelationId
 
-routes.bar-route.name=bar-route
-routes.bar-route.predicate=msg.address==bar-topic
-routes.bar-route.dest.topic=foobar-topic
-routes.bar-route.conv.key=msg.header.CorrelationId
+routes.barRoute.name=barRoute
+routes.barRoute.in.include=msg.address==bar-topic
+routes.barRoute.out.topic=foobar-topic
+routes.barRoute.map.key=msg.header.CorrelationId
 ```
 
 ### Error Handling

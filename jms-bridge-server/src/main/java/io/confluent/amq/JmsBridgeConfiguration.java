@@ -4,6 +4,7 @@
 
 package io.confluent.amq;
 
+import io.confluent.amq.config.BridgeConfig;
 import java.io.File;
 import java.net.URL;
 import java.util.List;
@@ -51,10 +52,26 @@ public class JmsBridgeConfiguration implements Configuration {
 
   private final Configuration delegate;
   private final Properties jmsBridgeProperties;
+  private final BridgeConfig bridgeConfig;
 
-  public JmsBridgeConfiguration(Configuration delegate, Properties jmsBridgeProperties) {
+  public JmsBridgeConfiguration(
+      Configuration delegate,
+      Properties jmsBridgeProperties) {
+    this(delegate, jmsBridgeProperties, null);
+  }
+
+  public JmsBridgeConfiguration(
+      Configuration delegate,
+      Properties jmsBridgeProperties,
+      BridgeConfig bridgeConfig) {
+
     this.delegate = delegate;
     this.jmsBridgeProperties = jmsBridgeProperties;
+    this.bridgeConfig = bridgeConfig;
+  }
+
+  public BridgeConfig getBridgeConfig() {
+    return bridgeConfig;
   }
 
   public Configuration getDelegate() {
@@ -501,7 +518,7 @@ public class JmsBridgeConfiguration implements Configuration {
   @Override
   @Deprecated
   public List<org.apache.activemq.artemis.core.config.CoreQueueConfiguration>
-      getQueueConfigurations() {
+  getQueueConfigurations() {
 
     return delegate.getQueueConfigurations();
   }

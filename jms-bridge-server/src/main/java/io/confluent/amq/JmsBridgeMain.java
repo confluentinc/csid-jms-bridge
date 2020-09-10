@@ -8,6 +8,8 @@ import com.github.rvesse.airline.SingleCommand;
 import com.github.rvesse.airline.annotations.Arguments;
 import com.github.rvesse.airline.annotations.Command;
 import com.github.rvesse.airline.annotations.Option;
+import io.confluent.amq.config.BridgeConfig;
+import io.confluent.amq.config.BridgeConfigFactory;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -135,4 +137,5 @@ public class JmsBridgeMain {
       throw new RuntimeException(t);
     }
   }
+
 }

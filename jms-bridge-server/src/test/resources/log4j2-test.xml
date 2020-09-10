@@ -3,7 +3,7 @@
   ~ Copyright 2020 Confluent Inc.
   -->
 
-<Configuration status="WARN">
+<Configuration status="INFO">
   <Appenders>
     <Console name="stdout" target="SYSTEM_OUT">
       <PatternLayout pattern="[%d] %p %m (%c:%L)%n"/>
@@ -12,6 +12,10 @@
 
   <Loggers>
     <Logger name="io.confluent.amq" level="TRACE" additivity="false">
+      <AppenderRef ref="stdout"/>
+    </Logger>
+
+    <Logger name="org.apache.commons.beanutils" level="TRACE" additivity="false">
       <AppenderRef ref="stdout"/>
     </Logger>
 
