@@ -7,6 +7,7 @@ package io.confluent.amq.persistence.kafka;
 import io.confluent.amq.JmsBridgeConfiguration;
 import io.confluent.amq.config.BridgeConfig;
 import io.confluent.amq.config.BridgeConfig.JournalConfig;
+import io.confluent.amq.config.BridgeConfigFactory;
 import io.confluent.amq.logging.StructuredLogger;
 import io.confluent.amq.persistence.kafka.journal.KJournal;
 import io.confluent.amq.persistence.kafka.journal.impl.KafkaJournal;
@@ -16,9 +17,11 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import org.apache.activemq.artemis.utils.UUID;
 import org.apache.activemq.artemis.utils.UUIDGenerator;
 import org.apache.kafka.common.config.TopicConfig;
+import org.apache.kafka.streams.StreamsConfig;
 
 public class KafkaIntegration {
 
@@ -31,35 +34,27 @@ public class KafkaIntegration {
   private final KJournal bindingsJournal;
   private final KJournal messagesJournal;
   private final String bridgeId;
-  private final UUID nodeUuid;
+  private final String clientId;
   private final String applicationId;
+  private final UUID nodeUuid;
 
   public KafkaIntegration(JmsBridgeConfiguration jmsConfig) {
     this.config = jmsConfig.getBridgeConfig();
 
     nodeUuid = UUIDGenerator.getInstance().generateUUID();
     bridgeId = config.id();
+    clientId = String.format("%s_%s", bridgeId, nodeUuid.toString());
     applicationId = String.format("jms.bridge.%s", this.bridgeId);
-    String clientId = String.format("%s_%s", bridgeId, nodeUuid.toString());
 
     List<JournalSpec> jspecs = new LinkedList<>();
     jspecs.add(
-        createProcessor(
-            KafkaJournalStorageManager.BINDINGS_NAME,
-            config.journals().bindings(),
-            false));
+        createProcessor(KafkaJournalStorageManager.BINDINGS_NAME, config.journals().bindings()));
     jspecs.add(
-        createProcessor(
-            KafkaJournalStorageManager.MESSAGES_NAME,
-            config.journals().messages(),
-            true));
-
+        createProcessor(KafkaJournalStorageManager.MESSAGES_NAME, config.journals().messages()));
     journalProcessor = new KafkaJournalProcessor(
         jspecs,
         clientId,
-        applicationId,
-        this.config);
-
+        getEffectiveProcessorProps(config));
     kafkaIO = new KafkaIO(config.kafka());
 
     bindingsJournal = journalProcessor.getJournal(KafkaJournalStorageManager.BINDINGS_NAME);
@@ -67,13 +62,12 @@ public class KafkaIntegration {
   }
 
   private JournalSpec createProcessor(
-      String journalName, JournalConfig jconfig, boolean performRouting) {
+      String journalName, JournalConfig jconfig) {
 
     return new JournalSpec.Builder()
         .journalName(journalName)
         .journalTopic(
             jconfig.topic().name().orElse(KafkaJournal.journalTopic(bridgeId, journalName)))
-        .performRouting(performRouting)
         .build();
   }
 
@@ -83,6 +77,15 @@ public class KafkaIntegration {
     topicProps.put(TopicConfig.CLEANUP_POLICY_CONFIG, TopicConfig.CLEANUP_POLICY_COMPACT);
 
     return topicProps;
+  }
+
+  public Properties getEffectiveProcessorProps(BridgeConfig config) {
+
+    Properties streamProps = BridgeConfigFactory.propsToMap(config.streams());
+    streamProps.put(StreamsConfig.APPLICATION_ID_CONFIG, applicationId);
+    //requires 3 brokers at minimum
+    //streamProps.put(StreamsConfig.PROCESSING_GUARANTEE_CONFIG, StreamsConfig.EXACTLY_ONCE);
+    return streamProps;
   }
 
   public String getBridgeId() {
