@@ -9,6 +9,7 @@ import static com.google.common.io.Resources.getResource;
 import io.confluent.amq.ConfluentEmbeddedAmq;
 import io.confluent.amq.ConfluentEmbeddedAmqImpl;
 import io.confluent.amq.JmsBridgeConfiguration;
+import io.confluent.amq.config.BridgeConfig;
 import io.confluent.amq.logging.StructuredLogger;
 import io.confluent.amq.test.ServerSpec.Builder;
 import java.io.File;
@@ -197,8 +198,12 @@ public class ArtemisTestServer implements
           throw new RuntimeException(e);
         }
       });
+      BridgeConfig bridgeConfig = new BridgeConfig.Builder()
+          .id(spec.bridgeId())
+          .putKafka("group.id", spec.groupId())
+          .build();
 
-      return new JmsBridgeConfiguration(config, spec.jmsBridgeProps());
+      return new JmsBridgeConfiguration(config, bridgeConfig);
     } catch (Exception e) {
       throw new RuntimeException(e);
     }

@@ -4,21 +4,14 @@
 
 package io.confluent.amq.test;
 
-import java.util.Map;
+import io.confluent.amq.config.BridgeConfig;
 import java.util.Optional;
-import java.util.Properties;
 import org.inferred.freebuilder.FreeBuilder;
 
 @FreeBuilder
 public interface ServerSpec {
 
-  default Properties jmsBridgeProps() {
-    Properties props = new Properties();
-    jmsBridgeConfigs().forEach(props::put);
-    return props;
-  }
-
-  Map<String, Object> jmsBridgeConfigs();
+  BridgeConfig jmsBridgeConfig();
 
   String groupId();
 
@@ -36,16 +29,5 @@ public interface ServerSpec {
       this.useVanilla(false);
     }
 
-    public Builder jmsBridgeProps(Properties jmsBridgeProps) {
-      jmsBridgeProps.forEach((k, v) -> this.putJmsBridgeConfigs((String)k, v));
-      return this;
-    }
-
-    @Override
-    public ServerSpec build() {
-      this.putJmsBridgeConfigs("bridge.id", bridgeId())
-        .putJmsBridgeConfigs("group.id", groupId());
-      return super.build();
-    }
   }
 }

@@ -22,10 +22,10 @@ package io.confluent.amq.integration.test;
 
 import io.confluent.amq.DelegatingConfluentAmqServer;
 import io.confluent.amq.JmsBridgeConfiguration;
+import io.confluent.amq.config.BridgeConfig;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Properties;
 import java.util.Random;
 import java.util.Set;
 import javax.jms.Connection;
@@ -138,30 +138,32 @@ public class MyJmsTestBase extends ActiveMQTestBase {
   public void setUp() throws Exception {
     super.setUp();
     mbeanServer = MBeanServerFactory.createMBeanServer();
+    String bridgeId = "unit-test-" + JmsSuiteRunner.BRIDGE_ID_SEQUENCE.incrementAndGet();
 
     Configuration config = createDefaultConfig(true).setSecurityEnabled(useSecurity())
         .addConnectorConfiguration("invm", new TransportConfiguration(INVM_CONNECTOR_FACTORY))
         .setTransactionTimeoutScanPeriod(100);
     config.getConnectorConfigurations()
         .put("netty", new TransportConfiguration(NETTY_CONNECTOR_FACTORY));
-    Properties kafkaProps = new Properties();
-    String bridgeId = "unit-test-" + JmsSuiteRunner.BRIDGE_ID_SEQUENCE.incrementAndGet();
-    kafkaProps.setProperty(
-        ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG,
-        JmsSuiteRunner.kafkaContainer.getBootstrapServers());
-    kafkaProps.setProperty("bridge.id", bridgeId);
-    kafkaProps.setProperty(
-        StreamsConfig.STATE_DIR_CONFIG,
-        JmsSuiteRunner.temporaryFolder.newFolder(bridgeId).getAbsolutePath());
-    kafkaProps.setProperty(StreamsConfig.COMMIT_INTERVAL_MS_CONFIG, "500");
-    kafkaProps.setProperty(
-        StreamsConfig.consumerPrefix(ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG), "6000");
-    kafkaProps.setProperty(
-        StreamsConfig.consumerPrefix(ConsumerConfig.HEARTBEAT_INTERVAL_MS_CONFIG), "2000");
-    kafkaProps.setProperty(
-        StreamsConfig.consumerPrefix(ConsumerConfig.DEFAULT_API_TIMEOUT_MS_CONFIG), "5000");
+    BridgeConfig bridgeConfig = new BridgeConfig.Builder()
+        .id(bridgeId)
+        .putKafka(
+            ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG,
+            JmsSuiteRunner.kafkaContainer.getBootstrapServers())
+        .putKafka(
+            StreamsConfig.STATE_DIR_CONFIG,
+            JmsSuiteRunner.temporaryFolder.newFolder(bridgeId).getAbsolutePath())
+        .putStreams(StreamsConfig.COMMIT_INTERVAL_MS_CONFIG, "500")
+        .putStreams(
+            StreamsConfig.consumerPrefix(ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG), "6000")
+        .putStreams(
+            StreamsConfig.consumerPrefix(ConsumerConfig.HEARTBEAT_INTERVAL_MS_CONFIG), "2000")
+        .putStreams(
+            StreamsConfig.consumerPrefix(ConsumerConfig.DEFAULT_API_TIMEOUT_MS_CONFIG), "5000")
+        .build();
 
-    JmsBridgeConfiguration jmsBridgeConfiguration = new JmsBridgeConfiguration(config, kafkaProps);
+    JmsBridgeConfiguration jmsBridgeConfiguration = new JmsBridgeConfiguration(
+        config, bridgeConfig);
 
     ActiveMQSecurityManager securityManager =
         new ActiveMQJAASSecurityManager(

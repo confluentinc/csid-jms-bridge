@@ -8,6 +8,7 @@ import static net.bytebuddy.matcher.ElementMatchers.named;
 import static net.bytebuddy.matcher.ElementMatchers.takesArguments;
 
 import io.confluent.amq.JmsBridgeConfiguration;
+import io.confluent.amq.config.BridgeConfig;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Inherited;
 import java.lang.annotation.Retention;
@@ -20,7 +21,6 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
@@ -81,7 +81,6 @@ public class JmsSuiteRunner extends Suite {
 
   public static JmsBridgeConfiguration wrapConfig(Configuration amqConfig) {
     try {
-      Properties kafkaProps = new Properties();
       String bridgeId = "unit-test-" + BRIDGE_ID_SEQUENCE.get();
       Path stateDir = temporaryFolder.getRoot().toPath().resolve(bridgeId
           + "-"
@@ -89,25 +88,28 @@ public class JmsSuiteRunner extends Suite {
       if (!stateDir.toFile().exists()) {
         Files.createDirectory(stateDir);
       }
+      BridgeConfig bridgeConfig = new BridgeConfig.Builder()
+          .id(bridgeId)
+          .putKafka(
+              ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG,
+              JmsSuiteRunner.kafkaContainer.getBootstrapServers())
+          .putKafka(
+              StreamsConfig.STATE_DIR_CONFIG,
+              JmsSuiteRunner.temporaryFolder.newFolder(bridgeId).getAbsolutePath())
+          .putStreams(
+              ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG,
+              JmsSuiteRunner.kafkaContainer.getBootstrapServers())
+          .putStreams(StreamsConfig.COMMIT_INTERVAL_MS_CONFIG, "500")
+          .putStreams(
+              StreamsConfig.consumerPrefix(ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG), "6000")
+          .putStreams(
+              StreamsConfig.consumerPrefix(ConsumerConfig.HEARTBEAT_INTERVAL_MS_CONFIG), "2000")
+          .putStreams(
+              StreamsConfig.consumerPrefix(ConsumerConfig.DEFAULT_API_TIMEOUT_MS_CONFIG), "5000")
+          .build();
 
-      kafkaProps.setProperty(
-          ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG,
-          kafkaContainer.getBootstrapServers());
-      kafkaProps.setProperty("bridge.id", bridgeId);
-      kafkaProps.setProperty(StreamsConfig.STATE_DIR_CONFIG, stateDir.toAbsolutePath().toString());
-      kafkaProps.setProperty(StreamsConfig.COMMIT_INTERVAL_MS_CONFIG, "500");
-      kafkaProps.setProperty(StreamsConfig.CACHE_MAX_BYTES_BUFFERING_CONFIG, "0");
-      kafkaProps.setProperty(
-          StreamsConfig.consumerPrefix(ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG), "6000");
-      kafkaProps.setProperty(
-          StreamsConfig.consumerPrefix(ConsumerConfig.HEARTBEAT_INTERVAL_MS_CONFIG), "2000");
-      kafkaProps.setProperty(
-          StreamsConfig.consumerPrefix(ConsumerConfig.DEFAULT_API_TIMEOUT_MS_CONFIG), "5000");
-      kafkaProps.setProperty(
-          StreamsConfig.NUM_STANDBY_REPLICAS_CONFIG, "1");
-
-      JmsBridgeConfiguration jmsBridgeConfiguration = new JmsBridgeConfiguration(amqConfig,
-          kafkaProps);
+      JmsBridgeConfiguration jmsBridgeConfiguration = new JmsBridgeConfiguration(
+          amqConfig, bridgeConfig);
 
       return jmsBridgeConfiguration;
     } catch (Exception e) {

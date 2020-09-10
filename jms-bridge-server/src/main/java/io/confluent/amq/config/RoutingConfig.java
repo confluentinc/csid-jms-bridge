@@ -69,7 +69,7 @@ public interface RoutingConfig {
   @FreeBuilder
   interface In {
 
-    String include();
+    String address();
 
     class Builder extends RoutingConfig_In_Builder {
 

@@ -12,6 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import io.confluent.amq.config.BridgeConfigFactory;
 import io.confluent.amq.logging.LogFormat;
 import io.confluent.amq.persistence.domain.proto.JournalEntry;
 import io.confluent.amq.persistence.domain.proto.JournalEntryKey;
@@ -60,9 +61,9 @@ public class JmsBridgePubSubTests {
   @Order(300)
   public static final ArtemisTestServer amqServer = ArtemisTestServer.embedded(b -> b
       .useVanilla(IS_VANILLA)
-      .jmsBridgeProps(kafkaContainer.defaultProps())
-      .putJmsBridgeConfigs(StreamsConfig.STATE_DIR_CONFIG, tempdir.toAbsolutePath().toString()));
-
+      .jmsBridgeConfigBuilder()
+        .putAllKafka(BridgeConfigFactory.propsToMap(kafkaContainer.defaultProps()))
+      .putStreams(StreamsConfig.STATE_DIR_CONFIG, tempdir.toAbsolutePath().toString()));
 
   @Test
   @Timeout(30)

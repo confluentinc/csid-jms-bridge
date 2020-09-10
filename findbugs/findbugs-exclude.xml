@@ -17,6 +17,7 @@ For a detailed description of findbugs bug categories, see http://findbugs.sourc
   <Or>
     <Package name="~io[.]confluent[.]amq[.]persistence[.]domain[.]proto([.].*)?" />
     <Class name="~.*\$Builder.*" />
+    <Class name="~.*\_Builder.*" />
   </Or>
   </Match>
 </FindBugsFilter>

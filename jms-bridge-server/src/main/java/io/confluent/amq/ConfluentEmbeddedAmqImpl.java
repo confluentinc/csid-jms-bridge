@@ -6,7 +6,7 @@ package io.confluent.amq;
 
 import static java.lang.String.format;
 
-import java.util.Properties;
+import io.confluent.amq.config.BridgeConfig;
 import java.util.concurrent.TimeUnit;
 import javax.management.MBeanServer;
 import org.apache.activemq.artemis.core.config.FileDeploymentManager;
@@ -59,12 +59,12 @@ public class ConfluentEmbeddedAmqImpl implements ConfluentEmbeddedAmq {
     private JmsBridgeConfiguration configuration;
     private MBeanServer mbeanServer;
 
-    public Builder(Properties kafkaProps) {
-      this("/broker.xml", kafkaProps);
+    public Builder(BridgeConfig bridgeConfig) {
+      this("/broker.xml", bridgeConfig);
     }
 
-    public Builder(String configResourcePath, Properties jmsBridgeProps) {
-      this.configuration = loadConfigResource(configResourcePath, jmsBridgeProps);
+    public Builder(String configResourcePath, BridgeConfig bridgeConfig) {
+      this.configuration = loadConfigResource(configResourcePath, bridgeConfig);
     }
 
     public Builder(JmsBridgeConfiguration configuration) {
@@ -72,7 +72,7 @@ public class ConfluentEmbeddedAmqImpl implements ConfluentEmbeddedAmq {
     }
 
     private JmsBridgeConfiguration loadConfigResource(
-        String resourcePath, Properties jmsBridgeProps) {
+        String resourcePath, BridgeConfig bridgeConfig) {
 
       FileDeploymentManager deploymentManager = new FileDeploymentManager(resourcePath);
       FileConfiguration config = new FileConfiguration();
@@ -84,7 +84,7 @@ public class ConfluentEmbeddedAmqImpl implements ConfluentEmbeddedAmq {
         throw new RuntimeException(
             format("Failed to read configuration resource '%s'", resourcePath), e);
       }
-      return new JmsBridgeConfiguration(config, jmsBridgeProps);
+      return new JmsBridgeConfiguration(config, bridgeConfig);
     }
 
     public Builder setSecurityManager(ActiveMQSecurityManager securityManager) {

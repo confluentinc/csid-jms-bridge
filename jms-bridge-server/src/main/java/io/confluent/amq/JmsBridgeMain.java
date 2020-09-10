@@ -11,12 +11,8 @@ import com.github.rvesse.airline.annotations.Option;
 import io.confluent.amq.config.BridgeConfig;
 import io.confluent.amq.config.BridgeConfigFactory;
 import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
-import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
-import java.util.Properties;
 import org.apache.activemq.artemis.core.server.embedded.EmbeddedActiveMQ;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,8 +30,8 @@ public class JmsBridgeMain {
   @Option(name = "--broker-xml", hidden = true)
   protected String brokerXml;
 
-  @Arguments(description = "The path to a properties file containing configuration details.")
-  protected String propertiesPath;
+  @Arguments(description = "The path to a file containing configuration details.")
+  protected String configPath;
 
   public static void main(final String[] args) {
     final JmsBridgeMain jmsBridgeMain = new JmsBridgeMain();
@@ -70,12 +66,12 @@ public class JmsBridgeMain {
     return brokerXmlOpt;
   }
 
-  protected ConfluentEmbeddedAmq loadServer(final Properties serverProps,
+  protected ConfluentEmbeddedAmq loadServer(final BridgeConfig bridgeConfig,
       final String brokerXmlPath) {
 
     if (!useVanilla) {
       return new ConfluentEmbeddedAmqImpl
-          .Builder(brokerXmlPath, serverProps).build();
+          .Builder(brokerXmlPath, bridgeConfig).build();
     } else {
       LOGGER.info("Starting vanilla embedded AMQ server. No JMS-Bridge functionality included.");
       return defaultEmbeddedServer(brokerXmlPath);
@@ -101,25 +97,19 @@ public class JmsBridgeMain {
 
   public void run() {
 
-    final Properties serverProps = new Properties();
-
-    final File propFile = new File(propertiesPath);
-    if (!propFile.exists()) {
+    final File configFile = new File(configPath);
+    if (!configFile.exists()) {
       throw new RuntimeException(
-          "Properties file path does not exist: " + propertiesPath);
+          "Configuration file path does not exist: " + configPath);
     } else {
-      LOGGER.debug("Loading properties file: " + propertiesPath);
+      LOGGER.debug("Loading configuration file: " + configPath);
     }
 
-    try (InputStream props = Files.newInputStream(propFile.toPath())) {
-      serverProps.load(props);
-    } catch (IOException e) {
-      LOGGER.error("Failed to load JMS Bridge properties file from '{}'", propertiesPath, e);
-      throw new RuntimeException(e);
-    }
+    final BridgeConfig bridgeConfig = BridgeConfigFactory
+        .gatherConfiguration(configFile.toPath());
 
-    final String brokerXmlPath = brokerXmlPath(propFile, brokerXml);
-    final ConfluentEmbeddedAmq embeddedActiveMQ = loadServer(serverProps, brokerXmlPath);
+    final String brokerXmlPath = brokerXmlPath(configFile, brokerXml);
+    final ConfluentEmbeddedAmq embeddedActiveMQ = loadServer(bridgeConfig, brokerXmlPath);
 
     Runtime.getRuntime().addShutdownHook(new Thread(() -> {
       try {

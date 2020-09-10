@@ -51,22 +51,13 @@ import org.apache.activemq.artemis.utils.critical.CriticalAnalyzerPolicy;
 public class JmsBridgeConfiguration implements Configuration {
 
   private final Configuration delegate;
-  private final Properties jmsBridgeProperties;
   private final BridgeConfig bridgeConfig;
 
   public JmsBridgeConfiguration(
       Configuration delegate,
-      Properties jmsBridgeProperties) {
-    this(delegate, jmsBridgeProperties, null);
-  }
-
-  public JmsBridgeConfiguration(
-      Configuration delegate,
-      Properties jmsBridgeProperties,
       BridgeConfig bridgeConfig) {
 
     this.delegate = delegate;
-    this.jmsBridgeProperties = jmsBridgeProperties;
     this.bridgeConfig = bridgeConfig;
   }
 
@@ -76,10 +67,6 @@ public class JmsBridgeConfiguration implements Configuration {
 
   public Configuration getDelegate() {
     return delegate;
-  }
-
-  public Properties getJmsBridgeProperties() {
-    return jmsBridgeProperties;
   }
 
   @Override
@@ -518,7 +505,7 @@ public class JmsBridgeConfiguration implements Configuration {
   @Override
   @Deprecated
   public List<org.apache.activemq.artemis.core.config.CoreQueueConfiguration>
-  getQueueConfigurations() {
+            getQueueConfigurations() {
 
     return delegate.getQueueConfigurations();
   }

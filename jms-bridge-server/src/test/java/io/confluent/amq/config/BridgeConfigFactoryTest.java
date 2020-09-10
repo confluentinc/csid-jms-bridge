@@ -13,7 +13,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.google.common.io.Resources;
 import com.typesafe.config.ConfigException;
 import io.confluent.amq.config.RoutingConfig.Route;
-import io.confluent.amq.test.TestSupport;
 import java.net.URL;
 import java.time.Duration;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
@@ -29,7 +28,9 @@ class BridgeConfigFactoryTest {
     assertEquals(1, config.kafka().size());
     assertEquals(
         "localhost:9092", config.kafka().get(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG));
-    assertEquals(0, config.streams().size());
+    assertEquals(
+        "localhost:9092", config.streams().get(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG));
+    assertEquals(4, config.streams().size());
     assertEquals(Duration.ofSeconds(60), config.journals().readyTimeout());
     assertEquals(Duration.ofSeconds(1), config.journals().readyCheckInterval());
   }

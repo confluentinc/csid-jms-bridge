@@ -5,6 +5,7 @@
 package io.confluent.amq.persistence.kafka;
 
 import com.google.protobuf.Message;
+import io.confluent.amq.config.BridgeConfigFactory;
 import io.confluent.amq.logging.LogFormat;
 import io.confluent.amq.persistence.kafka.ConsumerThread.Builder;
 import io.confluent.amq.persistence.kafka.journal.JournalEntryKeyPartitioner;
@@ -77,7 +78,13 @@ public class KafkaIO {
     this.kafkaProps.put(
         ProducerConfig.PARTITIONER_CLASS_CONFIG,
         JournalEntryKeyPartitioner.class.getCanonicalName());
+
   }
+
+  public KafkaIO(Map<String, Object> kafkaProps) {
+    this(BridgeConfigFactory.propsToMap(kafkaProps));
+  }
+
 
   public Properties getKafkaProps() {
     return kafkaProps;

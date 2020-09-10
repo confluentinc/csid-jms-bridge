@@ -5,7 +5,6 @@
 package io.confluent.amq.config;
 
 import com.typesafe.config.Config;
-import io.confluent.amq.config.RoutingConfig.Builder;
 import java.time.Duration;
 import java.util.Map;
 import java.util.Optional;
@@ -35,7 +34,11 @@ public interface BridgeConfig {
       this.id(bridgeConfig.getString("id"))
           .journals(new JournalsConfig.Builder(bridgeConfig.getConfig("journals")))
           .putAllKafka(bridgeConfig.getObject("kafka").unwrapped())
-          .putAllStreams(bridgeConfig.getObject("streams").unwrapped());
+          .putAllStreams(
+            bridgeConfig
+                .getConfig("streams")
+                .withFallback(bridgeConfig.getConfig("kafka"))
+                .root().unwrapped());
 
       if (bridgeConfig.hasPath("routing")) {
         this.routing(new RoutingConfig.Builder(bridgeConfig.getConfig("routing")));
@@ -60,6 +63,7 @@ public interface BridgeConfig {
     JournalConfig messages();
 
     class Builder extends BridgeConfig_JournalsConfig_Builder {
+
       public Builder() {
 
       }
@@ -81,6 +85,7 @@ public interface BridgeConfig {
     TopicConfig topic();
 
     class Builder extends BridgeConfig_JournalConfig_Builder {
+
       public Builder() {
 
       }
@@ -104,6 +109,7 @@ public interface BridgeConfig {
     Map<String, Object> options();
 
     class Builder extends BridgeConfig_TopicConfig_Builder {
+
       public Builder() {
 
       }

@@ -297,7 +297,7 @@ public class KafkaJournalStorageManager extends JournalStorageManager {
         JmsBridgeConfiguration configuration,
         KafkaIntegration kafkaIntegration) {
 
-      super(configuration.getDelegate(), configuration.getJmsBridgeProperties());
+      super(configuration.getDelegate(), configuration.getBridgeConfig());
       this.kafkaIntegration = kafkaIntegration;
     }
   }

@@ -5,6 +5,9 @@
 package io.confluent.amq.persistence.kafka;
 
 import io.confluent.amq.JmsBridgeConfiguration;
+import io.confluent.amq.config.BridgeConfig;
+import io.confluent.amq.config.BridgeConfig.JournalConfig;
+import io.confluent.amq.config.BridgeConfigFactory;
 import io.confluent.amq.logging.StructuredLogger;
 import io.confluent.amq.persistence.kafka.journal.KJournal;
 import io.confluent.amq.persistence.kafka.journal.impl.KafkaJournal;
@@ -19,18 +22,13 @@ import org.apache.activemq.artemis.utils.UUID;
 import org.apache.activemq.artemis.utils.UUIDGenerator;
 import org.apache.kafka.common.config.TopicConfig;
 import org.apache.kafka.streams.StreamsConfig;
-import org.slf4j.MDC;
 
 public class KafkaIntegration {
 
   private static final StructuredLogger SLOG = StructuredLogger.with(b -> b
       .loggerClass(KafkaIntegration.class));
 
-  private static final Integer MAX_RECORD_SIZE = 1024 * 1024;
-  public static final int SEGMENT_MAX_BYTES = 100 * 1024 * 1024;
-  public static final String HA_ROLE_KEY = "haRole";
-
-  private final JmsBridgeConfiguration config;
+  private final BridgeConfig config;
   private final KafkaIO kafkaIO;
   private final KafkaJournalProcessor journalProcessor;
   private final KJournal bindingsJournal;
@@ -40,66 +38,51 @@ public class KafkaIntegration {
   private final String applicationId;
   private final UUID nodeUuid;
 
-  public KafkaIntegration(JmsBridgeConfiguration config) {
-    updateLogDiagnosticContext(config);
-    this.config = config;
-    if (!config.getJmsBridgeProperties().containsKey("bridge.id")) {
-      SLOG.error(
-          b -> b.event("Init").markFailure().message("'bridge.id' is a required configuration"));
-
-      throw new IllegalStateException("A bridge id is required for using the Kafka Journal");
-    }
+  public KafkaIntegration(JmsBridgeConfiguration jmsConfig) {
+    this.config = jmsConfig.getBridgeConfig();
 
     nodeUuid = UUIDGenerator.getInstance().generateUUID();
-    bridgeId = config.getJmsBridgeProperties().getProperty("bridge.id");
+    bridgeId = config.id();
     clientId = String.format("%s_%s", bridgeId, nodeUuid.toString());
     applicationId = String.format("jms.bridge.%s", this.bridgeId);
 
     List<JournalSpec> jspecs = new LinkedList<>();
-    jspecs.add(createProcessor(KafkaJournalStorageManager.BINDINGS_NAME, config));
-    jspecs.add(createProcessor(KafkaJournalStorageManager.MESSAGES_NAME, config));
+    jspecs.add(
+        createProcessor(KafkaJournalStorageManager.BINDINGS_NAME, config.journals().bindings()));
+    jspecs.add(
+        createProcessor(KafkaJournalStorageManager.MESSAGES_NAME, config.journals().messages()));
     journalProcessor = new KafkaJournalProcessor(
         jspecs,
         clientId,
         getEffectiveProcessorProps(config));
-    kafkaIO = new KafkaIO(config.getJmsBridgeProperties());
+    kafkaIO = new KafkaIO(config.kafka());
 
     bindingsJournal = journalProcessor.getJournal(KafkaJournalStorageManager.BINDINGS_NAME);
     messagesJournal = journalProcessor.getJournal(KafkaJournalStorageManager.MESSAGES_NAME);
   }
 
-  private void updateLogDiagnosticContext(JmsBridgeConfiguration config) {
-    String haType =
-        config.getHAPolicyConfiguration() == null
-            ? "null"
-            : config.getHAPolicyConfiguration().getType().toString();
-    MDC.put(HA_ROLE_KEY, haType);
-  }
-
   private JournalSpec createProcessor(
-      String journalName, JmsBridgeConfiguration config) {
+      String journalName, JournalConfig jconfig) {
 
     return new JournalSpec.Builder()
         .journalName(journalName)
-        .journalTopic(KafkaJournal.journalTopic(bridgeId, journalName))
+        .journalTopic(
+            jconfig.topic().name().orElse(KafkaJournal.journalTopic(bridgeId, journalName)))
         .build();
   }
 
-  public Map<String, String> getEffectiveJournalTopicProps(JmsBridgeConfiguration config) {
+  public Map<String, String> getEffectiveJournalTopicProps(Map<String, Object> configTopicProps) {
     Map<String, String> topicProps = new HashMap<>();
+    configTopicProps.forEach((k, v) -> topicProps.put(k, v.toString()));
     topicProps.put(TopicConfig.CLEANUP_POLICY_CONFIG, TopicConfig.CLEANUP_POLICY_COMPACT);
-    topicProps.put(TopicConfig.SEGMENT_BYTES_CONFIG, Integer.toString(SEGMENT_MAX_BYTES));
-    topicProps.put(TopicConfig.MAX_MESSAGE_BYTES_CONFIG, Integer.toString(MAX_RECORD_SIZE + 1024));
 
     return topicProps;
   }
 
-  public Properties getEffectiveProcessorProps(JmsBridgeConfiguration config) {
+  public Properties getEffectiveProcessorProps(BridgeConfig config) {
 
-    Properties streamProps = config.getJmsBridgeProperties();
+    Properties streamProps = BridgeConfigFactory.propsToMap(config.streams());
     streamProps.put(StreamsConfig.APPLICATION_ID_CONFIG, applicationId);
-    streamProps.put(StreamsConfig.COMMIT_INTERVAL_MS_CONFIG, "500");
-    streamProps.put(StreamsConfig.CACHE_MAX_BYTES_BUFFERING_CONFIG, "0");
     //requires 3 brokers at minimum
     //streamProps.put(StreamsConfig.PROCESSING_GUARANTEE_CONFIG, StreamsConfig.EXACTLY_ONCE);
     return streamProps;
@@ -129,13 +112,17 @@ public class KafkaIntegration {
    * Will create the necessary journal topics in kafka if needed.
    */
   public void createJournalTopics() {
-    for (KJournal j : this.journalProcessor.getJournals()) {
-      kafkaIO.createTopicIfNotExists(
-          j.topic(),
-          1,
-          1,
-          getEffectiveJournalTopicProps(config));
-    }
+    kafkaIO.createTopicIfNotExists(
+        bindingsJournal.topic(),
+        config.journals().bindings().topic().partitions(),
+        config.journals().bindings().topic().replication(),
+        getEffectiveJournalTopicProps(config.journals().bindings().topic().options()));
+
+    kafkaIO.createTopicIfNotExists(
+        messagesJournal.topic(),
+        config.journals().messages().topic().partitions(),
+        config.journals().messages().topic().replication(),
+        getEffectiveJournalTopicProps(config.journals().messages().topic().options()));
   }
 
   /**

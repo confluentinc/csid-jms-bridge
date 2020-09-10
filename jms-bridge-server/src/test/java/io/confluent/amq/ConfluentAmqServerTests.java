@@ -10,6 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import io.confluent.amq.config.BridgeConfigFactory;
 import io.confluent.amq.test.ArtemisTestServer;
 import io.confluent.amq.test.KafkaTestContainer;
 import java.util.List;
@@ -49,7 +50,8 @@ public class ConfluentAmqServerTests {
   @Order(200)
   public static ArtemisTestServer amqServer = ArtemisTestServer.embedded(b -> b
       .useVanilla(IS_VANILLA)
-      .jmsBridgeProps(kafkaContainer.defaultProps()));
+      .jmsBridgeConfigBuilder()
+        .putAllKafka(BridgeConfigFactory.propsToMap(kafkaContainer.defaultProps())));
 
   @Test
   public void jmsPublishKafkaConsumeTopic() throws Exception {
