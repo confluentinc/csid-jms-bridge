@@ -5,19 +5,22 @@
 package io.confluent.amq.persistence.kafka.journal.impl;
 
 import io.confluent.amq.config.RoutingConfig;
-import io.confluent.amq.config.RoutingConfig.Convert;
 import io.confluent.amq.config.RoutingConfig.Route;
+import io.confluent.amq.exchange.Headers;
+import io.confluent.amq.filter.BridgeFilter;
+import io.confluent.amq.filter.ExpressionFactory;
+import io.confluent.amq.filter.FilterSupport;
+import io.confluent.amq.filter.PropertyExtractor;
 import io.confluent.amq.logging.StructuredLogger;
 import io.confluent.amq.persistence.domain.proto.JournalEntry;
 import io.confluent.amq.persistence.domain.proto.JournalEntryKey;
 import io.confluent.amq.persistence.domain.proto.JournalRecordType;
 import io.confluent.amq.persistence.kafka.journal.BaseJournalStreamTransformer;
-import io.confluent.amq.persistence.kafka.journal.JournalStreamTransformer;
 import io.confluent.amq.persistence.kafka.journal.ProtocolRecordType;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
-import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -25,31 +28,36 @@ import org.apache.activemq.artemis.api.core.ActiveMQBuffer;
 import org.apache.activemq.artemis.api.core.ActiveMQBuffers;
 import org.apache.activemq.artemis.api.core.ICoreMessage;
 import org.apache.activemq.artemis.api.core.Message;
-import org.apache.activemq.artemis.api.core.SimpleString;
 import org.apache.activemq.artemis.reader.BytesMessageUtil;
 import org.apache.activemq.artemis.reader.MessageUtil;
 import org.apache.activemq.artemis.reader.TextMessageUtil;
 import org.apache.activemq.artemis.spi.core.protocol.MessagePersister;
-import org.apache.kafka.common.header.internals.RecordHeader;
 import org.apache.kafka.common.serialization.LongSerializer;
 import org.apache.kafka.streams.KeyValue;
 
-public class AddRecordProcessor extends BaseJournalStreamTransformer<byte[], byte[]> {
+public class AmqAddRecordProcessor extends BaseJournalStreamTransformer<byte[], byte[]> {
+
   public static final String TOPIC_ROUTING_KEY = "jms.kafka-routed-topic";
   private static final LongSerializer longSerializer = new LongSerializer();
 
   private static final StructuredLogger SLOG = StructuredLogger
-      .with(b -> b.loggerClass(AddRecordProcessor.class));
+      .with(b -> b.loggerClass(AmqAddRecordProcessor.class));
 
+  private final String bridgeId;
   private final RoutingConfig routingConfig;
-  private final List<Route> validRoutes;
+  private final List<RouteHolder> validRoutes;
 
-  public AddRecordProcessor(String journalName, String storeName, RoutingConfig routingConfig) {
+  public AmqAddRecordProcessor(
+      String bridgeId, String journalName, String storeName, RoutingConfig routingConfig) {
+
     super(journalName, storeName);
+    this.bridgeId = bridgeId;
     this.routingConfig = routingConfig;
 
     validRoutes = routingConfig.routes().stream()
-        .filter(this::validateRoute)
+        .map(this::initRoute)
+        .filter(Optional::isPresent)
+        .map(Optional::get)
         .collect(Collectors.toList());
 
     if (validRoutes.isEmpty()) {
@@ -75,89 +83,82 @@ public class AddRecordProcessor extends BaseJournalStreamTransformer<byte[], byt
 
     ICoreMessage message = extractAmqMessage(entry);
 
+    if (Headers.isKnown(message, bridgeId)) {
+
+      SLOG.trace(b -> b.event("MessageKnown")
+          .putAllTokens(message.toMap())
+          .message("Message skipped since it has already been received by kafka"));
+
+      return Collections.emptyList();
+    }
+
     if (!isRouteableMessageType(message)) {
       return Collections.emptyList();
     }
 
-    Optional<Route> routeMaybe = route(message);
+    Optional<RouteHolder> routeMaybe = route(message);
     if (routeMaybe.isPresent()) {
+
       SLOG.trace(b -> b.event("MessageRouted")
           .markSuccess()
-          .putTokens("route", routeMaybe.get())
+          .putTokens("route", routeMaybe.get().routeConfig)
           .putAllTokens(message.toMap())
           .message("Message successfully routed."));
 
       return convertMessage(routeMaybe.get(), message);
     } else {
+
       SLOG.trace(b -> b.event("MessageRouted")
           .markFailure()
           .putAllTokens(message.toMap())
           .message("No routes found matching message."));
+
       return Collections.emptyList();
     }
   }
 
-  public List<KeyValue<byte[], byte[]>> convertMessage(Route route, ICoreMessage coreMessage) {
+  public List<KeyValue<byte[], byte[]>> convertMessage(RouteHolder route,
+      ICoreMessage coreMessage) {
+
     getContext().headers().add(
         TOPIC_ROUTING_KEY,
-        route.to().topic().getBytes(StandardCharsets.UTF_8));
+        route.routeConfig.to().topic().getBytes(StandardCharsets.UTF_8));
 
+    Map<String, byte[]> headers = Headers.convertHeaders(coreMessage, bridgeId, true);
+
+    headers.forEach(getContext().headers()::add);
+
+    return Collections.singletonList(
+        KeyValue.pair(extractKey(route, coreMessage), extractValue(route, coreMessage)));
+  }
+
+
+  public byte[] extractKey(RouteHolder route, ICoreMessage message) {
+    if (route.keyExtractor != null) {
+      Object keyObj = route.keyExtractor.extract(wrapFilterSupport(message));
+      return Headers.objectToBytes(keyObj);
+    } else {
+      return Headers.objectToBytes(message.getMessageID());
+    }
+  }
+
+  public byte[] extractValue(RouteHolder route, ICoreMessage message) {
     byte[] value = null;
-    if (coreMessage.getType() == Message.TEXT_TYPE) {
-      value = TextMessageUtil.readBodyText(coreMessage.getBodyBuffer()).toString()
+    if (message.getType() == Message.TEXT_TYPE) {
+      value = TextMessageUtil.readBodyText(message.getBodyBuffer()).toString()
           .getBytes(StandardCharsets.UTF_8);
-    } else if (coreMessage.getType() == Message.BYTES_TYPE) {
-      value = new byte[coreMessage.getBodyBufferSize()];
-      BytesMessageUtil.bytesReadBytes(coreMessage.getReadOnlyBodyBuffer(), value);
+    } else if (message.getType() == Message.BYTES_TYPE) {
+      value = new byte[message.getBodyBufferSize()];
+      BytesMessageUtil.bytesReadBytes(message.getReadOnlyBodyBuffer(), value);
     }
-
-      convertHeaders(coreMessage).forEach(krecord.headers()::add);
-    }
-
-
-  public byte[] extractKey(Convert conversion, ICoreMessage message) {
-    byte[] correlationId = MessageUtil.getJMSCorrelationIDAsBytes(message);
-    if (correlationId != null && correlationId.length > 0) {
-      return correlationId;
-    }
-
-
-
+    return value;
   }
 
-  private List<RecordHeader> convertHeaders(ICoreMessage message) {
-    final List<RecordHeader> kheaders = new LinkedList<>();
-    byte[] msgId = longSerializer.serialize("", message.getMessageID());
-    kheaders.add(new RecordHeader("jms.MessageID", msgId));
-
-    for (SimpleString hdrname : message.getPropertyNames()) {
-      if (!hdrname.toString().startsWith("_")) {
-        Object property = message.getBrokerProperty(hdrname);
-        String propname = hdrname.toString();
-        byte[] propdata = null;
-        if (property instanceof byte[]) {
-          propdata = (byte[]) property;
-        } else if (property != null) {
-          propdata = stringSerializer.serialize("", property.toString());
-        }
-
-        if (propdata != null) {
-          if (!propname.contains("KAFKA")) {
-            propname = "jms." + propname;
-          }
-          LOGGER.warn("Setting header: " + propname);
-          kheaders.add(new RecordHeader(propname, propdata));
-        }
-      }
-    }
-
-    return kheaders;
-  }
-
-  public Optional<Route> route(ICoreMessage message) {
+  public Optional<RouteHolder> route(ICoreMessage message) {
     final String address = message.getAddress();
     return validRoutes.stream()
-        .filter(r -> Objects.equals(r.from().address(), address))
+        .filter(r -> Objects.equals(r.routeConfig.from().address(), address))
+        .filter(r -> r.filter.match(wrapFilterSupport(message)))
         .findFirst();
   }
 
@@ -166,8 +167,8 @@ public class AddRecordProcessor extends BaseJournalStreamTransformer<byte[], byt
         entry != null
             && entry.hasAppendedRecord()
             && entry.getAppendedRecord().getRecordType() == JournalRecordType.ADD_RECORD
-            && entry.getAppendedRecord().getProtocolRecordType() ==
-            ProtocolRecordType.ADD_MESSAGE_PROTOCOL.getValue();
+            && entry.getAppendedRecord().getProtocolRecordType()
+              == ProtocolRecordType.ADD_MESSAGE_PROTOCOL.getValue();
 
     if (!isValid) {
       SLOG.trace(b -> b.event("SkipIneligibleRecord")
@@ -205,7 +206,7 @@ public class AddRecordProcessor extends BaseJournalStreamTransformer<byte[], byt
     return routingConfig;
   }
 
-  public boolean validateRoute(Route route) {
+  public Optional<RouteHolder> initRoute(Route route) {
     boolean validRoute = route.from().address() != null
         && !route.from().address().matches("^\\s*$");
 
@@ -214,13 +215,45 @@ public class AddRecordProcessor extends BaseJournalStreamTransformer<byte[], byt
           .markFailure()
           .putTokens("route", route)
           .message("Invalid route found."));
+      return Optional.empty();
     } else {
       SLOG.info(b -> b.event("ValidateRoute")
           .markSuccess()
           .putTokens("route", route)
           .message("Valid route found."));
-    }
 
-    return validRoute;
+      BridgeFilter filter;
+      if (route.from().filter().isPresent()) {
+        filter =
+            ExpressionFactory.getInstance().parseAmqFilter(route.from().filter().get());
+      } else {
+        filter = BridgeFilter.FILTER_NONE;
+      }
+
+      PropertyExtractor keyExtractor = null;
+      if (route.map().key().isPresent()) {
+        keyExtractor = ExpressionFactory.getInstance()
+            .parsePropertyExtractor(route.map().key().get());
+      }
+      return Optional.of(new RouteHolder(route, filter, keyExtractor));
+    }
+  }
+
+  private FilterSupport wrapFilterSupport(ICoreMessage message) {
+    return (name) -> MessageUtil.getObjectProperty(message, name);
+  }
+
+  static final class RouteHolder {
+
+    final Route routeConfig;
+    final BridgeFilter filter;
+    final PropertyExtractor keyExtractor;
+
+    RouteHolder(Route routeConfig, BridgeFilter filter,
+        PropertyExtractor keyExtractor) {
+      this.routeConfig = routeConfig;
+      this.filter = filter;
+      this.keyExtractor = keyExtractor;
+    }
   }
 }

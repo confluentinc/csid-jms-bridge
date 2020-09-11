@@ -8,8 +8,6 @@ import static io.confluent.amq.persistence.kafka.journal.KJournalState.CREATED;
 import static io.confluent.amq.persistence.kafka.journal.KJournalState.STARTED;
 
 import com.google.common.base.Stopwatch;
-import com.google.common.io.ByteSource;
-import io.confluent.amq.cli.KafkaClientOptions.KeyVal;
 import io.confluent.amq.config.BridgeConfig;
 import io.confluent.amq.logging.StructuredLogger;
 import io.confluent.amq.persistence.domain.proto.JournalEntry;
@@ -21,7 +19,7 @@ import io.confluent.amq.persistence.kafka.journal.KJournalState;
 import io.confluent.amq.persistence.kafka.journal.serde.JournalKeySerde;
 import io.confluent.amq.persistence.kafka.journal.serde.JournalValueSerde;
 import io.confluent.amq.persistence.kafka.streams.StreamsSupport;
-import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -30,18 +28,11 @@ import java.util.Properties;
 import java.util.concurrent.Semaphore;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import org.apache.activemq.artemis.api.core.ActiveMQBuffers;
-import org.apache.activemq.artemis.api.core.Message;
-import org.apache.activemq.artemis.core.message.impl.CoreMessage;
-import org.apache.activemq.artemis.reader.BytesMessageUtil;
-import org.apache.activemq.artemis.reader.MessageUtil;
-import org.apache.activemq.artemis.spi.core.protocol.MessagePersister;
 import org.apache.kafka.clients.producer.ProducerConfig;
-import org.apache.kafka.common.utils.Bytes;
+import org.apache.kafka.common.serialization.Serdes;
 import org.apache.kafka.streams.KafkaStreams;
 import org.apache.kafka.streams.KafkaStreams.State;
 import org.apache.kafka.streams.KafkaStreams.StateListener;
-import org.apache.kafka.streams.KeyValue;
 import org.apache.kafka.streams.LagInfo;
 import org.apache.kafka.streams.StoreQueryParameters;
 import org.apache.kafka.streams.StreamsBuilder;
@@ -53,8 +44,7 @@ import org.apache.kafka.streams.kstream.KStream;
 import org.apache.kafka.streams.kstream.Materialized;
 import org.apache.kafka.streams.kstream.Named;
 import org.apache.kafka.streams.kstream.Predicate;
-import org.apache.kafka.streams.processor.RecordContext;
-import org.apache.kafka.streams.processor.TopicNameExtractor;
+import org.apache.kafka.streams.kstream.Produced;
 import org.apache.kafka.streams.state.KeyValueBytesStoreSupplier;
 import org.apache.kafka.streams.state.QueryableStoreTypes;
 import org.apache.kafka.streams.state.ReadOnlyKeyValueStore;
@@ -83,11 +73,11 @@ public class KafkaJournalProcessor implements StateListener {
   private static final StructuredLogger SLOG = StructuredLogger
       .with(b -> b.loggerClass(KafkaJournalProcessor.class));
 
-  private final boolean performRouting;
   private final BridgeConfig bridgeConfig;
   private final Semaphore streamsReady;
   private final Map<String, KJournalImpl> journals;
   private final String clientId;
+  private final String applicationId;
 
   private volatile KJournalState journalState;
   private volatile KafkaStreams streams;
@@ -95,16 +85,16 @@ public class KafkaJournalProcessor implements StateListener {
   public KafkaJournalProcessor(
       List<JournalSpec> journalSpecs,
       String clientId,
-      BridgeConfig bridgeConfig,
-      boolean performRouting) {
+      String applicationId,
+      BridgeConfig bridgeConfig) {
 
     journals = journalSpecs.stream()
         .map(js -> new KJournalImpl(js, this))
         .collect(Collectors.toMap(KJournalImpl::name, Function.identity()));
 
     this.clientId = clientId;
+    this.applicationId = applicationId;
     this.streamsReady = new Semaphore(0);
-    this.performRouting = performRouting;
     this.bridgeConfig = bridgeConfig;
     this.journalState = CREATED;
   }
@@ -184,6 +174,7 @@ public class KafkaJournalProcessor implements StateListener {
     //default the serdes to our journal entry types.
     Properties kstreamProps = new Properties();
     kstreamProps.putAll(bridgeConfig.streams());
+    kstreamProps.put(StreamsConfig.APPLICATION_ID_CONFIG, applicationId);
     kstreamProps.put(StreamsConfig.CLIENT_ID_CONFIG, "jms-bridge_" + clientId);
     kstreamProps.put(
         StreamsConfig.producerPrefix(ProducerConfig.PARTITIONER_CLASS_CONFIG),
@@ -456,13 +447,21 @@ public class KafkaJournalProcessor implements StateListener {
       KStream<JournalEntryKey, JournalEntry> recordStream) {
 
     //this is were messages will be published out to kafka topics
-    if (performRouting) {
-      recordStream.flatTransform(() -> new AddRecordProcessor(
-          kjournal.topic(), kjournal.storeName(), bridgeConfig.routing()))
-          .map((k,v) -> {
-            k.
-          })
-          .to();
+    if (kjournal.spec.performRouting()) {
+      recordStream
+          .flatTransform(() ->
+              new AmqAddRecordProcessor(
+                  bridgeConfig.id(),
+                  kjournal.topic(),
+                  kjournal.storeName(),
+                  bridgeConfig.routing()))
+          .to((key, value, recordContext) ->
+                  new String(
+                      recordContext
+                          .headers()
+                          .lastHeader(AmqAddRecordProcessor.TOPIC_ROUTING_KEY)
+                          .value(), StandardCharsets.UTF_8),
+              Produced.with(Serdes.ByteArray(), Serdes.ByteArray()));
     }
   }
 
@@ -512,8 +511,13 @@ public class KafkaJournalProcessor implements StateListener {
 
     String journalTopic();
 
+    boolean performRouting();
+
     class Builder extends KafkaJournalProcessor_JournalSpec_Builder {
 
+      public Builder() {
+        this.performRouting(false);
+      }
     }
   }
 

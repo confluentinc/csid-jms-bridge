@@ -10,6 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 import com.google.protobuf.ByteString;
+import io.confluent.amq.config.BridgeConfig;
 import io.confluent.amq.persistence.domain.proto.JournalEntry;
 import io.confluent.amq.persistence.domain.proto.JournalEntryKey;
 import io.confluent.amq.persistence.domain.proto.JournalRecord;
@@ -269,8 +270,12 @@ public class KafkaJournalTest {
           .journalName("testJournal")
           .journalTopic(journalTopic)
           .build();
+      BridgeConfig bridgeConfig = new BridgeConfig.Builder()
+          .id("testBridge")
+          .buildPartial();
+
       this.processor = new KafkaJournalProcessor(
-          Collections.singletonList(journalSpec), "testNode", properties);
+          Collections.singletonList(journalSpec), "testNode", "testApp", bridgeConfig);
 
       driver =
           createStreamsTestDriver(

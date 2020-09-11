@@ -52,7 +52,7 @@ class BridgeConfigFactoryTest {
     assertFalse(config.routing().deadLetterTopic().isPresent());
     assertEquals(1, config.routing().routes().size());
     Route route = config.routing().routes().get(0);
-    assertEquals("address://my-jms-topic", route.from().include());
+    assertEquals("my-jms-topic", route.from().address());
     assertEquals("my-kafka-topic", route.to().topic());
     assertEquals("msg.header.MessageId", route.map().key());
   }

@@ -29,7 +29,7 @@ public interface RoutingConfig {
       }
 
       if (routingConfig.hasPath("routes")) {
-        for (Config routeConfig: routingConfig.getConfigList("routes")) {
+        for (Config routeConfig : routingConfig.getConfigList("routes")) {
           Config defRouteConfig = routeConfig.withFallback(
               ConfigFactory.defaultReference().getConfig("default-route"));
           this.addRoutes(new Route.Builder(defRouteConfig));
@@ -71,6 +71,8 @@ public interface RoutingConfig {
 
     String address();
 
+    Optional<String> filter();
+
     class Builder extends RoutingConfig_In_Builder {
 
       public Builder() {
@@ -78,7 +80,10 @@ public interface RoutingConfig {
       }
 
       public Builder(Config config) {
-        this.include(config.getString("include"));
+        this.address(config.getString("address"));
+        if (config.hasPath("filter")) {
+          this.filter(config.getString("filter"));
+        }
       }
 
     }
@@ -105,7 +110,7 @@ public interface RoutingConfig {
   @FreeBuilder
   interface Convert {
 
-    String key();
+    Optional<String> key();
 
     class Builder extends RoutingConfig_Convert_Builder {
 
@@ -114,7 +119,9 @@ public interface RoutingConfig {
       }
 
       public Builder(Config config) {
-        this.key(config.getString("key"));
+        if (config.hasPath("key")) {
+          this.key(config.getString("key"));
+        }
       }
 
     }
