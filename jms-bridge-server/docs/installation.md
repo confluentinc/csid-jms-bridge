@@ -19,6 +19,7 @@ Before you install the JMS Bridg:
 #### Hardware
 The following machine recommendations are for installing individual Confluent Platform components:
 
+```eval_rst
 +------------------------+------------+----------+----------+
 | Component   | Storage   | Memory | CPU |
 +========================+============+==========+==========+
@@ -26,16 +27,18 @@ The following machine recommendations are for installing individual Confluent Pl
 +------------------------+------------+----------+----------+
 | JMS Slave           | ...        | ...      |          |
 +------------------------+------------+----------+----------+
+```
 
 #### Operating Systems
 The JMS Bridge required a linux distribution in order to function. Windows is not currently supported for the JMS Bridge.
 
+```eval_rst
 +------------------------+------------+----------+----------+
 | Operating System   | Early Release   | 1.0 | 2.0 |
 +========================+============+==========+==========+
 | RHEL/CentOS 7.x   | Yes  | Yes | Yes |
 +------------------------+------------+----------+----------+
-
+```
 * macOS 10.13 and later is supported for testing and development purposes only.
 
 ## Before you Install 
@@ -49,12 +52,13 @@ Before you install the JMS Bridg:
 ### JDK
 The JMS Bridge Requires the use of a supported JDK to operate. Current supported JDK Versions include:
 
+```eval_rst
 +-------------+------------------+
 | Component   | Version          | 
 +=============+==================+
 | Oracle JDK  | 1.8 or greater   | 
 +-------------+------------------+
-
+```
 ### OS Swappiness
 * Talk with John about this..
 

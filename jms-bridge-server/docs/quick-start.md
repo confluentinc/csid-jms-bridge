@@ -24,14 +24,14 @@ unzip jms-bridge-*
 export JAVA_HOME=<java-1.8-install-dir>
 chmod -R a=rx,o+w bin/
 bin/jms-bridge-server-start -daemon etc/jms-bridge/jms-bridge.properties
-bin/jms-bridge receive --url tcp://localhost:61616 --topic quick-start
+bin/jms-bridge jms receive --url tcp://localhost:61616 --topic quick-start
 ```
 
 In a new shell from the same directory
 ```shell
 
 export JAVA_HOME=<java-1.8-install-dir>
-bin/jms-bridge send --url tcp://localhost:61616 --topic foo
+bin/jms-bridge jms send --url tcp://localhost:61616 --topic quick-start
 my first message
 my second message
 quit
