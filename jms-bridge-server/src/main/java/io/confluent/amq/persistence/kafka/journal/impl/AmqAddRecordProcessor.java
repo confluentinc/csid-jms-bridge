@@ -195,7 +195,7 @@ public class AmqAddRecordProcessor extends BaseJournalStreamTransformer<byte[], 
   public ICoreMessage extractAmqMessage(JournalEntry entry) {
     //grab the payload and convert to a message
     ActiveMQBuffer amqBuffer = ActiveMQBuffers.wrappedBuffer(
-        entry.getAppendedRecord().getData().asReadOnlyByteBuffer());
+        entry.getAppendedRecord().getData().toByteArray());
 
     Message message = MessagePersister.getInstance().decode(amqBuffer, null, null);
 

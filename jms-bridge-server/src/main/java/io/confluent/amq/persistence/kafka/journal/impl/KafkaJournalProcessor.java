@@ -454,7 +454,8 @@ public class KafkaJournalProcessor implements StateListener {
                   bridgeConfig.id(),
                   kjournal.topic(),
                   kjournal.storeName(),
-                  bridgeConfig.routing()))
+                  bridgeConfig.routing()),
+              kjournal.storeName())
           .to((key, value, recordContext) ->
                   new String(
                       recordContext

@@ -71,6 +71,9 @@ public interface RoutingConfig {
 
     String address();
 
+    /**
+     * Standard JMS message selector syntax supported.
+     */
     Optional<String> filter();
 
     class Builder extends RoutingConfig_In_Builder {
@@ -110,6 +113,10 @@ public interface RoutingConfig {
   @FreeBuilder
   interface Convert {
 
+    /**
+     * What property from the message to use as the key.
+     * By default it uses the MessageId.
+     */
     Optional<String> key();
 
     class Builder extends RoutingConfig_Convert_Builder {

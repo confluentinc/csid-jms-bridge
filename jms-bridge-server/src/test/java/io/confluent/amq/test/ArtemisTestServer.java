@@ -49,7 +49,6 @@ public class ArtemisTestServer implements
   public static ArtemisTestServer embedded(Consumer<ServerSpec.Builder> serverSpecBuilder) {
 
     Consumer<ServerSpec.Builder> specConsumer = b -> b
-        .bridgeId("junit")
         .groupId("junit")
         .brokerXml(getResource("broker.xml").toString());
 
@@ -198,8 +197,7 @@ public class ArtemisTestServer implements
           throw new RuntimeException(e);
         }
       });
-      BridgeConfig bridgeConfig = new BridgeConfig.Builder()
-          .id(spec.bridgeId())
+      BridgeConfig bridgeConfig = BridgeConfig.Builder.from(spec.jmsBridgeConfig())
           .putKafka("group.id", spec.groupId())
           .build();
 

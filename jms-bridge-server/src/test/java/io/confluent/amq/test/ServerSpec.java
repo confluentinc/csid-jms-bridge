@@ -15,8 +15,6 @@ public interface ServerSpec {
 
   String groupId();
 
-  String bridgeId();
-
   Optional<String> dataDirectory();
 
   String brokerXml();
