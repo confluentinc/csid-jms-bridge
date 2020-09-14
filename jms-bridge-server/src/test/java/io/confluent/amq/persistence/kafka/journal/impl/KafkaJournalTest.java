@@ -11,6 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 
 import com.google.protobuf.ByteString;
 import io.confluent.amq.config.BridgeConfig;
+import io.confluent.amq.config.BridgeConfigFactory;
 import io.confluent.amq.persistence.domain.proto.JournalEntry;
 import io.confluent.amq.persistence.domain.proto.JournalEntryKey;
 import io.confluent.amq.persistence.domain.proto.JournalRecord;
@@ -21,6 +22,7 @@ import io.confluent.amq.persistence.kafka.journal.impl.KafkaJournalProcessor.Jou
 import io.confluent.amq.persistence.kafka.journal.serde.JournalKeySerde;
 import io.confluent.amq.persistence.kafka.journal.serde.JournalValueSerde;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.HashMap;
@@ -49,9 +51,11 @@ public class KafkaJournalTest {
   @TempDir
   Path tempdir;
 
-  Properties defaultStreamProps() {
+  Properties defaultStreamProps() throws Exception {
+    Path stateDir = tempdir.resolve("_stream-" + System.currentTimeMillis());
+    Files.createDirectory(stateDir);
     Properties streamProps = new Properties();
-    streamProps.put(StreamsConfig.STATE_DIR_CONFIG, tempdir.toAbsolutePath().toString());
+    streamProps.put(StreamsConfig.STATE_DIR_CONFIG, stateDir.toAbsolutePath().toString());
     return streamProps;
   }
 
@@ -272,6 +276,7 @@ public class KafkaJournalTest {
           .build();
       BridgeConfig bridgeConfig = new BridgeConfig.Builder()
           .id("testBridge")
+          .putAllStreams(BridgeConfigFactory.propsToMap(properties))
           .buildPartial();
 
       this.processor = new KafkaJournalProcessor(

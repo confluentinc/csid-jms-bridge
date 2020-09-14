@@ -4,7 +4,6 @@
 
 package io.confluent.amq.exchange;
 
-import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 import org.apache.activemq.artemis.api.core.ICoreMessage;

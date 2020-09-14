@@ -12,6 +12,7 @@ import io.confluent.amq.JmsBridgeConfiguration;
 import io.confluent.amq.config.BridgeConfig;
 import io.confluent.amq.logging.StructuredLogger;
 import io.confluent.amq.test.ServerSpec.Builder;
+import java.io.Closeable;
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -32,7 +33,7 @@ import org.junit.jupiter.api.extension.ExtensionContext;
 
 @SuppressWarnings("checkstyle:ClassDataAbstractionCoupling")
 public class ArtemisTestServer implements
-    BeforeAllCallback, AfterAllCallback, BeforeEachCallback, AfterEachCallback {
+    BeforeAllCallback, AfterAllCallback, BeforeEachCallback, AfterEachCallback, Closeable {
 
   private static final StructuredLogger LOGGER = StructuredLogger.with(b -> b
       .loggerClass(ArtemisTestServer.class));
@@ -70,8 +71,29 @@ public class ArtemisTestServer implements
     this.cnxnSpecBuilder = cnxnSpecBuilder;
   }
 
+  public ArtemisTestServer start() throws Exception {
+    beforeAll();
+    beforeEach();
+    return this;
+  }
+
+
+  @Override
+  public void close() {
+    try {
+      afterEach();
+      afterAll();
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
+  }
+
   @Override
   public void beforeAll(ExtensionContext extensionContext) throws Exception {
+    beforeAll();
+  }
+
+  private void beforeAll() throws Exception {
 
     if (this.serverSpecBuilder != null) {
       this.cnxnSpec = new JmsCnxnSpec.Builder().build();
@@ -126,13 +148,25 @@ public class ArtemisTestServer implements
     getConnection();
   }
 
+  private void beforeEach() throws Exception {
+    getConnection();
+  }
+
   @Override
   public void afterEach(ExtensionContext extensionContext) throws Exception {
+    afterEach();
+  }
+
+  private void afterEach() throws Exception {
     disposeConnection();
   }
 
   @Override
   public void afterAll(ExtensionContext extensionContext) throws Exception {
+    afterAll();
+  }
+
+  private void afterAll() throws Exception {
     if (this.embeddedAmq != null) {
       this.embeddedAmq.stop();
     }

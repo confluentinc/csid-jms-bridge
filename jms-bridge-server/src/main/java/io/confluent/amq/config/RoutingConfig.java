@@ -8,6 +8,7 @@ import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Consumer;
 import org.inferred.freebuilder.FreeBuilder;
 
 @FreeBuilder
@@ -21,6 +22,12 @@ public interface RoutingConfig {
 
     public Builder() {
 
+    }
+
+    public Builder addRoute(Consumer<Route.Builder> specWriter) {
+      Route.Builder routeBuilder = new Route.Builder();
+      specWriter.accept(routeBuilder);
+      return super.addRoutes(routeBuilder);
     }
 
     public Builder(Config routingConfig) {

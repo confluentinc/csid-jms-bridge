@@ -42,12 +42,24 @@ public final class BridgeConfigFactory {
     }
   }
 
-  public static BridgeConfig gatherConfiguration(URL configUrl) throws Exception {
+  public static BridgeConfig gatherConfiguration(URL configUrl) {
+    return loadConfiguration(configUrl).build();
+  }
+
+  public static BridgeConfig.Builder loadConfiguration(Path configUrl) {
+    try {
+      return loadConfiguration(configUrl.toUri().toURL());
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  public static BridgeConfig.Builder loadConfiguration(URL configUrl) {
     Config theirConfig = ConfigFactory.parseURL(configUrl);
-    Config config = theirConfig.withFallback(ConfigFactory.defaultReference()).resolve();
+    Config config = theirConfig.withFallback(ConfigFactory.defaultReferenceUnresolved()).resolve();
 
     config.checkValid(ConfigFactory.defaultReference(), "bridge");
-    BridgeConfig bridgeConfig = new BridgeConfig.Builder(config).build();
+    BridgeConfig.Builder bridgeConfig = new BridgeConfig.Builder(config);
 
     return bridgeConfig;
   }
