@@ -14,8 +14,8 @@ import io.confluent.amq.config.BridgeConfigFactory;
 import io.confluent.amq.test.ArtemisTestServer;
 import io.confluent.amq.test.KafkaTestContainer;
 import io.confluent.amq.test.TestSupport;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import javax.jms.Message;
@@ -56,11 +56,7 @@ public class JmsBridgeToKafkaTests {
 
   private static final AtomicInteger TOPIC_SEQ = new AtomicInteger(1);
 
-  private BridgeConfig.Builder baseConfig = BridgeConfigFactory.loadConfiguration(Resources
-      .getResource("base-test-config.conf"))
-      .putAllKafka(BridgeConfigFactory.propsToMap(kafkaContainer.defaultProps()))
-      .putAllStreams(BridgeConfigFactory.propsToMap(kafkaContainer.defaultProps()));
-
+  private BridgeConfig.Builder baseConfig;
 
   private String customerQueue;
   private String kafkaCustomerTopic;
@@ -68,8 +64,14 @@ public class JmsBridgeToKafkaTests {
   @BeforeEach
   public void before() {
     int testSeq = TOPIC_SEQ.getAndIncrement();
-    customerQueue = "customer.queue." + testSeq ;
+    customerQueue = "customer.queue." + testSeq;
     kafkaCustomerTopic = "customer.update." + testSeq;
+
+    baseConfig = BridgeConfigFactory.loadConfiguration(Resources
+        .getResource("base-test-config.conf"))
+        .id("test-bridge-" + TOPIC_SEQ.getAndIncrement())
+        .putAllKafka(BridgeConfigFactory.propsToMap(kafkaContainer.defaultProps()))
+        .putAllStreams(BridgeConfigFactory.propsToMap(kafkaContainer.defaultProps()));
   }
 
   @Test
@@ -113,14 +115,13 @@ public class JmsBridgeToKafkaTests {
 
       }
 
-    }
-    //wait for streams to commit
-    Thread.sleep(500);
-    List<ConsumerRecord<byte[], String>> kafkaRecords = kafkaContainer.consumeAll(
-        kafkaCustomerTopic, new ByteArrayDeserializer(), new StringDeserializer());
+      List<ConsumerRecord<byte[], String>> kafkaRecords = kafkaContainer.consumeBytesStringsUntil(
+          kafkaCustomerTopic, 2);
 
-    assertEquals(2, kafkaRecords.size());
-    kafkaRecords.forEach(r -> TestSupport.println(r.toString()));
+      assertEquals(2, kafkaRecords.size());
+      kafkaRecords.forEach(r -> TestSupport.println(r.toString()));
+
+    }
   }
 
   @Test
@@ -163,15 +164,13 @@ public class JmsBridgeToKafkaTests {
 
       }
 
-    }
-    //wait for streams to commit
-    Thread.sleep(500);
-    List<ConsumerRecord<byte[], String>> kafkaRecords = kafkaContainer.consumeAll(
-        kafkaCustomerTopic, new ByteArrayDeserializer(), new StringDeserializer());
+      List<ConsumerRecord<String, String>> kafkaRecords =
+          kafkaContainer.consumeStringsUntil(kafkaCustomerTopic, 1);
 
-    assertEquals(1, kafkaRecords.size());
-    assertTrue(kafkaRecords.stream().anyMatch(r -> "FooCorrelationId".equals(
-        new String(r.key(), StandardCharsets.UTF_8))));
+      assertEquals(1, kafkaRecords.size());
+      assertTrue(kafkaRecords.stream().anyMatch(r -> "FooCorrelationId".equals(r.key())));
+
+    }
   }
 
   @Test
@@ -216,17 +215,20 @@ public class JmsBridgeToKafkaTests {
 
       }
 
+      List<ConsumerRecord<byte[], String>> kafkaRecords =
+          kafkaContainer.consumeBytesStringsUntil(kafkaCustomerTopic, 2);
+      assertEquals(2, kafkaRecords.size());
+
+      kafkaRecords =
+          kafkaContainer.consumeUntil(
+              otherKafkaTopic,
+              new ByteArrayDeserializer(),
+              new StringDeserializer(),
+              1,
+              Duration.ofSeconds(1));
+
+      assertEquals(0, kafkaRecords.size());
     }
-    //wait for streams to commit
-    Thread.sleep(500);
-    List<ConsumerRecord<byte[], String>> kafkaRecords = kafkaContainer.consumeAll(
-        kafkaCustomerTopic, new ByteArrayDeserializer(), new StringDeserializer());
-
-    assertEquals(2, kafkaRecords.size());
-    kafkaRecords = kafkaContainer.consumeAll(
-        otherKafkaTopic, new ByteArrayDeserializer(), new StringDeserializer());
-
-    assertEquals(0, kafkaRecords.size());
   }
 
   @Test
@@ -273,15 +275,12 @@ public class JmsBridgeToKafkaTests {
         assertEquals("Message 3", rcvmsg.getBody(String.class));
       }
 
+      List<ConsumerRecord<byte[], String>> kafkaRecords = kafkaContainer.consumeBytesStringsUntil(
+          kafkaCustomerTopic, 2);
+
+      assertEquals(2, kafkaRecords.size());
+      assertTrue(kafkaRecords.stream().anyMatch(r -> !"Secret Message 1".equals(r.value())));
     }
-    //wait for streams to commit
-    Thread.sleep(500);
-    List<ConsumerRecord<byte[], String>> kafkaRecords = kafkaContainer.consumeAll(
-        kafkaCustomerTopic, new ByteArrayDeserializer(), new StringDeserializer());
-
-    assertEquals(2, kafkaRecords.size());
-    assertTrue(kafkaRecords.stream().anyMatch(r -> !"Secret Message 1".equals(r.value())));
-
   }
 
   @Test
@@ -336,20 +335,19 @@ public class JmsBridgeToKafkaTests {
         assertEquals("Message 3", rcvmsg.getBody(String.class));
       }
 
+      List<ConsumerRecord<byte[], String>> kafkaRecords = kafkaContainer.consumeBytesStringsUntil(
+          kafkaCustomerTopic, 2);
+
+      assertEquals(2, kafkaRecords.size());
+      assertTrue(kafkaRecords.stream().anyMatch(r -> !"Secret Message 1".equals(r.value())));
+
+      kafkaRecords = kafkaContainer.consumeBytesStringsUntil(
+          secretTopic, 1);
+
+      assertEquals(1, kafkaRecords.size());
+      assertTrue(kafkaRecords.stream().anyMatch(r -> "Secret Message 1".equals(r.value())));
+
     }
-    //wait for streams to commit
-    Thread.sleep(500);
-    List<ConsumerRecord<byte[], String>> kafkaRecords = kafkaContainer.consumeAll(
-        kafkaCustomerTopic, new ByteArrayDeserializer(), new StringDeserializer());
-
-    assertEquals(2, kafkaRecords.size());
-    assertTrue(kafkaRecords.stream().anyMatch(r -> !"Secret Message 1".equals(r.value())));
-
-    kafkaRecords = kafkaContainer.consumeAll(
-        secretTopic, new ByteArrayDeserializer(), new StringDeserializer());
-
-    assertEquals(1, kafkaRecords.size());
-    assertTrue(kafkaRecords.stream().anyMatch(r -> "Secret Message 1".equals(r.value())));
   }
 }
 

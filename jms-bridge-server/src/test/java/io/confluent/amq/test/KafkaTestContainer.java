@@ -6,6 +6,7 @@ package io.confluent.amq.test;
 
 import static io.confluent.amq.SerdePool.ser;
 
+import com.google.common.base.Stopwatch;
 import io.confluent.amq.persistence.kafka.KafkaIO;
 import java.time.Duration;
 import java.util.Arrays;
@@ -31,6 +32,7 @@ import org.apache.kafka.common.errors.TopicExistsException;
 import org.apache.kafka.common.serialization.ByteArrayDeserializer;
 import org.apache.kafka.common.serialization.ByteArraySerializer;
 import org.apache.kafka.common.serialization.Deserializer;
+import org.apache.kafka.common.serialization.StringDeserializer;
 import org.junit.jupiter.api.extension.AfterAllCallback;
 import org.junit.jupiter.api.extension.AfterEachCallback;
 import org.junit.jupiter.api.extension.BeforeAllCallback;
@@ -60,7 +62,6 @@ public class KafkaTestContainer implements
 
   private AdminClient adminClient;
   private KafkaProducer<byte[], byte[]> producer;
-  private KafkaConsumer<byte[], byte[]> consumer;
   private KafkaIO kafkaIO;
 
   public KafkaTestContainer(KafkaContainer kafkaContainer) {
@@ -79,8 +80,6 @@ public class KafkaTestContainer implements
     this.adminClient = AdminClient.create(kafkaProps);
     this.producer = new KafkaProducer<>(
         kafkaProps, new ByteArraySerializer(), new ByteArraySerializer());
-    this.consumer = new KafkaConsumer<>(
-        kafkaProps, new ByteArrayDeserializer(), new ByteArrayDeserializer());
 
     this.kafkaIO = new KafkaIO(kafkaProps);
     this.kafkaIO.start();
@@ -99,7 +98,6 @@ public class KafkaTestContainer implements
   public void afterAll(ExtensionContext extensionContext) throws Exception {
     this.adminClient.close();
     this.producer.close();
-    this.consumer.close();
     this.kafkaIO.stop();
     this.kafkaContainer.stop();
   }
@@ -128,8 +126,65 @@ public class KafkaTestContainer implements
     }
   }
 
-  public <K, V> List<ConsumerRecord<K, V>> consumeAll(String topic, Deserializer<K> keydeser,
+  public List<ConsumerRecord<byte[], String>> consumeBytesStringsUntil(
+      String topic,
+      int expectedRecordCount) {
+
+    return consumeUntil(
+        topic,
+        new ByteArrayDeserializer(),
+        new StringDeserializer(),
+        expectedRecordCount,
+        Duration.ofSeconds(5));
+  }
+
+
+  public List<ConsumerRecord<byte[], byte[]>> consumeBytesUntil(
+      String topic,
+      int expectedRecordCount) {
+
+    return consumeUntil(
+        topic,
+        new ByteArrayDeserializer(),
+        new ByteArrayDeserializer(),
+        expectedRecordCount,
+        Duration.ofSeconds(5));
+  }
+
+  public List<ConsumerRecord<String, String>> consumeStringsUntil(
+      String topic,
+      int expectedRecordCount) {
+
+    return consumeUntil(
+        topic,
+        new StringDeserializer(),
+        new StringDeserializer(),
+        expectedRecordCount,
+        Duration.ofSeconds(5));
+  }
+
+
+  public <K, V> List<ConsumerRecord<K, V>> consumeAll(
+      String topic,
+      Deserializer<K> keydeser,
       Deserializer<V> valuedeser) {
+
+    return consumeUntil(topic, keydeser, valuedeser, Integer.MAX_VALUE, Duration.ofSeconds(1));
+  }
+
+  public <K, V> List<ConsumerRecord<K, V>> consumeUntil(
+      String topic,
+      Deserializer<K> keydeser,
+      Deserializer<V> valuedeser,
+      int expectedRecordCount,
+      Duration maxDuration) {
+
+    Properties kafkaProps = defaultProps();
+    kafkaProps.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false");
+    kafkaProps.put(ConsumerConfig.GROUP_ID_CONFIG, "kafka-test-container");
+    Stopwatch totalTime = Stopwatch.createStarted();
+
+    KafkaConsumer<K, V> consumer = new KafkaConsumer<>(kafkaProps, keydeser, valuedeser);
 
     List<TopicPartition> ptList = consumer.partitionsFor(topic).stream()
         .map(pi -> new TopicPartition(pi.topic(), pi.partition()))
@@ -141,22 +196,19 @@ public class KafkaTestContainer implements
     }
 
     List<ConsumerRecord<K, V>> recordList = new LinkedList<>();
-    while (true) {
-      ConsumerRecords<byte[], byte[]> records = consumer.poll(Duration.ofMillis(100));
-      if (records.count() < 1) {
-        break;
-      }
-      records.forEach(r -> {
-        ConsumerRecord<K, V> rnew = new ConsumerRecord<K, V>(
-            r.topic(), r.partition(), r.offset(), r.timestamp(), r.timestampType(), 0L,
-            r.serializedKeySize(), r.serializedValueSize(),
-            keydeser.deserialize(r.topic(), r.key()), valuedeser.deserialize(r.topic(), r.value()),
-            r.headers(), r.leaderEpoch());
-        recordList.add(rnew);
-      });
+    Stopwatch stopwatch = Stopwatch.createStarted();
+    while (recordList.size() < expectedRecordCount
+        && stopwatch.elapsed().minus(maxDuration).isNegative()) {
+
+      ConsumerRecords<K, V> records = consumer.poll(Duration.ofMillis(100));
+      records.forEach(recordList::add);
+
     }
 
-    consumer.assign(Collections.emptyList());
+    consumer.close();
+    System.out.println(
+        "KafkaTestContainer.consumerUntil took "
+        + totalTime.elapsed().toMillis() + "ms");
     return recordList;
   }
 
