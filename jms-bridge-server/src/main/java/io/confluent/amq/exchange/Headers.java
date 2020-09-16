@@ -6,7 +6,9 @@ package io.confluent.amq.exchange;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import org.apache.activemq.artemis.api.core.ICoreMessage;
+import org.apache.activemq.artemis.api.core.Message;
 import org.apache.activemq.artemis.api.core.SimpleString;
 import org.apache.activemq.artemis.reader.MessageUtil;
 import org.apache.kafka.common.serialization.IntegerSerializer;
@@ -47,6 +49,34 @@ public final class Headers {
     return STR_SERIALIZER.serialize("", s);
   }
 
+  public static Map<String, Object> getMessageProperties(
+      ICoreMessage message) {
+
+    Map<String, Object> propMap = new HashMap<>();
+    propMap.put("JMSDestination", message.getAddress());
+    propMap.put("JMSMessageID", message.getMessageID());
+    propMap.put("JMSType", messageType(message.getType()));
+    propMap.put("JMSTimestamp", message.getTimestamp());
+    //propMap.put("JMSCorrelationID", MessageUtil.getJMSCorrelationID(message));
+    //propMap.put("JMSReplyTo", MessageUtil.getJMSReplyTo(message));
+
+    for (SimpleString hdrnamess : message.getPropertyNames()) {
+
+      //don't translate headers we added
+      String hdrname = hdrnamess.toString();
+
+      //properties prefixed with '_' are internal properties
+      if (!hdrname.startsWith(JMS_KEY_PREFIX) && !hdrname.startsWith("_")) {
+
+        Object propVal = MessageUtil.getObjectProperty(message, hdrname);
+        if (propVal != null) {
+          propMap.put(hdrname, MessageUtil.getObjectProperty(message, hdrname));
+        }
+      }
+    }
+    return propMap;
+  }
+
   public static Map<String, byte[]> convertHeaders(
       ICoreMessage message, String bridgeId, boolean addKnownMarker) {
 
@@ -57,32 +87,44 @@ public final class Headers {
           STR_SERIALIZER.serialize("", ""));
     }
 
-    for (String hdrname : MessageUtil.getPropertyNames(message)) {
-      //don't translate headers we added
-      if (!hdrname.startsWith(JMS_KEY_PREFIX)) {
-        Object property = MessageUtil.getObjectProperty(message, hdrname);
-        byte[] propdata = objectToBytes(property);
+    getMessageProperties(message).forEach((k, v) ->
+        objectToBytes(v).ifPresent(vb -> headerMap.put(String.format(JMS_KEY_FORMAT, k), vb)));
 
-        if (propdata != null) {
-          headerMap.put(String.format(JMS_KEY_FORMAT, hdrname), propdata);
-        }
-      }
-    }
     return headerMap;
   }
 
-  public static byte[] objectToBytes(Object subject) {
+  public static Optional<byte[]> objectToBytes(Object subject) {
+    byte[] result = null;
     if (subject != null) {
       if (subject instanceof byte[]) {
-        return (byte[]) subject;
+        result = (byte[]) subject;
       } else if (subject instanceof Long) {
-        return LONG_SERIALIZER.serialize("", (Long) subject);
+        result = LONG_SERIALIZER.serialize("", (Long) subject);
       } else if (subject instanceof Integer) {
-        return INT_SERIALIZER.serialize("", (Integer) subject);
+        result = INT_SERIALIZER.serialize("", (Integer) subject);
       } else if (subject instanceof String) {
-        return STR_SERIALIZER.serialize("", (String) subject);
+        result = STR_SERIALIZER.serialize("", (String) subject);
       }
     }
-    return null;
+    return Optional.ofNullable(result);
+  }
+
+  public static String messageType(byte type) {
+    switch (type) {
+      case Message.BYTES_TYPE:
+        return "bytes";
+      case Message.TEXT_TYPE:
+        return "text";
+      case Message.MAP_TYPE:
+        return "map";
+      case Message.STREAM_TYPE:
+        return "stream";
+      case Message.OBJECT_TYPE:
+        return "object";
+      case Message.EMBEDDED_TYPE:
+        return "embedded";
+      default:
+        return "other";
+    }
   }
 }

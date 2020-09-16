@@ -5,6 +5,7 @@
 package io.confluent.amq;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.common.io.Resources;
@@ -14,6 +15,7 @@ import io.confluent.amq.config.BridgeConfigFactory;
 import io.confluent.amq.test.ArtemisTestServer;
 import io.confluent.amq.test.KafkaTestContainer;
 import io.confluent.amq.test.TestSupport;
+import java.io.File;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
@@ -26,9 +28,10 @@ import javax.jms.TextMessage;
 import javax.jms.Topic;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.serialization.ByteArrayDeserializer;
+import org.apache.kafka.common.serialization.LongDeserializer;
 import org.apache.kafka.common.serialization.StringDeserializer;
+import org.apache.kafka.streams.StreamsConfig;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -61,17 +64,21 @@ public class JmsBridgeToKafkaTests {
   private String customerQueue;
   private String kafkaCustomerTopic;
 
+  @SuppressWarnings("ResultOfMethodCallIgnored")
   @BeforeEach
   public void before() {
     int testSeq = TOPIC_SEQ.getAndIncrement();
     customerQueue = "customer.queue." + testSeq;
     kafkaCustomerTopic = "customer.update." + testSeq;
 
+    File stateDir = tempdir.resolve("streams-state-test-" + testSeq).toFile();
+    stateDir.mkdir();
     baseConfig = BridgeConfigFactory.loadConfiguration(Resources
         .getResource("base-test-config.conf"))
         .id("test-bridge-" + TOPIC_SEQ.getAndIncrement())
         .putAllKafka(BridgeConfigFactory.propsToMap(kafkaContainer.defaultProps()))
-        .putAllStreams(BridgeConfigFactory.propsToMap(kafkaContainer.defaultProps()));
+        .putAllStreams(BridgeConfigFactory.propsToMap(kafkaContainer.defaultProps()))
+        .putStreams(StreamsConfig.STATE_DIR_CONFIG, stateDir.getAbsolutePath());
   }
 
   @Test
@@ -126,11 +133,67 @@ public class JmsBridgeToKafkaTests {
 
   @Test
   public void testJmsPropertiesArePassedAlong() throws Exception {
+    String subscriberName = "jms-to-kafka-properties-are-passed-subscriber";
+    kafkaContainer.createTempTopic(kafkaCustomerTopic, 1);
+    ArtemisTestServer amqServer = ArtemisTestServer.embedded(b -> b
+        .mutateJmsBridgeConfig(bridge -> bridge
+            .mergeFrom(baseConfig)
+            .mutateRouting(routing -> routing
+                .addRoute(rt -> rt.name("test-route1")
+                    .mutateFrom(f -> f.address(customerQueue))
+                    .mutateTo(to -> to.topic(kafkaCustomerTopic))))));
 
+    try (
+        ArtemisTestServer amq = amqServer.start();
+        Session session = amq.getConnection().createSession(false, Session.AUTO_ACKNOWLEDGE)
+    ) {
+
+      Topic topic = session.createTopic(customerQueue);
+
+      try (
+          MessageProducer producer = session.createProducer(topic);
+          MessageConsumer consumer = session.createDurableConsumer(topic, subscriberName)
+      ) {
+
+        TextMessage message = session.createTextMessage("Message 1");
+        message.setJMSReplyTo(topic);
+        message.setStringProperty("foo", "bar");
+        message.setJMSCorrelationID("FooCorrelationId");
+        producer.send(message);
+        Message rcvmsg = consumer.receive(100);
+        assertEquals("Message 1", rcvmsg.getBody(String.class));
+        assertEquals(topic, rcvmsg.getJMSDestination());
+        assertEquals(topic, rcvmsg.getJMSReplyTo());
+        assertEquals("bar", rcvmsg.getStringProperty("foo"));
+
+      }
+
+      List<ConsumerRecord<String, String>> kafkaRecords =
+          kafkaContainer.consumeStringsUntil(kafkaCustomerTopic, 1);
+
+      StringDeserializer strDeser = new StringDeserializer();
+      LongDeserializer longDeser = new LongDeserializer();
+
+      assertEquals(1, kafkaRecords.size());
+      ConsumerRecord<String, String> record = kafkaRecords.get(0);
+
+      String topicString = "topic://" + topic.getTopicName();
+      assertEquals(topicString,
+          strDeser.deserialize("", record.headers().lastHeader("jms.JMSReplyTo").value()));
+      assertNotNull(longDeser.deserialize("",
+          record.headers().lastHeader("jms.JMSMessageID").value()));
+      assertNotNull(
+          longDeser.deserialize("", record.headers().lastHeader("jms.JMSTimestamp").value()));
+      assertEquals("bar",
+          strDeser.deserialize("", record.headers().lastHeader("jms.foo").value()));
+      assertEquals(topic.getTopicName(),
+          strDeser.deserialize("", record.headers().lastHeader("jms.JMSDestination").value()));
+      assertEquals("text",
+          strDeser.deserialize("", record.headers().lastHeader("jms.JMSType").value()));
+    }
   }
 
   @Test
-  @Disabled("property selection isn't working correctly")
   public void testKeySelection() throws Exception {
     String subscriberName = "jms-to-kafka-key-selection-subscriber";
     kafkaContainer.createTempTopic(kafkaCustomerTopic, 1);
