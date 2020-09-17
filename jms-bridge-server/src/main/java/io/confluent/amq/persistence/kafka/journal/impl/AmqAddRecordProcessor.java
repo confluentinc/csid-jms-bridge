@@ -11,6 +11,7 @@ import io.confluent.amq.filter.BridgeFilter;
 import io.confluent.amq.filter.ExpressionFactory;
 import io.confluent.amq.filter.FilterSupport;
 import io.confluent.amq.filter.PropertyExtractor;
+import io.confluent.amq.logging.LogSpec;
 import io.confluent.amq.logging.StructuredLogger;
 import io.confluent.amq.persistence.domain.proto.JournalEntry;
 import io.confluent.amq.persistence.domain.proto.JournalEntryKey;
@@ -29,7 +30,6 @@ import org.apache.activemq.artemis.api.core.ActiveMQBuffers;
 import org.apache.activemq.artemis.api.core.ICoreMessage;
 import org.apache.activemq.artemis.api.core.Message;
 import org.apache.activemq.artemis.reader.BytesMessageUtil;
-import org.apache.activemq.artemis.reader.MessageUtil;
 import org.apache.activemq.artemis.reader.TextMessageUtil;
 import org.apache.activemq.artemis.spi.core.protocol.MessagePersister;
 import org.apache.kafka.common.serialization.LongSerializer;
@@ -128,15 +128,27 @@ public class AmqAddRecordProcessor extends BaseJournalStreamTransformer<byte[], 
 
     headers.forEach(getContext().headers()::add);
 
+    Optional<byte[]> key = extractKey(route, coreMessage);
+    if (!key.isPresent()) {
+      handleMappingError(route, coreMessage, new LogSpec.Builder()
+          .event("KeyExtraction")
+          .message("No value for key selector found.")
+          .putTokens("keySelector", route.routeConfig.map().key().orElse("MessageID"))
+          .putAllTokens(coreMessage.toMap())
+          .markFailure()
+          .build());
+      return Collections.emptyList();
+    }
+
     return Collections.singletonList(
-        KeyValue.pair(extractKey(route, coreMessage), extractValue(route, coreMessage)));
+        KeyValue.pair(key.get(), extractValue(route, coreMessage)));
   }
 
 
-  public byte[] extractKey(RouteHolder route, ICoreMessage message) {
+  public Optional<byte[]> extractKey(RouteHolder route, ICoreMessage message) {
     if (route.keyExtractor != null) {
-      Object keyObj = route.keyExtractor.extract(wrapFilterSupport(message));
-      return Headers.objectToBytes(keyObj);
+      Optional<Object> keyObj = route.keyExtractor.extract(wrapFilterSupport(message));
+      return keyObj.flatMap(Headers::objectToBytes);
     } else {
       return Headers.objectToBytes(message.getMessageID());
     }
@@ -168,7 +180,7 @@ public class AmqAddRecordProcessor extends BaseJournalStreamTransformer<byte[], 
             && entry.hasAppendedRecord()
             && entry.getAppendedRecord().getRecordType() == JournalRecordType.ADD_RECORD
             && entry.getAppendedRecord().getProtocolRecordType()
-              == ProtocolRecordType.ADD_MESSAGE_PROTOCOL.getValue();
+            == ProtocolRecordType.ADD_MESSAGE_PROTOCOL.getValue();
 
     if (!isValid) {
       SLOG.trace(b -> b.event("SkipIneligibleRecord")
@@ -239,8 +251,13 @@ public class AmqAddRecordProcessor extends BaseJournalStreamTransformer<byte[], 
     }
   }
 
+  protected void handleMappingError(RouteHolder route, ICoreMessage message, LogSpec logSpec) {
+    SLOG.error(b -> b.mergeFrom(logSpec));
+  }
+
   private FilterSupport wrapFilterSupport(ICoreMessage message) {
-    return (name) -> MessageUtil.getObjectProperty(message, name);
+    final Map<String, Object> props = Headers.getMessageProperties(message);
+    return props::get;
   }
 
   static final class RouteHolder {
