@@ -64,7 +64,6 @@ public class JmsBridgeToKafkaTests {
   private String customerQueue;
   private String kafkaCustomerTopic;
 
-  @SuppressWarnings("ResultOfMethodCallIgnored")
   @BeforeEach
   public void before() {
     int testSeq = TOPIC_SEQ.getAndIncrement();
@@ -72,7 +71,11 @@ public class JmsBridgeToKafkaTests {
     kafkaCustomerTopic = "customer.update." + testSeq;
 
     File stateDir = tempdir.resolve("streams-state-test-" + testSeq).toFile();
-    stateDir.mkdir();
+    if (!stateDir.mkdir()) {
+      throw new RuntimeException(
+          "Cannot create temporary streams state store directory for test. Path: "
+              + stateDir.getAbsolutePath());
+    }
     baseConfig = BridgeConfigFactory.loadConfiguration(Resources
         .getResource("base-test-config.conf"))
         .id("test-bridge-" + TOPIC_SEQ.getAndIncrement())
