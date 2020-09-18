@@ -6,25 +6,32 @@ package io.confluent.amq.test;
 
 import static com.google.common.io.Resources.getResource;
 
+import com.google.common.io.MoreFiles;
+import com.google.common.io.RecursiveDeleteOption;
 import io.confluent.amq.ConfluentEmbeddedAmq;
 import io.confluent.amq.ConfluentEmbeddedAmqImpl;
 import io.confluent.amq.JmsBridgeConfiguration;
 import io.confluent.amq.config.BridgeConfig;
+import io.confluent.amq.config.BridgeConfigFactory;
 import io.confluent.amq.logging.StructuredLogger;
 import io.confluent.amq.test.ServerSpec.Builder;
 import java.io.Closeable;
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import javax.jms.Connection;
 import javax.jms.ConnectionFactory;
 import javax.jms.ConnectionMetaData;
+import org.apache.activemq.artemis.api.core.management.ActiveMQServerControl;
 import org.apache.activemq.artemis.api.jms.ActiveMQJMSClient;
 import org.apache.activemq.artemis.core.config.FileDeploymentManager;
 import org.apache.activemq.artemis.core.config.impl.FileConfiguration;
 import org.apache.activemq.artemis.core.config.impl.LegacyJMSConfiguration;
 import org.apache.activemq.artemis.core.server.embedded.EmbeddedActiveMQ;
+import org.apache.kafka.streams.StreamsConfig;
 import org.junit.jupiter.api.extension.AfterAllCallback;
 import org.junit.jupiter.api.extension.AfterEachCallback;
 import org.junit.jupiter.api.extension.BeforeAllCallback;
@@ -35,40 +42,54 @@ import org.junit.jupiter.api.extension.ExtensionContext;
 public class ArtemisTestServer implements
     BeforeAllCallback, AfterAllCallback, BeforeEachCallback, AfterEachCallback, Closeable {
 
+  private static final AtomicInteger TEST_SEQ = new AtomicInteger(0);
   private static final StructuredLogger LOGGER = StructuredLogger.with(b -> b
       .loggerClass(ArtemisTestServer.class));
 
-  private final Consumer<ServerSpec.Builder> serverSpecBuilder;
-  private final Consumer<JmsCnxnSpec.Builder> cnxnSpecBuilder;
-  private Path tempDir;
+  private Consumer<ServerSpec.Builder> serverSpecBuilder;
+  private Consumer<JmsCnxnSpec.Builder> cnxnSpecBuilder;
+  private final AtomicInteger nameSeq;
+  private final int testSeq;
+  private File tempDir;
   private ServerSpec serverSpec;
   private JmsCnxnSpec cnxnSpec;
 
   private ConfluentEmbeddedAmq embeddedAmq;
   private Connection amqConnection;
 
-  public static ArtemisTestServer embedded(Consumer<ServerSpec.Builder> serverSpecBuilder) {
-
-    Consumer<ServerSpec.Builder> specConsumer = b -> b
-        .groupId("junit")
-        .brokerXml(getResource("broker.xml").toString());
-
-    return new ArtemisTestServer(specConsumer.andThen(serverSpecBuilder), null);
+  public static Factory factory() {
+    return new Factory(TEST_SEQ.getAndIncrement());
   }
 
-  public static ArtemisTestServer remote(Consumer<JmsCnxnSpec.Builder> cnxnSpecBuilder) {
-    Consumer<JmsCnxnSpec.Builder> specConsumer = b -> {
-    };
+  public static ArtemisTestServer embedded(Consumer<Builder> serverSpecBuilder) {
 
-    return new ArtemisTestServer(null, specConsumer.andThen(cnxnSpecBuilder));
+    return embedded(null, serverSpecBuilder);
+  }
+
+  public static ArtemisTestServer embedded(
+      KafkaTestContainer kafkaTestContainer, Consumer<Builder> serverSpecBuilder) {
+
+    return new Factory(TEST_SEQ.getAndIncrement()).embedded(kafkaTestContainer, serverSpecBuilder);
   }
 
   protected ArtemisTestServer(
+      int testSeq,
+      AtomicInteger nameSeq,
       Consumer<Builder> serverSpecBuilder,
       Consumer<JmsCnxnSpec.Builder> cnxnSpecBuilder) {
 
+    this.testSeq = testSeq;
+    this.nameSeq = nameSeq;
     this.serverSpecBuilder = serverSpecBuilder;
     this.cnxnSpecBuilder = cnxnSpecBuilder;
+  }
+
+  public ActiveMQServerControl serverControl() {
+    return this.embeddedAmq.getAmq().getActiveMQServerControl();
+  }
+
+  public String safeId(String prefix) {
+    return String.format("%s-%d-%d", prefix, testSeq, nameSeq.getAndIncrement());
   }
 
   public ArtemisTestServer start() throws Exception {
@@ -100,13 +121,19 @@ public class ArtemisTestServer implements
 
       ServerSpec.Builder specBldr = new ServerSpec.Builder();
       this.serverSpecBuilder.accept(specBldr);
-      this.serverSpec = specBldr.build();
 
-      if (this.serverSpec.dataDirectory().isPresent()) {
-        this.tempDir = new File(this.serverSpec.dataDirectory().get()).toPath();
+      if (specBldr.dataDirectory().isPresent()) {
+        this.tempDir = new File(specBldr.dataDirectory().get());
       } else {
-        this.tempDir = Files.createTempDirectory("junit-jms-bridge");
+        this.tempDir = Files.createTempDirectory("junit-jms-bridge").toFile();
       }
+
+      Path streamDir = this.tempDir.toPath().resolve(safeId("streams-state-dir"));
+      Files.createDirectory(streamDir);
+      specBldr.mutateJmsBridgeConfig(b -> b
+          .putStreams(StreamsConfig.STATE_DIR_CONFIG, streamDir.toAbsolutePath().toString())
+      );
+      this.serverSpec = specBldr.build();
 
       if (this.serverSpec.useVanilla()) {
         embeddedAmq = createVanillaEmbeddedAmq(this.serverSpec);
@@ -170,6 +197,13 @@ public class ArtemisTestServer implements
     if (this.embeddedAmq != null) {
       this.embeddedAmq.stop();
     }
+
+    if (!this.serverSpec.dataDirectory().isPresent()
+        && this.tempDir != null) {
+
+      MoreFiles.deleteRecursively(this.tempDir.toPath(), RecursiveDeleteOption.ALLOW_INSECURE);
+    }
+
   }
 
   public synchronized void restartServer() throws Exception {
@@ -307,4 +341,59 @@ public class ArtemisTestServer implements
     }
   }
 
+  public static class Factory {
+
+    private final int testNumber;
+    private final AtomicInteger nameSeq = new AtomicInteger(0);
+    private KafkaTestContainer prepedKafkaTestContainer;
+    private Consumer<Builder> preppedServerSpecBuilder;
+
+    public Factory(int testNumber) {
+      this.testNumber = testNumber;
+    }
+
+    public String safeId(String prefix) {
+      return String.format("%s-%d-%d", prefix, testNumber, nameSeq.getAndIncrement());
+    }
+
+    public void prepare(
+        KafkaTestContainer kafkaTestContainer, Consumer<Builder> serverSpecBuilder) {
+      this.prepedKafkaTestContainer = kafkaTestContainer;
+      this.preppedServerSpecBuilder = serverSpecBuilder;
+    }
+
+    public ArtemisTestServer start() throws Exception {
+      ArtemisTestServer testServer = embedded(prepedKafkaTestContainer, preppedServerSpecBuilder);
+      return testServer.start();
+    }
+
+    public ArtemisTestServer embedded(
+        KafkaTestContainer kafkaTestContainer, Consumer<Builder> serverSpecBuilder) {
+
+      Function<String, String> makeId = prefix -> prefix + "-" + testNumber;
+
+      //overridable defaults
+      Consumer<ServerSpec.Builder> specConsumer = b -> b
+          .brokerXml(getResource("broker.xml").toString());
+
+      specConsumer = specConsumer.andThen(serverSpecBuilder);
+
+      //after their configuration we override
+      specConsumer = specConsumer.andThen(b -> b
+        .mutateJmsBridgeConfig(jb -> jb
+          .id(makeId.apply("test-bridge")))
+        .groupId(makeId.apply("junit")));
+
+      if (kafkaTestContainer != null) {
+        specConsumer = specConsumer.andThen(b -> b
+            .mutateJmsBridgeConfig(jb -> jb
+                .putAllKafka(BridgeConfigFactory.propsToMap(kafkaTestContainer.defaultProps()))
+                .putAllStreams(BridgeConfigFactory.propsToMap(kafkaTestContainer.defaultProps()))));
+      }
+
+      return new ArtemisTestServer(
+          testNumber, nameSeq, specConsumer, null);
+
+    }
+  }
 }
