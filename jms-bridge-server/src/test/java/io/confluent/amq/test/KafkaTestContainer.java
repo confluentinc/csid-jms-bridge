@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.NewTopic;
@@ -57,6 +58,7 @@ public class KafkaTestContainer implements
 
   private static final Logger LOGGER = LoggerFactory.getLogger(KafkaTestContainer.class);
 
+  private final AtomicInteger sequence = new AtomicInteger(0);
   private final KafkaContainer kafkaContainer;
   private final List<String> tempTopics;
 
@@ -229,6 +231,12 @@ public class KafkaTestContainer implements
         throw new RuntimeException(e);
       }
     }
+  }
+
+  public String safeTempTopic(String prefix, int partitions) {
+    String name = String.format("%s-%d", prefix, sequence.getAndIncrement());
+    createTempTopic(name, partitions);
+    return name;
   }
 
   public void createTempTopic(String name, int partitions) {

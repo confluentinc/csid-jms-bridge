@@ -13,13 +13,12 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import io.confluent.amq.config.BridgeConfig;
 import io.confluent.amq.config.BridgeConfigFactory;
 import io.confluent.amq.test.ArtemisTestServer;
+import io.confluent.amq.test.ArtemisTestServer.Factory;
 import io.confluent.amq.test.KafkaTestContainer;
 import io.confluent.amq.test.TestSupport;
-import java.io.File;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
 import javax.jms.Message;
 import javax.jms.MessageConsumer;
 import javax.jms.MessageProducer;
@@ -30,8 +29,6 @@ import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.serialization.ByteArrayDeserializer;
 import org.apache.kafka.common.serialization.LongDeserializer;
 import org.apache.kafka.common.serialization.StringDeserializer;
-import org.apache.kafka.streams.StreamsConfig;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -57,39 +54,18 @@ public class JmsBridgeToKafkaTests {
           .withEnv("KAFKA_DELETE_TOPIC_ENABLE", "true")
           .withEnv("KAFKA_AUTO_CREATE_TOPICS_ENABLE", "false"));
 
-  private static final AtomicInteger TOPIC_SEQ = new AtomicInteger(1);
-
-  private BridgeConfig.Builder baseConfig;
-
-  private String customerQueue;
-  private String kafkaCustomerTopic;
-
-  @BeforeEach
-  public void before() {
-    int testSeq = TOPIC_SEQ.getAndIncrement();
-    customerQueue = "customer.queue." + testSeq;
-    kafkaCustomerTopic = "customer.update." + testSeq;
-
-    File stateDir = tempdir.resolve("streams-state-test-" + testSeq).toFile();
-    if (!stateDir.mkdir()) {
-      throw new RuntimeException(
-          "Cannot create temporary streams state store directory for test. Path: "
-              + stateDir.getAbsolutePath());
-    }
-    baseConfig = BridgeConfigFactory.loadConfiguration(Resources
-        .getResource("base-test-config.conf"))
-        .id("test-bridge-" + TOPIC_SEQ.getAndIncrement())
-        .putAllKafka(BridgeConfigFactory.propsToMap(kafkaContainer.defaultProps()))
-        .putAllStreams(BridgeConfigFactory.propsToMap(kafkaContainer.defaultProps()))
-        .putStreams(StreamsConfig.STATE_DIR_CONFIG, stateDir.getAbsolutePath());
-  }
+  private BridgeConfig.Builder baseConfig = BridgeConfigFactory
+      .loadConfiguration(Resources.getResource("base-test-config.conf"));
 
   @Test
   @Timeout(30)
   public void jmsMessageToKafkaTopic() throws Exception {
-    String subscriberName = "jms-message-to-kafka-subscriber";
-    kafkaContainer.createTempTopic(kafkaCustomerTopic, 1);
-    ArtemisTestServer amqServer = ArtemisTestServer.embedded(b -> b
+    String kafkaCustomerTopic = kafkaContainer.safeTempTopic("customer-topic", 1);
+
+    Factory amqf = ArtemisTestServer.factory();
+    String subscriberName = amqf.safeId("jms-subscriber");
+    String customerQueue = amqf.safeId("customer-queue");
+    amqf.prepare(kafkaContainer, b -> b
         .mutateJmsBridgeConfig(bridge -> bridge
             .mergeFrom(baseConfig)
             .mutateRouting(routing -> routing
@@ -101,7 +77,7 @@ public class JmsBridgeToKafkaTests {
                         .topic(kafkaCustomerTopic))))));
 
     try (
-        ArtemisTestServer amq = amqServer.start();
+        ArtemisTestServer amq = amqf.start();
         Session session = amq.getConnection().createSession(false, Session.AUTO_ACKNOWLEDGE)
     ) {
 
@@ -136,9 +112,12 @@ public class JmsBridgeToKafkaTests {
 
   @Test
   public void testJmsPropertiesArePassedAlong() throws Exception {
-    String subscriberName = "jms-to-kafka-properties-are-passed-subscriber";
-    kafkaContainer.createTempTopic(kafkaCustomerTopic, 1);
-    ArtemisTestServer amqServer = ArtemisTestServer.embedded(b -> b
+    String kafkaCustomerTopic = kafkaContainer.safeTempTopic("customer-topic", 1);
+    Factory amqf = ArtemisTestServer.factory();
+    String subscriberName = amqf.safeId("jms-subscriber");
+    String customerQueue = amqf.safeId("customer-queue");
+
+    amqf.prepare(kafkaContainer, b -> b
         .mutateJmsBridgeConfig(bridge -> bridge
             .mergeFrom(baseConfig)
             .mutateRouting(routing -> routing
@@ -147,7 +126,7 @@ public class JmsBridgeToKafkaTests {
                     .mutateTo(to -> to.topic(kafkaCustomerTopic))))));
 
     try (
-        ArtemisTestServer amq = amqServer.start();
+        ArtemisTestServer amq = amqf.start();
         Session session = amq.getConnection().createSession(false, Session.AUTO_ACKNOWLEDGE)
     ) {
 
@@ -198,9 +177,12 @@ public class JmsBridgeToKafkaTests {
 
   @Test
   public void testKeySelection() throws Exception {
-    String subscriberName = "jms-to-kafka-key-selection-subscriber";
-    kafkaContainer.createTempTopic(kafkaCustomerTopic, 1);
-    ArtemisTestServer amqServer = ArtemisTestServer.embedded(b -> b
+    String kafkaCustomerTopic = kafkaContainer.safeTempTopic("customer-topic", 1);
+    Factory amqf = ArtemisTestServer.factory();
+    String subscriberName = amqf.safeId("jms-subscriber");
+    String customerQueue = amqf.safeId("customer-queue");
+
+    amqf.prepare(kafkaContainer, b -> b
         .mutateJmsBridgeConfig(bridge -> bridge
             .mergeFrom(baseConfig)
             .mutateRouting(routing -> routing
@@ -210,7 +192,7 @@ public class JmsBridgeToKafkaTests {
                     .mutateTo(to -> to.topic(kafkaCustomerTopic))))));
 
     try (
-        ArtemisTestServer amq = amqServer.start();
+        ArtemisTestServer amq = amqf.start();
         Session session = amq.getConnection().createSession(false, Session.AUTO_ACKNOWLEDGE)
     ) {
 
@@ -241,11 +223,14 @@ public class JmsBridgeToKafkaTests {
 
   @Test
   public void testMultiRouteSameAddress() throws Exception {
-    String subscriberName = "jms-to-kafka-multi-route-one-address-subscriber";
-    String otherKafkaTopic = "other-kafka-topic-" + TOPIC_SEQ.getAndIncrement();
-    kafkaContainer.createTempTopic(otherKafkaTopic, 1);
-    kafkaContainer.createTempTopic(kafkaCustomerTopic, 1);
-    ArtemisTestServer amqServer = ArtemisTestServer.embedded(b -> b
+    String otherKafkaTopic = kafkaContainer.safeTempTopic("other-kafka-topic", 1);
+    String kafkaCustomerTopic = kafkaContainer.safeTempTopic("customer-kafka-topic", 1);
+
+    Factory amqf = ArtemisTestServer.factory();
+    String subscriberName = amqf.safeId("jms-subscriber");
+    String customerQueue = amqf.safeId("customer-queue");
+
+    amqf.prepare(kafkaContainer, b -> b
         .mutateJmsBridgeConfig(bridge -> bridge
             .mergeFrom(baseConfig)
             .mutateRouting(routing -> routing
@@ -257,7 +242,7 @@ public class JmsBridgeToKafkaTests {
                     .mutateTo(to -> to.topic(otherKafkaTopic))))));
 
     try (
-        ArtemisTestServer amq = amqServer.start();
+        ArtemisTestServer amq = amqf.start();
         Session session = amq.getConnection().createSession(false, Session.AUTO_ACKNOWLEDGE)
     ) {
 
@@ -299,9 +284,12 @@ public class JmsBridgeToKafkaTests {
 
   @Test
   public void testSingleRouteWithFilter() throws Exception {
-    String subscriberName = "jms-to-kafka-route-with-filter-subscriber";
-    kafkaContainer.createTempTopic(kafkaCustomerTopic, 1);
-    ArtemisTestServer amqServer = ArtemisTestServer.embedded(b -> b
+    String kafkaCustomerTopic = kafkaContainer.safeTempTopic("customer-kafka-topic", 1);
+    Factory amqf = ArtemisTestServer.factory();
+
+    String customerQueue = amqf.safeId("customer-queue");
+    String subscriberName = amqf.safeId("jms-subscriber");
+    amqf.prepare(kafkaContainer, b -> b
         .mutateJmsBridgeConfig(bridge -> bridge
             .mergeFrom(baseConfig)
             .mutateRouting(routing -> routing
@@ -312,7 +300,7 @@ public class JmsBridgeToKafkaTests {
                     .mutateTo(to -> to.topic(kafkaCustomerTopic))))));
 
     try (
-        ArtemisTestServer amq = amqServer.start();
+        ArtemisTestServer amq = amqf.start();
         Session session = amq.getConnection().createSession(false, Session.AUTO_ACKNOWLEDGE)
     ) {
 
@@ -351,12 +339,14 @@ public class JmsBridgeToKafkaTests {
 
   @Test
   public void testMultiRouteSameAddressDifferentFilter() throws Exception {
-    String subscriberName = "jms-to-kafka-multi-route-with-multi-filter-subscriber";
-    String secretTopic = "secret-kafka-topic";
+    String secretTopic = kafkaContainer.safeTempTopic("secret-kafka-topic", 1);
+    String kafkaCustomerTopic = kafkaContainer.safeTempTopic("customer-kafka-topic", 1);
 
-    kafkaContainer.createTempTopic(secretTopic, 1);
-    kafkaContainer.createTempTopic(kafkaCustomerTopic, 1);
-    ArtemisTestServer amqServer = ArtemisTestServer.embedded(b -> b
+    Factory amqf = ArtemisTestServer.factory();
+    String subscriberName = amqf.safeId("jms-subscriber");
+    String customerQueue = amqf.safeId("customer-queue");
+
+    amqf.prepare(kafkaContainer, b -> b
         .mutateJmsBridgeConfig(bridge -> bridge
             .mergeFrom(baseConfig)
             .mutateRouting(routing -> routing
@@ -372,7 +362,7 @@ public class JmsBridgeToKafkaTests {
                     .mutateTo(to -> to.topic(secretTopic))))));
 
     try (
-        ArtemisTestServer amq = amqServer.start();
+        ArtemisTestServer amq = amqf.start();
         Session session = amq.getConnection().createSession(false, Session.AUTO_ACKNOWLEDGE)
     ) {
 
