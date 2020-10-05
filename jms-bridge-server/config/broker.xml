@@ -11,27 +11,11 @@
       </acceptor>
     </acceptors>
 
-    <address-settings>
-      <!--default for catch all-->
-      <address-setting match="#">
-        <address-full-policy>BLOCK</address-full-policy>
-        <dead-letter-address>DLQ</dead-letter-address>
-        <expiry-address>ExpiryQueue</expiry-address>
-        <max-size-bytes>10Mb</max-size-bytes>
-        <message-counter-history-day-limit>10</message-counter-history-day-limit>
-        <redelivery-delay>0</redelivery-delay>
-      </address-setting>
-    </address-settings>
-
-    <bindings-directory>${jms-bridge.data.dir:./data}/bindings</bindings-directory>
-
     <connectors>
       <!-- Default Connector.  Returned to clients during broadcast and distributed around cluster.  See broadcast and discovery-groups -->
       <connector name="activemq">
         tcp://${activemq.remoting.default.host:localhost}:${activemq.remoting.default.port:61616}
       </connector>
-      <!-- Statially defines server for cluster connection. Additional connector-ref nodes must be added to cluster-connection for additional slave nodes. -->
-      <!--<connector name="server1-connector">tcp://hostname:61616</connector>-->
     </connectors>
     <!-- To define a
     <cluster-connection name="my-cluster">
@@ -78,8 +62,4 @@
     <security-enabled>false</security-enabled>
 
   </core>
-  <jms xmlns="urn:activemq:jms">
-    <queue name="DLQ"/>
-    <queue name="ExpiryQueue"/>
-  </jms>
 </configuration>
