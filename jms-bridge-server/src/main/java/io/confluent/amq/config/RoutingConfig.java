@@ -5,139 +5,172 @@
 package io.confluent.amq.config;
 
 import com.typesafe.config.Config;
-import com.typesafe.config.ConfigFactory;
 import java.util.List;
-import java.util.Optional;
-import java.util.function.Consumer;
 import org.inferred.freebuilder.FreeBuilder;
 
 @FreeBuilder
 public interface RoutingConfig {
 
-  Optional<String> deadLetterTopic();
+  List<RoutedTopic> topics();
 
-  List<Route> routes();
+  Integer metadataRefreshMs();
 
   class Builder extends RoutingConfig_Builder {
 
     public Builder() {
-
-    }
-
-    public Builder addRoute(Consumer<Route.Builder> specWriter) {
-      Route.Builder routeBuilder = new Route.Builder();
-      specWriter.accept(routeBuilder);
-      return super.addRoutes(routeBuilder);
+      //defaults
+      //5 minutes
+      metadataRefreshMs(1000 * 60 * 5);
     }
 
     public Builder(Config routingConfig) {
-      if (routingConfig.hasPath("dead-letter-topic")) {
-        this.deadLetterTopic(routingConfig.getString("dead-letter-topic"));
+      //set defaults
+      this();
+
+      if (routingConfig.hasPath("metadata-refresh-ms")) {
+        metadataRefreshMs(routingConfig.getInt("metadata-refresh-ms"));
       }
 
-      if (routingConfig.hasPath("routes")) {
-        for (Config routeConfig : routingConfig.getConfigList("routes")) {
-          Config defRouteConfig = routeConfig.withFallback(
-              ConfigFactory.defaultReference().getConfig("default-route"));
-          this.addRoutes(new Route.Builder(defRouteConfig));
+      if (routingConfig.hasPath("topics")) {
+        for (Config topicConfig : routingConfig.getConfigList("topics")) {
+          this.addTopics(new RoutedTopic.Builder(topicConfig));
         }
       }
-    }
-  }
 
-  @FreeBuilder
-  interface Route {
-
-    String name();
-
-    In from();
-
-    Convert map();
-
-    Out to();
-
-
-    class Builder extends RoutingConfig_Route_Builder {
-
-      public Builder() {
-
-      }
-
-      public Builder(Config config) {
-        this.name(config.getString("name"))
-            .from(new In.Builder(config.getConfig("from")))
-            .map(new Convert.Builder(config.getConfig("map")))
-            .to(new Out.Builder(config.getConfig("to")));
-      }
 
     }
   }
 
   @FreeBuilder
-  interface In {
-
-    String address();
+  interface RoutedTopic {
 
     /**
-     * Standard JMS message selector syntax supported.
+     * <p>
+     * Config Key: <pre>match</pre>
+     * </p>
+     * <p>
+     * A valid regular expression that will be used to match against topics available to the JMS
+     * Bridge Kafka principle (as configured). Any topic that matches the expression will become
+     * available via the JMS Bridge as an address and all data sent to that address will be routed
+     * to Kafka using the configuration of this routed topic.
+     * </p>
+     * <p>
+     * This match also applies to data being received from Kafka. All received data will be sent
+     * to the address created by this routed topic and be made available as a JMS message via the
+     * bridge.
+     * </p>
+     * <p>
+     * This is REQUIRED.
+     * </p>
      */
-    Optional<String> filter();
-
-    class Builder extends RoutingConfig_In_Builder {
-
-      public Builder() {
-
-      }
-
-      public Builder(Config config) {
-        this.address(config.getString("address"));
-        if (config.hasPath("filter")) {
-          this.filter(config.getString("filter"));
-        }
-      }
-
-    }
-  }
-
-  @FreeBuilder
-  interface Out {
-
-    String topic();
-
-    class Builder extends RoutingConfig_Out_Builder {
-
-      public Builder() {
-
-      }
-
-      public Builder(Config config) {
-        this.topic(config.getString("topic"));
-      }
-
-    }
-  }
-
-  @FreeBuilder
-  interface Convert {
+    String match();
 
     /**
-     * What property from the message to use as the key.
-     * By default it uses the MessageId.
+     * <p>
+     * Config Key: <pre>address-template</pre>
+     * </p>
+     * <p>
+     * A simple character template that can be used to determine the name of the ActiveMQ address
+     * that will be created for each Kafka topic matching this. A single token is available for
+     * replacement, '${topic}', it will be replaced by the name of the matched kafka topic.
+     * </p>
+     * <p>
+     * By default this is set to 'kafka.${topic}';
+     * </p>
      */
-    Optional<String> key();
+    String addressTemplate();
 
-    class Builder extends RoutingConfig_Convert_Builder {
+    /**
+     * <p>
+     * Config Key: <pre>message-type</pre>
+     * </p>
+     * <p>
+     * For messages received from Kafka this will be the JMS message type used when deserializing
+     * it. Valid options include 'TEXT' and 'BYTES'. Text assumes the data is UTF-8 encoded
+     * characters while bytes is basically a pass-through of the payload.
+     * </p>
+     * <p>
+     * By default this is set to 'BYTES'.
+     * </p>
+     */
+    String messageType();
+
+    /**
+     * <p>
+     * Config Key: <pre>key-property</pre>
+     * </p>
+     * <p>
+     * Specify a property on the message that should be used as the record key when publishing
+     * to Kafka. If the property cannot be found then the 'MessageID' will be used.
+     * </p>
+     * <p>
+     * By default this is set to 'JMSMessageID'.
+     * </p>
+     */
+    String keyProperty();
+
+    /**
+     * <p>
+     * Config Key: <pre>correlation-key-override</pre>
+     * </p>
+     * <p>
+     * If this is set to true then when a correlation ID is found on the message it will be used
+     * as the Kafka record key instead of the property set by the 'key-property'
+     * ({@link #keyProperty()}) configuration.
+     * </p>
+     * <p>
+     * By default this is set to 'true'.
+     * </p>
+     */
+    boolean correlationKeyOverride();
+
+    class Builder extends RoutingConfig_RoutedTopic_Builder {
+
+      public Builder(Config routedTopicConfig) {
+        //set defaults
+        this();
+
+        if (routedTopicConfig.hasPath("match")) {
+          match(routedTopicConfig.getString("match"));
+        }
+
+        if (routedTopicConfig.hasPath("address-template")) {
+          addressTemplate(routedTopicConfig.getString("address-template"));
+        }
+
+        if (routedTopicConfig.hasPath("message-type")) {
+          messageType(routedTopicConfig.getString("message-type"));
+        }
+
+        if (routedTopicConfig.hasPath("key-property")) {
+          keyProperty(routedTopicConfig.getString("key-property"));
+        }
+
+        if (routedTopicConfig.hasPath("correlation-key-override")) {
+          correlationKeyOverride(routedTopicConfig.getBoolean("correlation-key-override"));
+        }
+
+      }
 
       public Builder() {
-
+        //set defaults
+        this.addressTemplate("kafka.${topic}")
+            .messageType("BYTES")
+            .keyProperty("JMSMessageID")
+            .correlationKeyOverride(true);
       }
 
-      public Builder(Config config) {
-        if (config.hasPath("key")) {
-          this.key(config.getString("key"));
+      @Override
+      public Builder messageType(String messageType) {
+        super.messageType(messageType);
+        if (!messageType.equalsIgnoreCase("BYTES")
+            && !messageType.equalsIgnoreCase("TEXT")) {
+          throw new IllegalStateException(String.format(
+              "Invalid message-type %s, must be either BYTES or TEXT.", messageType));
         }
-      }
 
+        return this;
+      }
     }
   }
 }

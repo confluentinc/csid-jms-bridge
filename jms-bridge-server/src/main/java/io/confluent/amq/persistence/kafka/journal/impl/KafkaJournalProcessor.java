@@ -19,7 +19,6 @@ import io.confluent.amq.persistence.kafka.journal.KJournalState;
 import io.confluent.amq.persistence.kafka.journal.serde.JournalKeySerde;
 import io.confluent.amq.persistence.kafka.journal.serde.JournalValueSerde;
 import io.confluent.amq.persistence.kafka.streams.StreamsSupport;
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -29,7 +28,6 @@ import java.util.concurrent.Semaphore;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.kafka.clients.producer.ProducerConfig;
-import org.apache.kafka.common.serialization.Serdes;
 import org.apache.kafka.streams.KafkaStreams;
 import org.apache.kafka.streams.KafkaStreams.State;
 import org.apache.kafka.streams.KafkaStreams.StateListener;
@@ -44,7 +42,6 @@ import org.apache.kafka.streams.kstream.KStream;
 import org.apache.kafka.streams.kstream.Materialized;
 import org.apache.kafka.streams.kstream.Named;
 import org.apache.kafka.streams.kstream.Predicate;
-import org.apache.kafka.streams.kstream.Produced;
 import org.apache.kafka.streams.state.KeyValueBytesStoreSupplier;
 import org.apache.kafka.streams.state.QueryableStoreTypes;
 import org.apache.kafka.streams.state.ReadOnlyKeyValueStore;
@@ -443,27 +440,12 @@ public class KafkaJournalProcessor implements StateListener {
    * Override this method to provide functionality around ADD_RECORD processing.
    */
   protected void handleAddRecord(
-      KJournalImpl kjournal, StreamsBuilder sb,
+      KJournalImpl kjournal,
+      StreamsBuilder sb,
       KStream<JournalEntryKey, JournalEntry> recordStream) {
 
     //this is were messages will be published out to kafka topics
-    if (kjournal.spec.performRouting()) {
-      recordStream
-          .flatTransform(() ->
-              new AmqAddRecordProcessor(
-                  bridgeConfig.id(),
-                  kjournal.topic(),
-                  kjournal.storeName(),
-                  bridgeConfig.routing()),
-              kjournal.storeName())
-          .to((key, value, recordContext) ->
-                  new String(
-                      recordContext
-                          .headers()
-                          .lastHeader(AmqAddRecordProcessor.TOPIC_ROUTING_KEY)
-                          .value(), StandardCharsets.UTF_8),
-              Produced.with(Serdes.ByteArray(), Serdes.ByteArray()));
-    }
+    //Leave empty for now
   }
 
   protected void handleDeleteAnnotateRecord(

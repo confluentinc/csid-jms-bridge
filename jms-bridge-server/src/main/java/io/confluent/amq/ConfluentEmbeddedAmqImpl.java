@@ -53,6 +53,11 @@ public class ConfluentEmbeddedAmqImpl implements ConfluentEmbeddedAmq {
     embeddedActiveMQ.stop();
   }
 
+  @Override
+  public ConfluentAmqServer getConfluentAmq() {
+    return embeddedActiveMQ.getConfluentAmqServer();
+  }
+
   public static class Builder {
 
     private ActiveMQSecurityManager securityManager;
@@ -105,7 +110,6 @@ public class ConfluentEmbeddedAmqImpl implements ConfluentEmbeddedAmq {
   }
 
   private static class InternalEmbedded extends EmbeddedActiveMQ {
-
     protected void prepare() {
       //this.configuration.registerBrokerPlugin(new KafkaBridgePlugin(kafkaProps));
       if (this.securityManager == null) {
@@ -123,7 +127,7 @@ public class ConfluentEmbeddedAmqImpl implements ConfluentEmbeddedAmq {
       }
       this.activeMQServer = amqServer;
       this.activeMQServer.registerActivationFailureListener((e) -> {
-        LOGGER.error("Shutting down JMS-Bridge due to unrecoverable failures.");
+        LOGGER.error("Shutting down JMS-Bridge due to unrecoverable failures.", e);
         try {
           this.activeMQServer.stop(true, true);
         } catch (Exception ex) {
@@ -132,9 +136,14 @@ public class ConfluentEmbeddedAmqImpl implements ConfluentEmbeddedAmq {
       });
     }
 
+    public ConfluentAmqServer getConfluentAmqServer() {
+      return ((DelegatingConfluentAmqServer) this.activeMQServer).unwrap();
+    }
+
     @Override
     protected void initStart() throws Exception {
       //do nothing, see prepare
     }
+
   }
 }

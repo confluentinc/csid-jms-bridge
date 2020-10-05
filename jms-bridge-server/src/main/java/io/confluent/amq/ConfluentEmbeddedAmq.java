@@ -14,4 +14,8 @@ public interface ConfluentEmbeddedAmq {
   default ActiveMQServer getAmq() {
     return null;
   }
+
+  default ConfluentAmqServer getConfluentAmq() {
+    return null;
+  }
 }

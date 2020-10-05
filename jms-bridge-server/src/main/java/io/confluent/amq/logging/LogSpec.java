@@ -125,8 +125,7 @@ public interface LogSpec {
       }
 
       return this
-          .putTokens("topic", rec.topic())
-          .putTokens("partition", rec.partition());
+          .putTokens("producerRecord", rec);
     }
 
     public Builder addRecordMetadata(ConsumerRecord<?, ?> consumerRecord) {

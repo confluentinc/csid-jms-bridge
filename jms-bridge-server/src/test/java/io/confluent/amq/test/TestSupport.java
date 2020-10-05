@@ -4,6 +4,7 @@
 
 package io.confluent.amq.test;
 
+import com.google.common.base.Stopwatch;
 import com.google.protobuf.ByteString;
 import io.confluent.amq.logging.LogFormat;
 import io.confluent.amq.persistence.domain.proto.JournalEntry;
@@ -18,6 +19,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Properties;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.commons.lang3.tuple.Pair;
@@ -28,6 +30,7 @@ import org.apache.kafka.common.serialization.ByteArrayDeserializer;
 import org.apache.kafka.streams.StreamsConfig;
 import org.apache.kafka.streams.Topology;
 import org.apache.kafka.streams.TopologyTestDriver;
+import org.opentest4j.AssertionFailedError;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -226,6 +229,41 @@ public final class TestSupport {
     props.put(StreamsConfig.APPLICATION_ID_CONFIG, "test");
     props.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, "dummy:1234");
     return new TopologyTestDriver(topology, props);
+  }
+
+  public static void retry(int attempts, int delayMs, RunnableWithScissors test) {
+    int tryCount = 0;
+    Throwable fail = null;
+    Stopwatch stopwatch = Stopwatch.createStarted();
+    while (tryCount < attempts) {
+      try {
+        tryCount++;
+        test.run();
+        fail = null;
+        break;
+      } catch (Throwable t) {
+        fail = t;
+        if (delayMs > 0) {
+          try {
+            Thread.sleep(delayMs);
+          } catch (Exception e) {
+            fail = e;
+          }
+        }
+      }
+    }
+    stopwatch.stop();
+    if (fail != null) {
+      throw new AssertionFailedError(
+          String.format(
+              "Failed after %d attempts over %d ms",
+              tryCount,
+              stopwatch.elapsed(TimeUnit.MILLISECONDS)), fail);
+    }
+  }
+
+  public interface RunnableWithScissors {
+    void run() throws Exception;
   }
 }
 

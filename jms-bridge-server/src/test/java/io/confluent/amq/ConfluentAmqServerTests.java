@@ -43,21 +43,21 @@ public class ConfluentAmqServerTests {
   @Order(100)
   public static KafkaTestContainer kafkaContainer = new KafkaTestContainer(
       new KafkaContainer("5.4.0")
-        .withEnv("KAFKA_DELETE_TOPIC_ENABLE", "true")
-        .withEnv("KAFKA_AUTO_CREATE_TOPICS_ENABLE", "false"));
+          .withEnv("KAFKA_DELETE_TOPIC_ENABLE", "true")
+          .withEnv("KAFKA_AUTO_CREATE_TOPICS_ENABLE", "false"));
 
   @RegisterExtension
   @Order(200)
   public static ArtemisTestServer amqServer = ArtemisTestServer.embedded(b -> b
       .useVanilla(IS_VANILLA)
       .jmsBridgeConfigBuilder()
-        .putAllKafka(BridgeConfigFactory.propsToMap(kafkaContainer.defaultProps())));
+      .putAllKafka(BridgeConfigFactory.propsToMap(kafkaContainer.defaultProps())));
 
   @Test
   public void jmsPublishKafkaConsumeTopic() throws Exception {
     System.out.println(">>>>> IS VANILLA IS " + IS_VANILLA + " <<<<<<<");
     Session session = amqServer.getConnection().createSession(false, Session.AUTO_ACKNOWLEDGE);
-    Topic topic = session.createTopic(JMS_TOPIC);
+    Topic topic = session.createTopic(amqServer.safeId(JMS_TOPIC));
     MessageProducer producer = session.createProducer(topic);
 
     //without a consumer the message isn't routable so it will never be stored
@@ -92,8 +92,9 @@ public class ConfluentAmqServerTests {
   @Test
   public void kafkaPublishJmsConsumeTopic() throws Exception {
     Session session = amqServer.getConnection().createSession(false, Session.AUTO_ACKNOWLEDGE);
-    Topic topic = session.createTopic(JMS_TOPIC);
-    MessageConsumer consumer = session.createDurableConsumer(topic, "test-subscriber");
+    Topic topic = session.createTopic(amqServer.safeId(JMS_TOPIC));
+    MessageConsumer consumer = session
+        .createDurableConsumer(topic, amqServer.safeId("test-subscriber"));
 
     //allow the consumer to get situated.
     Thread.sleep(1000);
@@ -113,7 +114,6 @@ public class ConfluentAmqServerTests {
         stringSerde.deserializer(), stringSerde.deserializer());
     assertEquals(1, records.size());
   }
-
 
 
 }

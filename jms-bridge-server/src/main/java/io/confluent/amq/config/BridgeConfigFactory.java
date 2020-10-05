@@ -56,7 +56,18 @@ public final class BridgeConfigFactory {
 
   public static BridgeConfig.Builder loadConfiguration(URL configUrl) {
     Config theirConfig = ConfigFactory.parseURL(configUrl);
-    Config config = theirConfig.withFallback(ConfigFactory.defaultReferenceUnresolved()).resolve();
+
+    return loadConfiguration(theirConfig);
+  }
+
+  public static BridgeConfig.Builder loadConfiguration(String configString) {
+    Config theirConfig = ConfigFactory.parseString(configString);
+
+    return loadConfiguration(theirConfig);
+  }
+
+  private static BridgeConfig.Builder loadConfiguration(Config appConfig) {
+    Config config = appConfig.withFallback(ConfigFactory.defaultReferenceUnresolved()).resolve();
 
     config.checkValid(ConfigFactory.defaultReference(), "bridge");
     BridgeConfig.Builder bridgeConfig = new BridgeConfig.Builder(config);

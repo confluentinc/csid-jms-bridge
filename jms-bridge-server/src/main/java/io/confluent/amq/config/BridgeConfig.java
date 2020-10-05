@@ -21,7 +21,7 @@ public interface BridgeConfig {
 
   JournalsConfig journals();
 
-  RoutingConfig routing();
+  Optional<RoutingConfig> routing();
 
   class Builder extends BridgeConfig_Builder {
 
@@ -41,7 +41,7 @@ public interface BridgeConfig {
                 .root().unwrapped());
 
       if (bridgeConfig.hasPath("routing")) {
-        this.routing(new RoutingConfig.Builder(bridgeConfig.getConfig("routing")));
+        this.routing(new RoutingConfig.Builder(bridgeConfig.getConfig("routing")).build());
       }
     }
 

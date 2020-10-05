@@ -11,15 +11,24 @@
   </Appenders>
 
   <Loggers>
-    <Logger name="io.confluent.amq" level="TRACE" additivity="false">
+    <Logger name="io.confluent.amq" level="INFO" additivity="false">
       <AppenderRef ref="stdout"/>
     </Logger>
 
-    <Logger name="org.apache.commons.beanutils" level="TRACE" additivity="false">
+    <Logger name="io.confluent.amq.exchange" level="TRACE" additivity="false">
       <AppenderRef ref="stdout"/>
     </Logger>
 
-    <Logger name="org.apache.activemq.artemis.core" level="INFO" additivity="false">
+    <Logger name="io.confluent.amq.persistence.kafka.ConsumerThread" level="DEBUG" additivity="false">
+      <AppenderRef ref="stdout"/>
+    </Logger>
+
+    <!-- The Post Office Logger-->
+    <Logger name="org.apache.activemq.artemis.core.postoffice" level="WARN" additivity="false">
+      <AppenderRef ref="stdout"/>
+    </Logger>
+
+    <Logger name="org.apache.activemq.artemis.core" level="WARN" additivity="false">
       <AppenderRef ref="stdout"/>
     </Logger>
 

@@ -49,7 +49,7 @@ public class KafkaTestContainer implements
 
 
   public static KafkaTestContainer usingDefaults() {
-    KafkaContainer container = new KafkaContainer("5.4.0")
+    KafkaContainer container = new KafkaContainer("5.5.2")
         .withEnv("KAFKA_DELETE_TOPIC_ENABLE", "true")
         .withEnv("KAFKA_AUTO_CREATE_TOPICS_ENABLE", "false");
 
@@ -60,22 +60,32 @@ public class KafkaTestContainer implements
 
   private final AtomicInteger sequence = new AtomicInteger(0);
   private final KafkaContainer kafkaContainer;
+  private final Properties baseProps;
   private final List<String> tempTopics;
 
   private AdminClient adminClient;
   private KafkaProducer<byte[], byte[]> producer;
   private KafkaIO kafkaIO;
 
+  public KafkaTestContainer(Properties baseProps, KafkaContainer kafkaContainer) {
+    this.kafkaContainer = kafkaContainer;
+    this.tempTopics = new LinkedList<>();
+    this.baseProps = baseProps;
+  }
+
   public KafkaTestContainer(KafkaContainer kafkaContainer) {
     this.kafkaContainer = kafkaContainer;
     this.tempTopics = new LinkedList<>();
+    this.baseProps = new Properties();
   }
 
   @Override
   public void beforeAll(ExtensionContext extensionContext) throws Exception {
     this.kafkaContainer.start();
 
+
     Properties kafkaProps = defaultProps();
+    kafkaProps.putAll(baseProps);
     kafkaProps.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false");
     kafkaProps.put(ConsumerConfig.GROUP_ID_CONFIG, "kafka-test-container");
 
@@ -182,9 +192,10 @@ public class KafkaTestContainer implements
       Duration maxDuration) {
 
     Properties kafkaProps = defaultProps();
+    kafkaProps.putAll(baseProps);
     kafkaProps.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false");
     kafkaProps.put(ConsumerConfig.GROUP_ID_CONFIG, "kafka-test-container");
-    Stopwatch totalTime = Stopwatch.createStarted();
+    final Stopwatch totalTime = Stopwatch.createStarted();
 
     KafkaConsumer<K, V> consumer = new KafkaConsumer<>(kafkaProps, keydeser, valuedeser);
 
@@ -233,6 +244,12 @@ public class KafkaTestContainer implements
     }
   }
 
+  public String safeCreateTopic(String prefix, int partitions) {
+    String name = String.format("%s-%d", prefix, sequence.getAndIncrement());
+    createTopic(name, partitions);
+    return name;
+  }
+
   public String safeTempTopic(String prefix, int partitions) {
     String name = String.format("%s-%d", prefix, sequence.getAndIncrement());
     createTempTopic(name, partitions);
@@ -271,7 +288,8 @@ public class KafkaTestContainer implements
         }
       }
     } catch (Exception e) {
-      throw new RuntimeException(e);
+      System.out.println("Exception occurred while deleting topicList " + topiclist);
+      e.printStackTrace();
     }
   }
 

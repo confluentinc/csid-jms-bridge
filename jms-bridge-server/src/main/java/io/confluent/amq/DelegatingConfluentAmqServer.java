@@ -133,6 +133,10 @@ public class DelegatingConfluentAmqServer implements ActiveMQServer {
         parentServer, serviceRegistry);
   }
 
+  public ConfluentAmqServer unwrap() {
+    return confluentAmqServer;
+  }
+
   /**
    * Delegates to a method that is not final and can be overridden by the ConfluentAmqServer
    */

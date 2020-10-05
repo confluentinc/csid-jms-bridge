@@ -8,12 +8,17 @@ import static com.google.common.io.Resources.getResource;
 
 import com.google.common.io.MoreFiles;
 import com.google.common.io.RecursiveDeleteOption;
+import com.google.common.io.Resources;
+import io.confluent.amq.ConfluentAmqServer;
 import io.confluent.amq.ConfluentEmbeddedAmq;
 import io.confluent.amq.ConfluentEmbeddedAmqImpl;
 import io.confluent.amq.JmsBridgeConfiguration;
 import io.confluent.amq.config.BridgeConfig;
 import io.confluent.amq.config.BridgeConfigFactory;
 import io.confluent.amq.logging.StructuredLogger;
+import io.confluent.amq.persistence.kafka.KafkaIntegration;
+import io.confluent.amq.persistence.kafka.KafkaJournalStorageManager;
+import io.confluent.amq.persistence.kafka.journal.impl.KafkaJournal;
 import io.confluent.amq.test.ServerSpec.Builder;
 import java.io.Closeable;
 import java.io.File;
@@ -84,12 +89,36 @@ public class ArtemisTestServer implements
     this.cnxnSpecBuilder = cnxnSpecBuilder;
   }
 
+  public String bridgeId() {
+    return this.serverSpec.jmsBridgeConfig().id();
+  }
+
+  public ConfluentAmqServer confluentAmqServer() {
+    return this.embeddedAmq.getConfluentAmq();
+  }
+
   public ActiveMQServerControl serverControl() {
     return this.embeddedAmq.getAmq().getActiveMQServerControl();
   }
 
   public String safeId(String prefix) {
     return String.format("%s-%d-%d", prefix, testSeq, nameSeq.getAndIncrement());
+  }
+
+  public String messageJournalTopic() {
+    return KafkaJournal.journalTopic(
+        serverSpec.jmsBridgeConfig().id(),
+        KafkaJournalStorageManager.MESSAGES_NAME);
+  }
+
+  public String bindingsJournalTopic() {
+    return KafkaJournal.journalTopic(
+        serverSpec.jmsBridgeConfig().id(),
+        KafkaJournalStorageManager.BINDINGS_NAME);
+  }
+
+  public String consumerGroupName() {
+    return KafkaIntegration.applicationId(serverSpec.jmsBridgeConfig().id());
   }
 
   public ArtemisTestServer start() throws Exception {
@@ -250,16 +279,16 @@ public class ArtemisTestServer implements
         Path amqDataDir = new File(dataDir).toPath();
         try {
           config.setBindingsDirectory(
-              Files.createDirectory(amqDataDir.resolve("bindings")).toAbsolutePath().toString());
+              maybeCreateDirectory(amqDataDir.resolve("bindings")).toAbsolutePath().toString());
           config.setJournalDirectory(
-              Files.createDirectory(amqDataDir.resolve("journal")).toAbsolutePath().toString());
+              maybeCreateDirectory(amqDataDir.resolve("journal")).toAbsolutePath().toString());
           config.setPagingDirectory(
-              Files.createDirectory(amqDataDir.resolve("Paging")).toAbsolutePath().toString());
+              maybeCreateDirectory(amqDataDir.resolve("Paging")).toAbsolutePath().toString());
           config.setLargeMessagesDirectory(
-              Files.createDirectory(amqDataDir.resolve("large-messages")).toAbsolutePath()
+              maybeCreateDirectory(amqDataDir.resolve("large-messages")).toAbsolutePath()
                   .toString());
           config.setNodeManagerLockDirectory(
-              Files.createDirectory(amqDataDir.resolve("node-manager-lock")).toAbsolutePath()
+              maybeCreateDirectory(amqDataDir.resolve("node-manager-lock")).toAbsolutePath()
                   .toString());
         } catch (Exception e) {
           throw new RuntimeException(e);
@@ -297,6 +326,18 @@ public class ArtemisTestServer implements
         amqServer.stop();
       }
     };
+  }
+
+  private static Path maybeCreateDirectory(Path dirPath) {
+    if (!Files.exists(dirPath)) {
+      try {
+        return Files.createDirectory(dirPath);
+      } catch (Exception e) {
+        throw new RuntimeException(e);
+      }
+    } else {
+      return dirPath;
+    }
   }
 
   /**
@@ -373,16 +414,21 @@ public class ArtemisTestServer implements
       Function<String, String> makeId = prefix -> prefix + "-" + testNumber;
 
       //overridable defaults
-      Consumer<ServerSpec.Builder> specConsumer = b -> b
-          .brokerXml(getResource("broker.xml").toString());
+      BridgeConfig.Builder defaultBridgeConfig = BridgeConfigFactory.loadConfiguration(
+          Resources.getResource("base-test-config.conf"));
 
+      Consumer<ServerSpec.Builder> specConsumer = b -> b
+          .brokerXml(getResource("broker.xml").toString())
+          .mutateJmsBridgeConfig(br -> br.mergeFrom(defaultBridgeConfig));
+
+      //add their configuration
       specConsumer = specConsumer.andThen(serverSpecBuilder);
 
       //after their configuration we override
       specConsumer = specConsumer.andThen(b -> b
-        .mutateJmsBridgeConfig(jb -> jb
-          .id(makeId.apply("test-bridge")))
-        .groupId(makeId.apply("junit")));
+          .mutateJmsBridgeConfig(jb -> jb
+              .id(makeId.apply("test-bridge")))
+          .groupId(makeId.apply("junit")));
 
       if (kafkaTestContainer != null) {
         specConsumer = specConsumer.andThen(b -> b

@@ -35,6 +35,7 @@ import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.header.internals.RecordHeader;
 import org.apache.kafka.common.serialization.LongSerializer;
+import org.apache.kafka.common.serialization.Serializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -48,13 +49,6 @@ public class KafkaIO {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(KafkaIO.class);
   private static final LogFormat LOG_FORMAT = LogFormat.forSubject("KafkaIO");
-
-  private static final ThreadGroup THREAD_GROUP;
-
-  static {
-    THREAD_GROUP = new ThreadGroup("kafkaIo-consumers");
-    THREAD_GROUP.setDaemon(true);
-  }
 
   private final Properties kafkaProps;
   private final StringSerializer stringSerializer = new StringSerializer();
@@ -180,8 +174,10 @@ public class KafkaIO {
 
     ConsumerThread<K, V> consumerThread = builder.build();
 
-    Thread thread = new Thread(THREAD_GROUP, consumerThread,
+    Thread thread = new Thread(consumerThread,
         "kafka-consumer-" + consumerThread.groupId());
+    thread.setUncaughtExceptionHandler(consumerThread.exceptionHandler());
+    thread.setDaemon(true);
 
     thread.start();
     return consumerThread;
@@ -273,6 +269,12 @@ public class KafkaIO {
     } finally {
       rwlock.readLock().unlock();
     }
+  }
+
+  public <K, V> KafkaProducer<K, V> createProducer(Serializer<K> keySer, Serializer<V> valSer) {
+    KafkaProducer<K, V> producer = new KafkaProducer<>(kafkaProps, keySer, valSer);
+    Runtime.getRuntime().addShutdownHook(new Thread(producer::close));
+    return producer;
   }
 
   public void withAdminClient(Consumer<AdminClient> adminClientFn) {

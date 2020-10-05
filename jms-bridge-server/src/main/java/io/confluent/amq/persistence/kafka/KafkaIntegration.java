@@ -22,6 +22,10 @@ import org.apache.kafka.common.config.TopicConfig;
 
 public class KafkaIntegration {
 
+  public static String applicationId(String bridgeId) {
+    return String.format("jms.bridge.%s", bridgeId);
+  }
+
   private static final StructuredLogger SLOG = StructuredLogger.with(b -> b
       .loggerClass(KafkaIntegration.class));
 
@@ -39,7 +43,7 @@ public class KafkaIntegration {
 
     nodeUuid = UUIDGenerator.getInstance().generateUUID();
     bridgeId = config.id();
-    applicationId = String.format("jms.bridge.%s", this.bridgeId);
+    applicationId = applicationId(bridgeId);
     String clientId = String.format("%s_%s", bridgeId, nodeUuid.toString());
 
     List<JournalSpec> jspecs = new LinkedList<>();

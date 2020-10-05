@@ -12,7 +12,6 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
-import io.confluent.amq.config.BridgeConfigFactory;
 import io.confluent.amq.logging.LogFormat;
 import io.confluent.amq.persistence.domain.proto.JournalEntry;
 import io.confluent.amq.persistence.domain.proto.JournalEntryKey;
@@ -53,17 +52,18 @@ public class JmsBridgePubSubTests {
   @RegisterExtension
   @Order(200)
   public static final KafkaTestContainer kafkaContainer = new KafkaTestContainer(
-      new KafkaContainer("5.4.0")
+      new KafkaContainer("5.5.2")
           .withEnv("KAFKA_DELETE_TOPIC_ENABLE", "true")
           .withEnv("KAFKA_AUTO_CREATE_TOPICS_ENABLE", "false"));
 
   @RegisterExtension
   @Order(300)
-  public static final ArtemisTestServer amqServer = ArtemisTestServer.embedded(b -> b
-      .useVanilla(IS_VANILLA)
-      .jmsBridgeConfigBuilder()
-        .putAllKafka(BridgeConfigFactory.propsToMap(kafkaContainer.defaultProps()))
-      .putStreams(StreamsConfig.STATE_DIR_CONFIG, tempdir.toAbsolutePath().toString()));
+  public static final ArtemisTestServer amqServer = ArtemisTestServer
+      .embedded(kafkaContainer, b -> b
+          .useVanilla(IS_VANILLA)
+          .mutateJmsBridgeConfig(br -> br
+              .putStreams(StreamsConfig.COMMIT_INTERVAL_MS_CONFIG, 500))
+          .dataDirectory(tempdir.toAbsolutePath().toString()));
 
   @Test
   @Timeout(30)
@@ -79,10 +79,11 @@ public class JmsBridgePubSubTests {
 
   public void assertIdsUnique() throws Exception {
     Session session = amqServer.getConnection().createSession(false, Session.AUTO_ACKNOWLEDGE);
-    Topic topic = session.createTopic(JMS_TOPIC);
+    Topic topic = session.createTopic(amqServer.safeId(JMS_TOPIC));
     MessageProducer producer = session.createProducer(topic);
 
-    MessageConsumer consumer = session.createDurableConsumer(topic, "test-subscriber");
+    MessageConsumer consumer = session.createDurableConsumer(topic,
+        amqServer.safeId("test-subscriber"));
     //allow the consumer to get situated.
     Thread.sleep(100);
 
@@ -105,10 +106,9 @@ public class JmsBridgePubSubTests {
       session.close();
     }
 
-    String messagesJournal = "_jms.bridge_junit_messages";
-    TestSupport.logJournalFiles(kafkaContainer, messagesJournal, true);
+    TestSupport.logJournalFiles(kafkaContainer, amqServer.messageJournalTopic(), true);
 
-    Map<Long, Long> keyCounts = streamJournalFiles(messagesJournal)
+    Map<Long, Long> keyCounts = streamJournalFiles(amqServer.messageJournalTopic())
         //tombstones
         .filter(p -> p.getValue() != null)
         //exclude TX
@@ -131,42 +131,9 @@ public class JmsBridgePubSubTests {
 
   @Test
   @Timeout(30)
-  public void jmsClientTxRollback() throws Exception {
-    String topicName = "jms-client-tx-rollback";
-    String subscriberName = "jms-client-tx-rollback-subscriber";
-
-    try (
-        Session txSession = amqServer.getConnection().createSession(true, Session.AUTO_ACKNOWLEDGE);
-        Session session = amqServer.getConnection().createSession(false, Session.AUTO_ACKNOWLEDGE)
-    ) {
-
-      Topic topic = txSession.createTopic(topicName);
-
-      try (
-          MessageProducer producer = txSession.createProducer(topic);
-          MessageConsumer consumer = session.createDurableConsumer(topic, subscriberName)
-      ) {
-
-        producer.send(txSession.createTextMessage("Message 1"));
-        producer.send(txSession.createTextMessage("Message 2"));
-        txSession.rollback();
-
-        Message rcvmsg = consumer.receive(100);
-        assertNull(rcvmsg);
-      }
-    }
-
-    String messagesJournal = "_jms.bridge_junit_messages";
-    Map<JournalEntryKey, JournalEntry> table = getCompactedJournal(kafkaContainer, messagesJournal);
-    TestSupport.logTable(messagesJournal, table);
-    assertEquals(0, table.size(), "Compacted table should be empty.");
-  }
-
-  @Test
-  @Timeout(30)
   public void jmsClientPubSubMultipleBindings() throws Exception {
-    String topicName = "jms-client-multi-bindings";
-    String subscriberName = "jms-client-multi-bindings-subscriber";
+    String topicName = amqServer.safeId("jms-client-multi-bindings");
+    String subscriberName = amqServer.safeId("jms-client-multi-bindings-subscriber");
 
     try (
         Session session1 = amqServer.getConnection().createSession(false, Session.AUTO_ACKNOWLEDGE);
@@ -193,58 +160,15 @@ public class JmsBridgePubSubTests {
 
   @Test
   @Timeout(30)
-  public void jmsClientTxCommit() throws Exception {
-    String topicName = "jms-client-tx-commit";
-    String subscriberName = "jms-client-tx-commit-subscriber";
-
-    try (
-        Session txSession = amqServer.getConnection().createSession(true, Session.AUTO_ACKNOWLEDGE);
-        Session session = amqServer.getConnection().createSession(false, Session.AUTO_ACKNOWLEDGE)
-    ) {
-
-      Topic topic = txSession.createTopic(topicName);
-
-      try (
-          MessageProducer producer = txSession.createProducer(topic);
-          MessageConsumer consumer = session.createDurableConsumer(topic, subscriberName)
-      ) {
-
-        producer.send(txSession.createTextMessage("Message 1"));
-        Message rcvmsg = consumer.receive(100);
-        assertNull(rcvmsg);
-
-        producer.send(txSession.createTextMessage("Message 2"));
-        txSession.commit();
-
-        rcvmsg = consumer.receive(100);
-        assertEquals("Message 1", rcvmsg.getBody(String.class));
-
-        rcvmsg = consumer.receive(100);
-        assertEquals("Message 2", rcvmsg.getBody(String.class));
-
-      }
-
-    }
-
-    //wait for streams to commit
-    Thread.sleep(1000);
-
-    String messagesJournal = "_jms.bridge_junit_messages";
-    Map<JournalEntryKey, JournalEntry> table = getCompactedJournal(kafkaContainer, messagesJournal);
-    TestSupport.logTable(messagesJournal, table);
-    assertEquals(0, table.size(), "Compacted table should be empty.");
-  }
-
-  @Test
-  @Timeout(30)
   public void jmsBasicPubSub() throws Exception {
     Session session = amqServer.getConnection().createSession(false, Session.AUTO_ACKNOWLEDGE);
-    Topic topic = session.createTopic(JMS_TOPIC);
+    Topic topic = session.createTopic(amqServer.safeId(JMS_TOPIC));
     MessageProducer producer = session.createProducer(topic);
 
     //without a consumer the message isn't routable so it will never be stored
     //It also must be targetting a durable queue
-    MessageConsumer consumer = session.createDurableConsumer(topic, "test-subscriber");
+    MessageConsumer consumer = session
+        .createDurableConsumer(topic, amqServer.safeId("test-subscriber"));
 
     //allow the consumer to get situated.
     Thread.sleep(1000);
@@ -268,10 +192,10 @@ public class JmsBridgePubSubTests {
     }
 
     if (!IS_VANILLA) {
-      String bindingsJournal = "_jms.bridge_junit_bindings";
+      String bindingsJournal = amqServer.bindingsJournalTopic();
       logJournalFiles(bindingsJournal);
 
-      String messagesJournal = "_jms.bridge_junit_messages";
+      String messagesJournal = amqServer.messageJournalTopic();
       logJournalFiles(messagesJournal);
     }
   }

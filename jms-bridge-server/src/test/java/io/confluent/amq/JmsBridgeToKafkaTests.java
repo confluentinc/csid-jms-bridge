@@ -12,27 +12,25 @@ import com.google.common.io.Resources;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import io.confluent.amq.config.BridgeConfig;
 import io.confluent.amq.config.BridgeConfigFactory;
+import io.confluent.amq.config.RoutingConfig;
+import io.confluent.amq.config.RoutingConfig.RoutedTopic.Builder;
 import io.confluent.amq.test.ArtemisTestServer;
 import io.confluent.amq.test.ArtemisTestServer.Factory;
 import io.confluent.amq.test.KafkaTestContainer;
 import io.confluent.amq.test.TestSupport;
 import java.nio.file.Path;
-import java.time.Duration;
+import java.util.Arrays;
 import java.util.List;
-import javax.jms.Message;
-import javax.jms.MessageConsumer;
 import javax.jms.MessageProducer;
 import javax.jms.Session;
 import javax.jms.TextMessage;
 import javax.jms.Topic;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.apache.kafka.common.serialization.ByteArrayDeserializer;
 import org.apache.kafka.common.serialization.LongDeserializer;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.junit.jupiter.api.io.TempDir;
 import org.testcontainers.containers.KafkaContainer;
@@ -50,7 +48,7 @@ public class JmsBridgeToKafkaTests {
   @RegisterExtension
   @Order(200)
   public static final KafkaTestContainer kafkaContainer = new KafkaTestContainer(
-      new KafkaContainer("5.4.0")
+      new KafkaContainer("5.5.2")
           .withEnv("KAFKA_DELETE_TOPIC_ENABLE", "true")
           .withEnv("KAFKA_AUTO_CREATE_TOPICS_ENABLE", "false"));
 
@@ -58,350 +56,109 @@ public class JmsBridgeToKafkaTests {
       .loadConfiguration(Resources.getResource("base-test-config.conf"));
 
   @Test
-  @Timeout(30)
-  public void jmsMessageToKafkaTopic() throws Exception {
-    String kafkaCustomerTopic = kafkaContainer.safeTempTopic("customer-topic", 1);
-
-    Factory amqf = ArtemisTestServer.factory();
-    String subscriberName = amqf.safeId("jms-subscriber");
-    String customerQueue = amqf.safeId("customer-queue");
-    amqf.prepare(kafkaContainer, b -> b
-        .mutateJmsBridgeConfig(bridge -> bridge
-            .mergeFrom(baseConfig)
-            .mutateRouting(routing -> routing
-                .addRoute(rt -> rt
-                    .name("test-route")
-                    .mutateFrom(f -> f
-                        .address(customerQueue))
-                    .mutateTo(to -> to
-                        .topic(kafkaCustomerTopic))))));
-
-    try (
-        ArtemisTestServer amq = amqf.start();
-        Session session = amq.getConnection().createSession(false, Session.AUTO_ACKNOWLEDGE)
-    ) {
-
-      Topic topic = session.createTopic(customerQueue);
-
-      try (
-          MessageProducer producer = session.createProducer(topic);
-          MessageConsumer consumer = session.createDurableConsumer(topic, subscriberName)
-      ) {
-
-        producer.send(session.createTextMessage("Message 1"));
-        Message rcvmsg = consumer.receive(100);
-        assertEquals("Message 1", rcvmsg.getBody(String.class));
-
-        TextMessage message = session.createTextMessage("Message 2");
-        message.setJMSMessageID("ID:jmsMessageIdFoo");
-        message.setJMSCorrelationID("CorrelationJmsMessageIdFoo");
-        producer.send(message);
-        rcvmsg = consumer.receive(100);
-        assertEquals("Message 2", rcvmsg.getBody(String.class));
-
-      }
-
-      List<ConsumerRecord<byte[], String>> kafkaRecords = kafkaContainer.consumeBytesStringsUntil(
-          kafkaCustomerTopic, 2);
-
-      assertEquals(2, kafkaRecords.size());
-      kafkaRecords.forEach(r -> TestSupport.println(r.toString()));
-
-    }
-  }
-
-  @Test
   public void testJmsPropertiesArePassedAlong() throws Exception {
-    String kafkaCustomerTopic = kafkaContainer.safeTempTopic("customer-topic", 1);
+    String kafkaCustomerTopic = kafkaContainer.safeCreateTopic("customer-topic", 1);
     Factory amqf = ArtemisTestServer.factory();
-    String subscriberName = amqf.safeId("jms-subscriber");
-    String customerQueue = amqf.safeId("customer-queue");
-
     amqf.prepare(kafkaContainer, b -> b
         .mutateJmsBridgeConfig(bridge -> bridge
             .mergeFrom(baseConfig)
-            .mutateRouting(routing -> routing
-                .addRoute(rt -> rt.name("test-route1")
-                    .mutateFrom(f -> f.address(customerQueue))
-                    .mutateTo(to -> to.topic(kafkaCustomerTopic))))));
+            .id("test")
+            .routing(new RoutingConfig.Builder()
+                .addTopics(new Builder()
+                    .addressTemplate("test.${topic}")
+                    .match("customer-topic.*")
+                    .messageType("text"))
+            .build())));
+
+    String customerAddress = "test." + kafkaCustomerTopic;
 
     try (
         ArtemisTestServer amq = amqf.start();
         Session session = amq.getConnection().createSession(false, Session.AUTO_ACKNOWLEDGE)
     ) {
 
-      Topic topic = session.createTopic(customerQueue);
+      Topic topic = session.createTopic(customerAddress);
 
-      try (
-          MessageProducer producer = session.createProducer(topic);
-          MessageConsumer consumer = session.createDurableConsumer(topic, subscriberName)
-      ) {
+      try (MessageProducer producer = session.createProducer(topic)) {
 
-        TextMessage message = session.createTextMessage("Message 1");
-        message.setJMSReplyTo(topic);
-        message.setStringProperty("foo", "bar");
-        message.setJMSCorrelationID("FooCorrelationId");
-        producer.send(message);
-        Message rcvmsg = consumer.receive(100);
-        assertEquals("Message 1", rcvmsg.getBody(String.class));
-        assertEquals(topic, rcvmsg.getJMSDestination());
-        assertEquals(topic, rcvmsg.getJMSReplyTo());
-        assertEquals("bar", rcvmsg.getStringProperty("foo"));
+        TestSupport.retry(10, 500, () -> {
+          TextMessage message = session.createTextMessage("Message 1");
+          message.setJMSReplyTo(topic);
+          message.setStringProperty("foo", "bar");
+          message.setJMSCorrelationID("FooCorrelationId");
+          producer.send(message);
 
+          List<ConsumerRecord<String, String>> kafkaRecords =
+              kafkaContainer.consumeStringsUntil(kafkaCustomerTopic, 1);
+
+          StringDeserializer strDeser = new StringDeserializer();
+          LongDeserializer longDeser = new LongDeserializer();
+
+          assertTrue(kafkaRecords.size() > 0);
+          ConsumerRecord<String, String> record = kafkaRecords.get(0);
+
+          String topicString = "topic://" + topic.getTopicName();
+          assertEquals(topicString,
+              strDeser.deserialize("", record.headers().lastHeader("jms.JMSReplyTo").value()));
+          assertNotNull(longDeser.deserialize("",
+              record.headers().lastHeader("jms.JMSMessageID").value()));
+          assertNotNull(
+              longDeser.deserialize("", record.headers().lastHeader("jms.JMSTimestamp").value()));
+          assertEquals("bar",
+              strDeser.deserialize("", record.headers().lastHeader("jms.foo").value()));
+          assertEquals(topic.getTopicName(),
+              strDeser.deserialize("", record.headers().lastHeader("jms.JMSDestination").value()));
+          assertEquals("TEXT",
+              strDeser.deserialize("", record.headers().lastHeader("jms.JMSType").value()));
+        });
       }
-
-      List<ConsumerRecord<String, String>> kafkaRecords =
-          kafkaContainer.consumeStringsUntil(kafkaCustomerTopic, 1);
-
-      StringDeserializer strDeser = new StringDeserializer();
-      LongDeserializer longDeser = new LongDeserializer();
-
-      assertEquals(1, kafkaRecords.size());
-      ConsumerRecord<String, String> record = kafkaRecords.get(0);
-
-      String topicString = "topic://" + topic.getTopicName();
-      assertEquals(topicString,
-          strDeser.deserialize("", record.headers().lastHeader("jms.JMSReplyTo").value()));
-      assertNotNull(longDeser.deserialize("",
-          record.headers().lastHeader("jms.JMSMessageID").value()));
-      assertNotNull(
-          longDeser.deserialize("", record.headers().lastHeader("jms.JMSTimestamp").value()));
-      assertEquals("bar",
-          strDeser.deserialize("", record.headers().lastHeader("jms.foo").value()));
-      assertEquals(topic.getTopicName(),
-          strDeser.deserialize("", record.headers().lastHeader("jms.JMSDestination").value()));
-      assertEquals("text",
-          strDeser.deserialize("", record.headers().lastHeader("jms.JMSType").value()));
     }
   }
 
   @Test
   public void testKeySelection() throws Exception {
-    String kafkaCustomerTopic = kafkaContainer.safeTempTopic("customer-topic", 1);
+    String kafkaCustomerTopic = kafkaContainer.safeCreateTopic("customer-topic", 1);
     Factory amqf = ArtemisTestServer.factory();
-    String subscriberName = amqf.safeId("jms-subscriber");
-    String customerQueue = amqf.safeId("customer-queue");
-
     amqf.prepare(kafkaContainer, b -> b
         .mutateJmsBridgeConfig(bridge -> bridge
             .mergeFrom(baseConfig)
-            .mutateRouting(routing -> routing
-                .addRoute(rt -> rt.name("test-route1")
-                    .mutateFrom(f -> f.address(customerQueue))
-                    .mutateMap(m -> m.key("JMSCorrelationID"))
-                    .mutateTo(to -> to.topic(kafkaCustomerTopic))))));
+            .id("test")
+            .routing(new RoutingConfig.Builder()
+                .addTopics(new Builder()
+                    .match("customer-topic.*")
+                    .messageType("text")
+                    .addressTemplate("test.${topic}"))
+
+            .build())));
+
+    String customerAddress = "test." + kafkaCustomerTopic;
+
 
     try (
         ArtemisTestServer amq = amqf.start();
         Session session = amq.getConnection().createSession(false, Session.AUTO_ACKNOWLEDGE)
     ) {
+      TestSupport.retry(10, 500, () -> {
+        assertTrue(Arrays.asList(amq.serverControl().getAddressNames()).contains(customerAddress));
+      });
 
-      Topic topic = session.createTopic(customerQueue);
+      Topic topic = session.createTopic(customerAddress);
 
-      try (
-          MessageProducer producer = session.createProducer(topic);
-          MessageConsumer consumer = session.createDurableConsumer(topic, subscriberName)
-      ) {
+      try (MessageProducer producer = session.createProducer(topic)) {
 
-        TextMessage message = session.createTextMessage("Message 1");
-        message.setJMSCorrelationID("FooCorrelationId");
-        producer.send(message);
-        Message rcvmsg = consumer.receive(100);
-        assertEquals("Message 1", rcvmsg.getBody(String.class));
-        assertEquals("FooCorrelationId", rcvmsg.getJMSCorrelationID());
+        TestSupport.retry(10, 500, () -> {
+          TextMessage message = session.createTextMessage("Message 1");
+          message.setJMSCorrelationID("FooCorrelationId");
+          producer.send(message);
+          List<ConsumerRecord<String, String>> kafkaRecords =
+              kafkaContainer.consumeStringsUntil(kafkaCustomerTopic, 1);
 
-      }
-
-      List<ConsumerRecord<String, String>> kafkaRecords =
-          kafkaContainer.consumeStringsUntil(kafkaCustomerTopic, 1);
-
-      assertEquals(1, kafkaRecords.size());
-      assertTrue(kafkaRecords.stream().anyMatch(r -> "FooCorrelationId".equals(r.key())));
-
-    }
-  }
-
-  @Test
-  public void testMultiRouteSameAddress() throws Exception {
-    String otherKafkaTopic = kafkaContainer.safeTempTopic("other-kafka-topic", 1);
-    String kafkaCustomerTopic = kafkaContainer.safeTempTopic("customer-kafka-topic", 1);
-
-    Factory amqf = ArtemisTestServer.factory();
-    String subscriberName = amqf.safeId("jms-subscriber");
-    String customerQueue = amqf.safeId("customer-queue");
-
-    amqf.prepare(kafkaContainer, b -> b
-        .mutateJmsBridgeConfig(bridge -> bridge
-            .mergeFrom(baseConfig)
-            .mutateRouting(routing -> routing
-                .addRoute(rt -> rt.name("test-route1")
-                    .mutateFrom(f -> f.address(customerQueue))
-                    .mutateTo(to -> to.topic(kafkaCustomerTopic)))
-                .addRoute(rt -> rt.name("test-route2")
-                    .mutateFrom(f -> f.address(customerQueue))
-                    .mutateTo(to -> to.topic(otherKafkaTopic))))));
-
-    try (
-        ArtemisTestServer amq = amqf.start();
-        Session session = amq.getConnection().createSession(false, Session.AUTO_ACKNOWLEDGE)
-    ) {
-
-      Topic topic = session.createTopic(customerQueue);
-
-      try (
-          MessageProducer producer = session.createProducer(topic);
-          MessageConsumer consumer = session.createDurableConsumer(topic, subscriberName)
-      ) {
-
-        producer.send(session.createTextMessage("Message 1"));
-        Message rcvmsg = consumer.receive(100);
-        assertEquals("Message 1", rcvmsg.getBody(String.class));
-
-        TextMessage message = session.createTextMessage("Message 2");
-        message.setJMSMessageID("ID:jmsMessageIdFoo");
-        message.setJMSCorrelationID("CorrelationJmsMessageIdFoo");
-        producer.send(message);
-        rcvmsg = consumer.receive(100);
-        assertEquals("Message 2", rcvmsg.getBody(String.class));
+          assertEquals(1, kafkaRecords.size());
+          assertTrue(kafkaRecords.stream().anyMatch(r -> "FooCorrelationId".equals(r.key())));
+        });
 
       }
 
-      List<ConsumerRecord<byte[], String>> kafkaRecords =
-          kafkaContainer.consumeBytesStringsUntil(kafkaCustomerTopic, 2);
-      assertEquals(2, kafkaRecords.size());
-
-      kafkaRecords =
-          kafkaContainer.consumeUntil(
-              otherKafkaTopic,
-              new ByteArrayDeserializer(),
-              new StringDeserializer(),
-              1,
-              Duration.ofSeconds(1));
-
-      assertEquals(0, kafkaRecords.size());
-    }
-  }
-
-  @Test
-  public void testSingleRouteWithFilter() throws Exception {
-    String kafkaCustomerTopic = kafkaContainer.safeTempTopic("customer-kafka-topic", 1);
-    Factory amqf = ArtemisTestServer.factory();
-
-    String customerQueue = amqf.safeId("customer-queue");
-    String subscriberName = amqf.safeId("jms-subscriber");
-    amqf.prepare(kafkaContainer, b -> b
-        .mutateJmsBridgeConfig(bridge -> bridge
-            .mergeFrom(baseConfig)
-            .mutateRouting(routing -> routing
-                .addRoute(rt -> rt.name("test-route1")
-                    .mutateFrom(f -> f
-                        .address(customerQueue)
-                        .filter("classification <> 'secret'"))
-                    .mutateTo(to -> to.topic(kafkaCustomerTopic))))));
-
-    try (
-        ArtemisTestServer amq = amqf.start();
-        Session session = amq.getConnection().createSession(false, Session.AUTO_ACKNOWLEDGE)
-    ) {
-
-      Topic topic = session.createTopic(customerQueue);
-
-      try (
-          MessageProducer producer = session.createProducer(topic);
-          MessageConsumer consumer = session.createDurableConsumer(topic, subscriberName)
-      ) {
-
-        TextMessage message1 = session.createTextMessage("Secret Message 1");
-        message1.setStringProperty("classification", "secret");
-        producer.send(message1);
-        Message rcvmsg = consumer.receive(100);
-        assertEquals("Secret Message 1", rcvmsg.getBody(String.class));
-
-        TextMessage message2 = session.createTextMessage("Message 2");
-        message2.setStringProperty("classification", "none");
-        producer.send(message2);
-        rcvmsg = consumer.receive(100);
-        assertEquals("Message 2", rcvmsg.getBody(String.class));
-
-        TextMessage message3 = session.createTextMessage("Message 3");
-        producer.send(message3);
-        rcvmsg = consumer.receive(100);
-        assertEquals("Message 3", rcvmsg.getBody(String.class));
-      }
-
-      List<ConsumerRecord<byte[], String>> kafkaRecords = kafkaContainer.consumeBytesStringsUntil(
-          kafkaCustomerTopic, 2);
-
-      assertEquals(2, kafkaRecords.size());
-      assertTrue(kafkaRecords.stream().anyMatch(r -> !"Secret Message 1".equals(r.value())));
-    }
-  }
-
-  @Test
-  public void testMultiRouteSameAddressDifferentFilter() throws Exception {
-    String secretTopic = kafkaContainer.safeTempTopic("secret-kafka-topic", 1);
-    String kafkaCustomerTopic = kafkaContainer.safeTempTopic("customer-kafka-topic", 1);
-
-    Factory amqf = ArtemisTestServer.factory();
-    String subscriberName = amqf.safeId("jms-subscriber");
-    String customerQueue = amqf.safeId("customer-queue");
-
-    amqf.prepare(kafkaContainer, b -> b
-        .mutateJmsBridgeConfig(bridge -> bridge
-            .mergeFrom(baseConfig)
-            .mutateRouting(routing -> routing
-                .addRoute(rt -> rt.name("test-not-secret")
-                    .mutateFrom(f -> f
-                        .address(customerQueue)
-                        .filter("classification <> 'secret'"))
-                    .mutateTo(to -> to.topic(kafkaCustomerTopic)))
-                .addRoute(rt -> rt.name("test-secret")
-                    .mutateFrom(f -> f
-                        .address(customerQueue)
-                        .filter("classification = 'secret'"))
-                    .mutateTo(to -> to.topic(secretTopic))))));
-
-    try (
-        ArtemisTestServer amq = amqf.start();
-        Session session = amq.getConnection().createSession(false, Session.AUTO_ACKNOWLEDGE)
-    ) {
-
-      Topic topic = session.createTopic(customerQueue);
-
-      try (
-          MessageProducer producer = session.createProducer(topic);
-          MessageConsumer consumer = session.createDurableConsumer(topic, subscriberName)
-      ) {
-
-        TextMessage message1 = session.createTextMessage("Secret Message 1");
-        message1.setStringProperty("classification", "secret");
-        producer.send(message1);
-        Message rcvmsg = consumer.receive(100);
-        assertEquals("Secret Message 1", rcvmsg.getBody(String.class));
-
-        TextMessage message2 = session.createTextMessage("Message 2");
-        message2.setStringProperty("classification", "none");
-        producer.send(message2);
-        rcvmsg = consumer.receive(100);
-        assertEquals("Message 2", rcvmsg.getBody(String.class));
-
-        TextMessage message3 = session.createTextMessage("Message 3");
-        producer.send(message3);
-        rcvmsg = consumer.receive(100);
-        assertEquals("Message 3", rcvmsg.getBody(String.class));
-      }
-
-      List<ConsumerRecord<byte[], String>> kafkaRecords = kafkaContainer.consumeBytesStringsUntil(
-          kafkaCustomerTopic, 2);
-
-      assertEquals(2, kafkaRecords.size());
-      assertTrue(kafkaRecords.stream().anyMatch(r -> !"Secret Message 1".equals(r.value())));
-
-      kafkaRecords = kafkaContainer.consumeBytesStringsUntil(
-          secretTopic, 1);
-
-      assertEquals(1, kafkaRecords.size());
-      assertTrue(kafkaRecords.stream().anyMatch(r -> "Secret Message 1".equals(r.value())));
 
     }
   }

@@ -4,6 +4,8 @@
 
 package io.confluent.amq;
 
+import io.confluent.amq.config.BridgeConfig;
+import io.confluent.amq.exchange.KafkaExchangeManager;
 import io.confluent.amq.logging.StructuredLogger;
 import io.confluent.amq.persistence.kafka.KafkaIntegration;
 import io.confluent.amq.persistence.kafka.KafkaJournalStorageManager;
@@ -24,6 +26,7 @@ public class ConfluentAmqServer extends ActiveMQServerImpl {
       .loggerClass(DelegatingConfluentAmqServer.class));
 
   private final KafkaIntegration kafkaIntegration;
+  private final KafkaExchangeManager kafkaExchangeManager;
 
   public ConfluentAmqServer() {
     throw new IllegalStateException("Configuration required.");
@@ -32,24 +35,32 @@ public class ConfluentAmqServer extends ActiveMQServerImpl {
   public ConfluentAmqServer(final JmsBridgeConfiguration configuration) {
     super(configuration);
     kafkaIntegration = new KafkaIntegration(configuration);
+    kafkaExchangeManager = new KafkaExchangeManager(configuration, this);
+    this.getBrokerPlugins().add(kafkaExchangeManager);
   }
 
   public ConfluentAmqServer(final JmsBridgeConfiguration configuration,
       final ActiveMQServer parentServer) {
     super(configuration, parentServer);
     kafkaIntegration = new KafkaIntegration(configuration);
+    kafkaExchangeManager = new KafkaExchangeManager(configuration, this);
+    this.getBrokerPlugins().add(kafkaExchangeManager);
   }
 
   public ConfluentAmqServer(final JmsBridgeConfiguration configuration,
       final MBeanServer mbeanServer) {
     super(configuration, mbeanServer);
     kafkaIntegration = new KafkaIntegration(configuration);
+    kafkaExchangeManager = new KafkaExchangeManager(configuration, this);
+    this.getBrokerPlugins().add(kafkaExchangeManager);
   }
 
   public ConfluentAmqServer(final JmsBridgeConfiguration configuration,
       final ActiveMQSecurityManager securityManager) {
     super(configuration, securityManager);
     kafkaIntegration = new KafkaIntegration(configuration);
+    kafkaExchangeManager = new KafkaExchangeManager(configuration, this);
+    this.getBrokerPlugins().add(kafkaExchangeManager);
   }
 
   public ConfluentAmqServer(final JmsBridgeConfiguration configuration,
@@ -57,6 +68,8 @@ public class ConfluentAmqServer extends ActiveMQServerImpl {
       final ActiveMQSecurityManager securityManager) {
     super(configuration, mbeanServer, securityManager);
     kafkaIntegration = new KafkaIntegration(configuration);
+    kafkaExchangeManager = new KafkaExchangeManager(configuration, this);
+    this.getBrokerPlugins().add(kafkaExchangeManager);
   }
 
   public ConfluentAmqServer(final JmsBridgeConfiguration configuration,
@@ -64,6 +77,8 @@ public class ConfluentAmqServer extends ActiveMQServerImpl {
       final ActiveMQSecurityManager securityManager, final ActiveMQServer parentServer) {
     super(configuration, mbeanServer, securityManager, parentServer);
     kafkaIntegration = new KafkaIntegration(configuration);
+    kafkaExchangeManager = new KafkaExchangeManager(configuration, this);
+    this.getBrokerPlugins().add(kafkaExchangeManager);
   }
 
   public ConfluentAmqServer(final JmsBridgeConfiguration configuration,
@@ -72,12 +87,28 @@ public class ConfluentAmqServer extends ActiveMQServerImpl {
       final ServiceRegistry serviceRegistry) {
     super(configuration, mbeanServer, securityManager, parentServer, serviceRegistry);
     kafkaIntegration = new KafkaIntegration(configuration);
+    kafkaExchangeManager = new KafkaExchangeManager(configuration, this);
+    this.getBrokerPlugins().add(kafkaExchangeManager);
+  }
+
+  public KafkaExchangeManager getKafkaExchangeManager() {
+    return kafkaExchangeManager;
+  }
+
+  public KafkaIntegration getKafkaIntegration() {
+    return kafkaIntegration;
   }
 
   public void doStop(boolean failoverOnServerShutdown, boolean isExit) throws Exception {
-    super.stop(failoverOnServerShutdown, isExit);
-    kafkaIntegration.stop();
 
+    super.stop(failoverOnServerShutdown, isExit);
+
+    kafkaExchangeManager.stop();
+    kafkaIntegration.stop();
+  }
+
+  public BridgeConfig getBridgeConfig() {
+    return ((JmsBridgeConfiguration)getConfiguration()).getBridgeConfig();
   }
 
   @Override
@@ -125,12 +156,24 @@ public class ConfluentAmqServer extends ActiveMQServerImpl {
 
   public void doStart() throws Exception {
     beforeStart();
+
     super.start();
+
+    afterStart();
+  }
+
+  private void afterStart() {
+    try {
+      kafkaExchangeManager.start();
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
   }
 
   private void beforeStart() {
     try {
       kafkaIntegration.start();
+      kafkaExchangeManager.prepare();
     } catch (Exception e) {
       throw new RuntimeException(e);
     }
