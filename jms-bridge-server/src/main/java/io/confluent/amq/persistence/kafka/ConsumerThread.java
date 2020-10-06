@@ -8,19 +8,25 @@ import io.confluent.amq.logging.StructuredLogger;
 import java.lang.Thread.UncaughtExceptionHandler;
 import java.time.Duration;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.apache.kafka.clients.consumer.ConsumerRebalanceListener;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.serialization.ByteArrayDeserializer;
 import org.apache.kafka.common.serialization.Deserializer;
 import org.inferred.freebuilder.FreeBuilder;
 
 @FreeBuilder
-public abstract class ConsumerThread<K, V> implements Runnable {
+public abstract class ConsumerThread<K, V> implements Runnable, ConsumerRebalanceListener {
 
   private static final StructuredLogger SLOG = StructuredLogger
       .with(b -> b.loggerClass(ConsumerThread.class));
@@ -63,6 +69,9 @@ public abstract class ConsumerThread<K, V> implements Runnable {
 
   public abstract Long pollMs();
 
+
+  private final AtomicReference<Collection<String>> topicsRef =
+      new AtomicReference<>(Collections.emptyList());
   private final AtomicReference<Collection<String>> topicUpdateRef = new AtomicReference<>(null);
   private final Semaphore runFlag = new Semaphore(1);
   private volatile boolean running = false;
@@ -93,6 +102,10 @@ public abstract class ConsumerThread<K, V> implements Runnable {
     return running;
   }
 
+  public Collection<String> currTopics() {
+    return topicsRef.get();
+  }
+
   public void updateTopics(Collection<String> newTopics) {
     topicUpdateRef.set(newTopics);
   }
@@ -115,7 +128,7 @@ public abstract class ConsumerThread<K, V> implements Runnable {
                 .name(groupId())
                 .putTokens("topicList", updatedTopicList));
             consumer.unsubscribe();
-            consumer.subscribe(updatedTopicList);
+            consumer.subscribe(updatedTopicList, this);
           }
         }
 
@@ -151,6 +164,30 @@ public abstract class ConsumerThread<K, V> implements Runnable {
       putConsumerProps(ConsumerConfig.GROUP_ID_CONFIG, groupId());
       return super.build();
     }
+  }
+
+  /////
+  // ConsumerRebalanceListener IMPL
+  ////
+  @Override
+  public void onPartitionsRevoked(Collection<TopicPartition> partitions) {
+    Collection<String> currTopics = topicsRef.get();
+    if (!currTopics.isEmpty()) {
+      Set<String> revocations = partitions.stream()
+          .map(TopicPartition::topic)
+          .collect(Collectors.toSet());
+      List<String> updatedTopics = currTopics.stream()
+          .filter(t -> !revocations.contains(t))
+          .collect(Collectors.toList());
+      topicsRef.set(updatedTopics);
+    }
+  }
+
+  @Override
+  public void onPartitionsAssigned(Collection<TopicPartition> partitions) {
+    List<String> currTopics =
+        partitions.stream().map(TopicPartition::topic).collect(Collectors.toList());
+    topicsRef.set(currTopics);
   }
 
   public interface MessageReciever<K, V> {

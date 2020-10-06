@@ -12,6 +12,7 @@ import io.confluent.amq.config.RoutingConfig;
 import io.confluent.amq.config.RoutingConfig.RoutedTopic;
 import io.confluent.amq.exchange.KafkaTopicExchange.Builder;
 import io.confluent.amq.logging.StructuredLogger;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -102,6 +103,10 @@ public class KafkaExchangeManager implements ActiveMQServerPlugin {
           .event("KafkaRoutingDisabled")
           .message("No routing configuration found."));
     }
+  }
+
+  public Collection<String> currentSubscribedKafkaTopics() {
+    return this.egress.currentConsumerTopics();
   }
 
   public void start() {

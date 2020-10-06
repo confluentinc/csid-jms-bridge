@@ -12,6 +12,7 @@ import io.confluent.amq.logging.StructuredLogger;
 import io.confluent.amq.persistence.kafka.ConsumerThread;
 import io.confluent.amq.persistence.kafka.ConsumerThread.MessageReciever;
 import io.confluent.amq.persistence.kafka.KafkaIO;
+import java.util.Collection;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
@@ -66,8 +67,10 @@ public class KafkaExchangeEgress implements ExchangeChangeListener,
     KafkaTopicExchange exchange = topicExchangeMap.get(kafkaRecord.topic());
     if (exchange != null) {
 
+      //we allow one hop for incoming messages so that JMS consumers on the exchange address can
+      //receive messages published by JMS producers to the exchange address.
       Optional<Integer> maybeHopsVal = Headers.getIntHeader(hopsHeaderKey, kafkaRecord.headers());
-      if (!maybeHopsVal.isPresent() || maybeHopsVal.get() < 1) {
+      if (!maybeHopsVal.isPresent() || maybeHopsVal.get() <= 1) {
         routeMessage(exchange, kafkaRecord);
       } else {
         SLOG.trace(b -> b.event("RecordNotRouted")
@@ -122,6 +125,7 @@ public class KafkaExchangeEgress implements ExchangeChangeListener,
       SLOG.trace(b -> b
           .event("RoutingRecord")
           .markFailure()
+          .addRecordMetadata(kafkaRecord)
           .putTokens("topicAddress", exchange.amqAddressName())
           .putTokens("topic", kafkaRecord.topic()), e);
 
@@ -152,6 +156,10 @@ public class KafkaExchangeEgress implements ExchangeChangeListener,
     if (consumerThread != null) {
       consumerThread.stop(true);
     }
+  }
+
+  public Collection<String> currentConsumerTopics() {
+    return consumerThread.currTopics();
   }
 
   public void updateConsumerTopics() {

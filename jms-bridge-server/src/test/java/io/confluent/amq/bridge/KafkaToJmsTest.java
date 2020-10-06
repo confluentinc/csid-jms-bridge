@@ -7,7 +7,6 @@ package io.confluent.amq.bridge;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
@@ -155,7 +154,7 @@ public class KafkaToJmsTest {
   }
 
   @Test
-  public void testConsumerDoesNotReceiveJmsOriginatedKafkaMessage() throws Exception {
+  public void testConsumerReceivesJmsOriginatedKafkaMessage() throws Exception {
     String herringTopic = kafkaContainer.safeCreateTopic("herring-events", 3);
     amqServer.confluentAmqServer().getKafkaExchangeManager().synchronizeTopics();
 
@@ -167,6 +166,12 @@ public class KafkaToJmsTest {
       try (MessageProducer producer = session.createProducer(herringDest);
           MessageConsumer consumer = session.createConsumer(herringDest)) {
 
+        TestSupport.retry(30, 100, () ->
+            assertTrue(amqServer.confluentAmqServer()
+                .getKafkaExchangeManager()
+                .currentSubscribedKafkaTopics()
+                .contains(herringTopic)));
+
         producer.send(session.createTextMessage("hey kafka"));
 
         List<ConsumerRecord<byte[], String>> records =
@@ -175,8 +180,9 @@ public class KafkaToJmsTest {
         assertEquals(1, records.size());
         assertEquals("hey kafka", records.get(0).value());
 
-        Message rcvmsg = consumer.receive(1000);
-        assertNull(rcvmsg);
+        Message rcvmsg = consumer.receive(30_000);
+        assertNotNull(rcvmsg);
+        assertEquals("hey kafka", rcvmsg.getBody(String.class));
       }
     }
   }
@@ -258,7 +264,6 @@ public class KafkaToJmsTest {
 
       try (MessageConsumer consumer = session.createConsumer(herringDest)) {
 
-
         TestSupport.retry(10, 1000, () -> {
           kafkaContainer.publish(herringTopic, "key", "value");
           Message rcvmsg = consumer.receive(1000);
@@ -297,7 +302,6 @@ public class KafkaToJmsTest {
         }
 
         amqServer.confluentAmqServer().getKafkaExchangeManager().synchronizeTopics();
-
 
         TestSupport.retry(10, 1000, () -> {
           kafkaContainer.publish(herring2Topic, "key", "value3");
