@@ -124,4 +124,95 @@ Close shells 1, 2, 3, and 4.
 In the original shell send the TERM signal to the JMS-Bridge by using `control-c`.
 
 
+## Request / Reply Pattern
+
+In JMS there two different messaging style supported, publish-subscribe (pubsub) and point-to-point (ptp).
+This differs from Kafka which only supports the pubsub model.
+Since the JMS Bridge resides in both worlds it can be used to facilitate a ptp like interaction between JMS clients and Kafka clients.
+
+In this example a JMS client will be performing a synchronous request expecting a reply while the Kafka client will be aysnchronously responding to it.
+From the JMS client's point of view nothing is unusual since it already supports the ptp model.
+The Kafka client, on the other hand, will need to do a little extra work to tie the request to the response.
+
+This example is done in Java and will require the reader to know enough about java development to finish the code, compile it and then execute it.
+
+Here's an example main method for the JMS client:
+```java
+
+    try (
+        //acquire a JMS Session
+        Session session = amqServer.getConnection().createSession(false, Session.AUTO_ACKNOWLEDGE)
+    ) {
+
+      // The JMS topic connected to the Kafka topic that our Kafka client will be responding from
+      Topic requestAmqTopic = session.createTopic("kafka.quick-start-request");
+
+      TopicSession topicSession = (TopicSession) session;
+      TopicRequestor requestor = new TopicRequestor(topicSession, requestAmqTopic);
+
+      try {
+        String request = "Hello, what's your name?";
+        TextMessage tmsg = session.createTextMessage(request);
+        System.out.println("Request: " + request);
+        Message response = requestor.request(tmsg);
+        System.out.println("Response: " + response.getBody(String.class));
+      } catch (RuntimeException e) {
+        throw e;
+      } catch (Exception e) {
+        throw new RuntimeException(e);
+      }
+
+      System.out.println("jms disconnected.");
+    } 
+  }
+```
+
+Here for the Kafka client:
+```java
+      
+      try (
+          KafkaProducer<byte[], String> kproducer = new KafkaProducer<>(
+             kprops, new ByteArraySerializer(), new StringSerializer());
+          KafkaConsumer<byte[], String> kconsumer = new KafkaConsumer<>(
+             kprops, new ByteArrayDeserializer(), new StringDeserializer());
+      ) {
+
+        kconsumer.subscribe(Collections.singleton("quick-start-request"));
+
+        while (true) {
+          ConsumerRecords<byte[], String> pollRecords = kconsumer.poll(Duration.ofMillis(100L));
+          if (pollRecords != null) {
+            pollRecords.forEach(request -> {
+
+              //Extract the JMSReployTo header value, should refer to a temporary topic
+              Header replyTo = request.headers().lastHeader("jms.JMSReplyTo");
+              final byte[] destination = replyTo != null
+                  ? replyTo.value()
+                  : null;
+
+              String responseValue = "Hi, my name is Kafka";
+              System.out.println(" Response: " + responseValue);
+
+              ProducerRecord<byte[], String> response = new ProducerRecord(
+                "quick-start-response", request.key(), responseValue);
+
+              if (destination != null) {
+                //set the destination to that temporary topic from the request header
+                response.headers().add("jms.JMSDestination", destination);
+              }
+
+              //synchronous publish for example only, not recommended, use async version with callback instead
+              kproducer.send(response).get();
+            });
+          }
+        }
+      }
+```
+
+For the example to work some preparatory tasks need to be completed.
+
+1. Create the `quick-start-request` and `quick-start-response` topics in Kafka.
+2. Start the JMS Bridge using the `etc/jms-bridge/quick-start-kafka-request-reply.conf` configuration with the correct `bootstrap.servers`.
+
+
 

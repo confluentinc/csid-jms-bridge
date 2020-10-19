@@ -19,7 +19,6 @@ import io.confluent.amq.test.ArtemisTestServer.Factory;
 import io.confluent.amq.test.KafkaTestContainer;
 import io.confluent.amq.test.TestSupport;
 import java.nio.file.Path;
-import java.util.Arrays;
 import java.util.List;
 import javax.jms.MessageProducer;
 import javax.jms.Session;
@@ -138,9 +137,7 @@ public class JmsBridgeToKafkaTests {
         ArtemisTestServer amq = amqf.start();
         Session session = amq.getConnection().createSession(false, Session.AUTO_ACKNOWLEDGE)
     ) {
-      TestSupport.retry(10, 500, () -> {
-        assertTrue(Arrays.asList(amq.serverControl().getAddressNames()).contains(customerAddress));
-      });
+      amq.assertAddressAvailable(customerAddress);
 
       Topic topic = session.createTopic(customerAddress);
 

@@ -11,8 +11,39 @@ import org.inferred.freebuilder.FreeBuilder;
 @FreeBuilder
 public interface RoutingConfig {
 
+  /**
+   * <p>
+   *  The list of topic routing rules that are used to establish JMS topic exchanges for passing
+   *  data between top level Kafka topics and JMS topics.  Each rule can match any number of topics,
+   *  including zero.
+   * </p>
+   * <p>
+   *  Rules are applied in order and if multiple match a single topic the last applied rule will
+   *  take affect.
+   * </p>
+   * @return a list of Kafka topic matching rules to be applied in order
+   */
   List<RoutedTopic> topics();
 
+  /**
+   * <p>
+   *  Config Key: <pre>metadata-refresh-ms</pre>
+   * </p>
+   * <p>
+   *   Set the interval at which metadata on topics will be refreshed from the Kafka broker. This
+   *   refresh will determine if any new matching Kafka topics have been found and establish JMS
+   *   topic exchanges for them. It will also disable or remove any existing JMS topic exchanges
+   *   that no longer have a corresponding Kafka topic.
+   * </p>
+   * <p>
+   *   This refresh is affected by both changes in the existence of topics (create / delete) and
+   *   access controls (read / write permission).
+   * </p>
+   * <p>
+   *   DEFAULT: 300000, five minutes
+   * </p>
+   * @return The refresh interval as measured in milliseconds
+   */
   Integer metadataRefreshMs();
 
   class Builder extends RoutingConfig_Builder {
@@ -70,7 +101,7 @@ public interface RoutingConfig {
      * Config Key: <pre>address-template</pre>
      * </p>
      * <p>
-     * A simple character template that can be used to determine the name of the ActiveMQ address
+     * A simple character template that can be used to determine the name of the JMS topic
      * that will be created for each Kafka topic matching this. A single token is available for
      * replacement, '${topic}', it will be replaced by the name of the matched kafka topic.
      * </p>
@@ -101,7 +132,7 @@ public interface RoutingConfig {
      * </p>
      * <p>
      * Specify a property on the message that should be used as the record key when publishing
-     * to Kafka. If the property cannot be found then the 'MessageID' will be used.
+     * to Kafka. If the property cannot be found then the 'JMSMessageID' will be used.
      * </p>
      * <p>
      * By default this is set to 'JMSMessageID'.
@@ -123,6 +154,51 @@ public interface RoutingConfig {
      * </p>
      */
     boolean correlationKeyOverride();
+
+    /**
+     * <p>
+     *   Config Key: <pre>consume-always</pre>
+     * </p>
+     * <p>
+     *   Always consume and route messages from the matching Kafka topics regardless of whether
+     *   anybody is listening (no bindings). This is required for situations where data may be
+     *   routed to destinations that may not be bound to the corresponding JMS topic
+     *   ( e.g. request/reply pattern with temprary queues).
+     * </p>
+     * <p>
+     *   Normally, to conserver resources, if a topic exchange is not bound (no queue or consumer
+     *   attached to the JMS topic) then no data will be read from the corresponding Kafka topic
+     *   since it will not be routed.
+     * </p>
+     * <p>
+     *   DEFAULT: false, save resources by not consuming from Kafka
+     * </p>
+     */
+    boolean consumeAlways();
+
+    /**
+     * <p>
+     *    Config Key: <pre>resume-at-latest</pre>
+     * </p>
+     * <p>
+     *   If a topic exchange becomes inactive (no bindings attached to the JMS topic) then later
+     *   is bound and becomes active again the underlying consumer will start reading data from
+     *   Kafka using the previous active point offset. If the previous active point offset is no
+     *   longer present in Kafka for that topic (due to expiration) then it will start reading
+     *   from the head of the Kafka topic (latest offset).
+     * </p>
+     * <p>
+     *   This option can be used to force reading, upon reactivation of the topic exchange, from
+     *   the head of the Kafka topic instead of from any previous active point offset.
+     * </p>
+     * <p>
+     *   <b>THIS FEATURE IS NOT CURRENTLY AVAILABLE</b>
+     * </p>
+     * <p>
+     *   DEFAULT: false, use any previous active point offset when resuming
+     * </p>
+     */
+    boolean resumeAtLatest();
 
     class Builder extends RoutingConfig_RoutedTopic_Builder {
 
@@ -150,6 +226,13 @@ public interface RoutingConfig {
           correlationKeyOverride(routedTopicConfig.getBoolean("correlation-key-override"));
         }
 
+        if (routedTopicConfig.hasPath("consume-always")) {
+          consumeAlways(routedTopicConfig.getBoolean("consume-always"));
+        }
+
+        if (routedTopicConfig.hasPath("resume-at-latest")) {
+          resumeAtLatest(routedTopicConfig.getBoolean("resume-at-latest"));
+        }
       }
 
       public Builder() {
@@ -157,7 +240,9 @@ public interface RoutingConfig {
         this.addressTemplate("kafka.${topic}")
             .messageType("BYTES")
             .keyProperty("JMSMessageID")
-            .correlationKeyOverride(true);
+            .correlationKeyOverride(true)
+            .consumeAlways(false)
+            .resumeAtLatest(false);
       }
 
       @Override

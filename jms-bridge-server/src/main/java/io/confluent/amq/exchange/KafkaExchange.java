@@ -203,6 +203,7 @@ public class KafkaExchange {
 
     ExchangeState newState = new ExchangeState.Builder()
         .bindingCount(bindingCount)
+        .ignoreBindingCount(topicExchange.originConfig().consumeAlways())
         .build();
 
     ExchangeState oldState = this.exchanges.put(topicExchange, newState);
@@ -338,8 +339,10 @@ public class KafkaExchange {
     }
 
     default boolean isEnabled() {
-      return bindingCount() > 1 && !paused();
+      return (ignoreBindingCount() || bindingCount() > 1) && !paused();
     }
+
+    boolean ignoreBindingCount();
 
     boolean paused();
 

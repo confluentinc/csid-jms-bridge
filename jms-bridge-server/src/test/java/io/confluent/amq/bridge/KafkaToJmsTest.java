@@ -19,9 +19,6 @@ import io.confluent.amq.test.TestSupport;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import javax.jms.Message;
 import javax.jms.MessageConsumer;
 import javax.jms.MessageProducer;
@@ -71,19 +68,15 @@ public class KafkaToJmsTest {
     String herringTopic = kafkaContainer.safeCreateTopic("herring-events", 3);
     amqServer.confluentAmqServer().getKafkaExchangeManager().synchronizeTopics();
 
-    TestSupport.retry(3, 500, () -> {
-      Set<String> addresses = Stream.of(amqServer.serverControl().getAddressNames())
-          .peek(TestSupport::println)
-          .collect(Collectors.toSet());
-
-      assertTrue(addresses.contains("test." + herringTopic));
-    });
+    String herringAddress = "test." + herringTopic;
+    amqServer.assertAddressAvailable(herringAddress);
   }
 
   @Test
   public void testConsumerNotConsumingForUnboundAddress() throws Exception {
     String herringTopic = kafkaContainer.safeCreateTopic("herring-events", 3);
     amqServer.confluentAmqServer().getKafkaExchangeManager().synchronizeTopics();
+    amqServer.assertAddressAvailable("test." + herringTopic);
 
     kafkaContainer.publish(herringTopic, "key", "value");
     kafkaContainer.publish(herringTopic, "key", "value");
@@ -107,9 +100,10 @@ public class KafkaToJmsTest {
     String herringTopic = kafkaContainer.safeCreateTopic("herring-events", 3);
     amqServer.confluentAmqServer().getKafkaExchangeManager().synchronizeTopics();
 
-    String subscriberName = amqServer.safeId("subscriber-name");
     String herringAddress = "test." + herringTopic;
+    amqServer.assertAddressAvailable(herringAddress);
 
+    String subscriberName = amqServer.safeId("subscriber-name");
     try (
         Session session = amqServer.getConnection().createSession(false, Session.AUTO_ACKNOWLEDGE)
     ) {
@@ -137,6 +131,8 @@ public class KafkaToJmsTest {
     amqServer.confluentAmqServer().getKafkaExchangeManager().synchronizeTopics();
 
     String herringAddress = "test." + herringTopic;
+    amqServer.assertAddressAvailable(herringAddress);
+
     try (Session session = amqServer.getConnection()
         .createSession(false, Session.AUTO_ACKNOWLEDGE)) {
       Topic herringDest = session.createTopic(herringAddress);
@@ -159,6 +155,8 @@ public class KafkaToJmsTest {
     amqServer.confluentAmqServer().getKafkaExchangeManager().synchronizeTopics();
 
     String herringAddress = "test." + herringTopic;
+    amqServer.assertAddressAvailable(herringAddress);
+
     try (Session session = amqServer.getConnection()
         .createSession(false, Session.AUTO_ACKNOWLEDGE)) {
       Topic herringDest = session.createTopic(herringAddress);
@@ -192,10 +190,7 @@ public class KafkaToJmsTest {
     String herringTopic = kafkaContainer.safeCreateTopic("herring-events", 3);
     amqServer.confluentAmqServer().getKafkaExchangeManager().synchronizeTopics();
     String herringAddress = "test." + herringTopic;
-
-    TestSupport.retry(10, 500, () ->
-        assertTrue(
-            Arrays.asList(amqServer.serverControl().getAddressNames()).contains(herringAddress)));
+    amqServer.assertAddressAvailable(herringAddress);
 
     try (Session session = amqServer.getConnection()
         .createSession(false, Session.AUTO_ACKNOWLEDGE)) {
@@ -217,11 +212,9 @@ public class KafkaToJmsTest {
   public void testExchangeIsRemovedWhenTopicIsDeleted_noConsumers() throws Exception {
     String herringTopic = kafkaContainer.safeCreateTopic("herring-events", 3);
     amqServer.confluentAmqServer().getKafkaExchangeManager().synchronizeTopics();
-    String herringAddress = "test." + herringTopic;
 
-    TestSupport.retry(10, 500, () ->
-        assertTrue(
-            Arrays.asList(amqServer.serverControl().getAddressNames()).contains(herringAddress)));
+    String herringAddress = "test." + herringTopic;
+    amqServer.assertAddressAvailable(herringAddress);
 
     try (Session session = amqServer.getConnection()
         .createSession(false, Session.AUTO_ACKNOWLEDGE)) {
@@ -256,7 +249,11 @@ public class KafkaToJmsTest {
     amqServer.confluentAmqServer().getKafkaExchangeManager().synchronizeTopics();
 
     String herringAddress = "test." + herringTopic;
+    amqServer.assertAddressAvailable(herringAddress);
+
     String herring2Address = "test." + herring2Topic;
+    amqServer.assertAddressAvailable(herring2Address);
+
     try (Session session = amqServer.getConnection()
         .createSession(false, Session.AUTO_ACKNOWLEDGE)) {
       Topic herringDest = session.createTopic(herringAddress);

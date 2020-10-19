@@ -18,6 +18,8 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import org.apache.activemq.artemis.api.core.SimpleString;
 import org.apache.activemq.artemis.core.message.impl.CoreMessage;
+import org.apache.activemq.artemis.core.postoffice.RoutingStatus;
+import org.apache.activemq.artemis.jms.client.ActiveMQDestination;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.serialization.ByteArrayDeserializer;
 import org.apache.kafka.common.serialization.StringDeserializer;
@@ -87,8 +89,15 @@ public class KafkaExchangeEgress implements ExchangeChangeListener,
 
   private void routeMessage(
       KafkaTopicExchange exchange, ConsumerRecord<byte[], byte[]> kafkaRecord) {
+
+    String address = Headers.getStringHeader(
+        Headers.createKafkaJmsPropKey(Headers.HDR_DESTINATION), kafkaRecord.headers())
+        .map(ActiveMQDestination::fromPrefixedName)
+        .map(ActiveMQDestination::getAddress)
+        .orElse(exchange.amqAddressName());
+
     SLOG.trace(b -> b.event("RoutingRecord")
-        .putTokens("topicAddress", exchange.amqAddressName())
+        .putTokens("topicAddress", address)
         .putTokens("topic", kafkaRecord.topic()));
 
     CoreMessage coreMessage = new CoreMessage(
@@ -100,7 +109,8 @@ public class KafkaExchangeEgress implements ExchangeChangeListener,
     coreMessage.setType((byte) msgType.getId());
     coreMessage.setDurable(true);
     coreMessage.setTimestamp(kafkaRecord.timestamp());
-    coreMessage.setAddress(exchange.amqAddressName());
+
+    coreMessage.setAddress(address);
     coreMessage.putStringProperty(Headers.HDR_KAFKA_TOPIC, kafkaRecord.topic());
     coreMessage.putIntProperty(Headers.HDR_KAFKA_PARTITION, kafkaRecord.partition());
     coreMessage.putLongProperty(Headers.HDR_KAFKA_OFFSET, kafkaRecord.offset());
@@ -120,7 +130,12 @@ public class KafkaExchangeEgress implements ExchangeChangeListener,
     }
 
     try {
-      server.getPostOffice().route(coreMessage, false);
+      RoutingStatus status = server.getPostOffice().route(coreMessage, false);
+      SLOG.trace(b -> b
+          .event("RoutingStatus")
+          .addRecordMetadata(kafkaRecord)
+          .putTokens("status", status));
+
     } catch (Exception e) {
       SLOG.trace(b -> b
           .event("RoutingRecord")

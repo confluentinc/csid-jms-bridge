@@ -4,9 +4,6 @@
 
 package io.confluent.amq.bridge;
 
-import com.google.common.io.Resources;
-import io.confluent.amq.config.BridgeConfig;
-import io.confluent.amq.config.BridgeConfigFactory;
 import io.confluent.amq.test.KafkaTestContainer;
 import io.confluent.amq.test.TestSupport;
 import java.nio.file.Path;

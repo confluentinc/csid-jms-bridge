@@ -1,7 +1,12 @@
 # Configuration
 
-All configuration for the JMS Bridge is done via a properties file which is supplied to the `jms-bridge-server-start` script.
-An example configuration can be found in `etc/jms-bridge/jms-bridge.properties`.
+All configuration for the JMS Bridge is done via a file which is supplied to the `jms-bridge-server-start` script.
+An example configuration can be found in `etc/jms-bridge/jms-bridge.conf`.
+
+The configuration is written using Lightbends config library and file format, HOCON (see https://github.com/lightbend/config).
+HOCON is fairly straight forward and is compatible with JSON and even java properties but it also has more advanced features which can simplify configuration.
+Use the default configuration as a reference when customizing it your own.
+
 
 ## Artemis Configuration
 
@@ -16,4 +21,4 @@ https://activemq.apache.org/components/artemis/documentation/latest/configuratio
 
 ## Configuration Reference
 
-Currently there are no options available to be configured via the properties file.
+See the default configuration file (`etc/jms-bridge/jms-bridge.conf`) for information on all of the configuration options.

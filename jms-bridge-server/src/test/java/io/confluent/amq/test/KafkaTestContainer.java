@@ -18,6 +18,7 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.NewTopic;
@@ -83,7 +84,6 @@ public class KafkaTestContainer implements
   public void beforeAll(ExtensionContext extensionContext) throws Exception {
     this.kafkaContainer.start();
 
-
     Properties kafkaProps = defaultProps();
     kafkaProps.putAll(baseProps);
     kafkaProps.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false");
@@ -130,9 +130,21 @@ public class KafkaTestContainer implements
     return publish(topic, ser(topic, key), ser(topic, value));
   }
 
-  public RecordMetadata publish(String topic, byte[] key, byte[] value) {
+  public RecordMetadata publish(
+      String topic, byte[] key, byte[] value) {
+
+    return publish(topic, key, value, r -> {
+    });
+  }
+
+
+  public RecordMetadata publish(
+      String topic, byte[] key, byte[] value,
+      Consumer<ProducerRecord<byte[], byte[]>> withRecord) {
+    ProducerRecord<byte[], byte[]> record = new ProducerRecord<>(topic, key, value);
+    withRecord.accept(record);
     try {
-      return producer.send(new ProducerRecord<>(topic, key, value)).get();
+      return producer.send(record, (meta, err) -> {}).get();
     } catch (Exception e) {
       throw new RuntimeException(e);
     }
@@ -221,7 +233,7 @@ public class KafkaTestContainer implements
     consumer.close();
     System.out.println(
         "KafkaTestContainer.consumerUntil took "
-        + totalTime.elapsed().toMillis() + "ms");
+            + totalTime.elapsed().toMillis() + "ms");
     return recordList;
   }
 

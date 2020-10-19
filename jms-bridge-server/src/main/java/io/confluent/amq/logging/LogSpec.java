@@ -133,6 +133,13 @@ public interface LogSpec {
         return this.putTokens("recordMetadata", "null");
       }
 
+      consumerRecord.headers().forEach(hdr -> {
+        try {
+          this.putTokens("header." + hdr.key(), new String(hdr.value()));
+        } catch (Exception e) {
+          this.putTokens("header." + hdr.key(), hdr.value());
+        }
+      });
       return this
           .putTokens("topic", consumerRecord.topic())
           .putTokens("partition", consumerRecord.partition())

@@ -5,6 +5,7 @@
 package io.confluent.amq.test;
 
 import static com.google.common.io.Resources.getResource;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.common.io.MoreFiles;
 import com.google.common.io.RecursiveDeleteOption;
@@ -24,6 +25,7 @@ import java.io.Closeable;
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -117,6 +119,12 @@ public class ArtemisTestServer implements
         KafkaJournalStorageManager.BINDINGS_NAME);
   }
 
+  public void assertAddressAvailable(String address) {
+    TestSupport.retry(10, 500, () ->
+        assertTrue(
+            Arrays.asList(serverControl().getAddressNames()).contains(address)));
+  }
+
   public String consumerGroupName() {
     return KafkaIntegration.applicationId(serverSpec.jmsBridgeConfig().id());
   }
@@ -126,7 +134,6 @@ public class ArtemisTestServer implements
     beforeEach();
     return this;
   }
-
 
   @Override
   public void close() {
