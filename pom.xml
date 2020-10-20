@@ -7,6 +7,14 @@
 
   <name>JMS Bridge Parent</name>
 
+  <scm>
+    <connection>scm:git:git@github.com:confluentinc/csid-jms-bridge.git</connection>
+    <developerConnection>scm:git:git@github.com:confluentinc/csid-jms-bridge.git</developerConnection>
+    <url>https://github.com/confluentinc/csid-jms-bridge</url>
+    <tag>HEAD</tag>
+  </scm>
+
+
   <modules>
       <module>jms-bridge-server</module>
       <module>jms-bridge-tests</module>
@@ -145,6 +153,50 @@
             </configuration>
           </execution>
         </executions>
+      </plugin>
+
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-release-plugin</artifactId>
+        <version>3.0.0-M1</version>
+        <configuration>
+          <tagNameFormat>v@{project.version}</tagNameFormat>
+        </configuration>
+      </plugin>
+
+      <plugin>
+        <groupId>com.amashchenko.maven.plugin</groupId>
+        <artifactId>gitflow-maven-plugin</artifactId>
+        <version>1.14.0</version>
+        <configuration>
+          <verbose>true</verbose>
+          <!-- We use maven wrapper in all our projects instead of a local maven installation -->
+          <mvnExecutable>./mvnw</mvnExecutable>
+
+          <!-- Don’t push to the git remote. Very useful for testing locally -->
+          <pushRemote>true</pushRemote>
+
+          <!-- Set to true to immediately bump the development version when creating a release branch -->
+          <commitDevelopmentVersionAtStart>false</commitDevelopmentVersionAtStart>
+
+          <!-- Which digit to increas in major.minor.patch versioning, the values being 0.1.2 respectively.
+               By default the rightmost number is increased.
+               Pass in the number via parameter or profile to allow configuration,
+               since everything set in the file can't be overwritten via command line -->
+          <versionDigitToIncrement>${gitflowDigitToIncrement}</versionDigitToIncrement>
+
+          <!-- Execute mvn verify before release -->
+          <preReleaseGoals>verify</preReleaseGoals>
+          <preHotfixGoals>verify</preHotfixGoals>
+
+          <!-- Configure branches -->
+          <gitFlowConfig>
+            <origin>origin</origin>
+            <productionBranch>master</productionBranch>
+            <developmentBranch>2.1.x</developmentBranch>
+          </gitFlowConfig>
+          <!-- optional configuration -->
+        </configuration>
       </plugin>
 
     </plugins>
@@ -300,7 +352,7 @@
   <parent>
     <artifactId>common</artifactId>
     <groupId>io.confluent</groupId>
-    <version>6.0.0-SNAPSHOT</version>
+    <version>6.0.0</version>
   </parent>
 
   <pluginRepositories>
