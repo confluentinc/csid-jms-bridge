@@ -6,25 +6,19 @@ package io.confluent.amq.bridge;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.confluent.amq.config.RoutingConfig;
 import io.confluent.amq.config.RoutingConfig.RoutedTopic;
 import io.confluent.amq.test.ArtemisTestServer;
 import io.confluent.amq.test.KafkaTestContainer;
-import io.confluent.amq.test.TestSupport;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Properties;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ForkJoinPool;
-import java.util.concurrent.Semaphore;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import javax.jms.Message;
 import javax.jms.Session;
 import javax.jms.TextMessage;
@@ -34,9 +28,13 @@ import javax.jms.TopicSession;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.apache.kafka.clients.producer.KafkaProducer;
+import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.header.Header;
 import org.apache.kafka.common.serialization.ByteArrayDeserializer;
+import org.apache.kafka.common.serialization.ByteArraySerializer;
 import org.apache.kafka.common.serialization.StringDeserializer;
+import org.apache.kafka.common.serialization.StringSerializer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
@@ -90,15 +88,23 @@ public class RequestResponseTest {
     String responseAddress = "test." + responseTopic;
     amqServer.assertAddressAvailable(responseAddress);
 
+    Properties responderProps = new Properties();
+    responderProps.putAll(kafkaContainer.defaultProps());
+    responderProps.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+    responderProps.put(ConsumerConfig.GROUP_ID_CONFIG, amqServer.safeId("test-group"));
+
     Map<String, String> randrMap = new LinkedHashMap<>();
     randrMap.put("Hi, what's your name?", "My name is Kafka.");
     randrMap.put("Can you speak JMS?", "Not so much, but I have a friend who can.");
     randrMap.put("Oh, do you know JaMeS BRIDGE?", "Yep, he's the one.");
     randrMap.put("Very helpful having him around, later then.", "I agree, later.");
 
-    Semaphore threadStages = responseThread(randrMap, requestTopic, responseTopic);
+    KafkaResponder responder = new KafkaResponder(
+        responderProps, randrMap, requestTopic, responseTopic);
+    ForkJoinPool.commonPool().execute(responder);
+
     //wait for the thread to start consuming
-    threadStages.acquire(2);
+    responder.awaitReady();
 
     try (
         Session session = amqServer.getConnection().createSession(false, Session.AUTO_ACKNOWLEDGE)
@@ -112,10 +118,10 @@ public class RequestResponseTest {
       randrMap.entrySet().forEach(en -> {
         try {
           TextMessage tmsg = session.createTextMessage(en.getKey());
-          System.out.println("jms says: " + en.getKey());
           Message response = requestor.request(tmsg);
           assertNotNull(response);
           assertEquals(en.getValue(), response.getBody(String.class));
+          System.out.println("response: " + response.getBody(String.class));
         } catch (RuntimeException e) {
           throw e;
         } catch (Exception e) {
@@ -125,28 +131,61 @@ public class RequestResponseTest {
     } finally {
       System.out.println("jms disconnected.");
       //stop thread
-      threadStages.drainPermits();
-
-      //wait for it to complete shutdown
-      threadStages.acquire();
+      responder.stopAndAwaitCompletion();
     }
   }
 
-  public Semaphore responseThread(
-      Map<String, String> requestResponseMap, String requestTopic, String responseTopic) {
+  public static class KafkaResponder implements Runnable {
 
-    final Semaphore stages = new Semaphore(0);
-    Runnable consumerThread = () -> {
-      Properties kprops = new Properties();
-      kprops.putAll(kafkaContainer.defaultProps());
-      kprops.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
-      kprops.put(ConsumerConfig.GROUP_ID_CONFIG, amqServer.safeId("test-group"));
+    private final Properties kafkaProps;
+    private final Map<String, String> requestResponseMap;
+    private final String requestTopic;
+    private final String responseTopic;
+    private final CountDownLatch readyLatch = new CountDownLatch(1);
+    private final CountDownLatch stoppedLatch = new CountDownLatch(1);
+    private volatile boolean running = false;
 
-      try (KafkaConsumer<byte[], String> kconsumer = new KafkaConsumer<>(
-          kprops, new ByteArrayDeserializer(), new StringDeserializer())) {
+    public KafkaResponder(Properties kafkaProps,
+        Map<String, String> requestResponseMap, String requestTopic, String responseTopic) {
+      this.kafkaProps = kafkaProps;
+      this.requestResponseMap = requestResponseMap;
+      this.requestTopic = requestTopic;
+      this.responseTopic = responseTopic;
+    }
+
+    public void awaitReady() {
+      try {
+        readyLatch.await();
+      } catch (Exception e) {
+        throw new RuntimeException(e);
+      }
+    }
+
+    public void stopAndAwaitCompletion() {
+      if (!running) {
+        return;
+      }
+
+      running = false;
+      try {
+        stoppedLatch.await();
+      } catch (Exception e) {
+        throw new RuntimeException(e);
+      }
+    }
+
+    @Override
+    public void run() {
+      running = true;
+      try (
+          KafkaProducer<byte[], String> kafkaProducer =
+              new KafkaProducer<>(kafkaProps, new ByteArraySerializer(), new StringSerializer());
+          KafkaConsumer<byte[], String> kconsumer = new KafkaConsumer<>(
+              kafkaProps, new ByteArrayDeserializer(), new StringDeserializer())
+      ) {
 
         kconsumer.subscribe(Collections.singleton(requestTopic));
-        Runnable poller = () -> {
+        while (running) {
 
           ConsumerRecords<byte[], String> pollRecords = kconsumer.poll(Duration.ofMillis(100L));
           if (pollRecords != null) {
@@ -155,37 +194,34 @@ public class RequestResponseTest {
               final byte[] destination = replyTo != null
                   ? replyTo.value()
                   : null;
-              String response = requestResponseMap
+
+
+              System.out.println("Request: " + krecord.value());
+
+              final String response = requestResponseMap
                   .getOrDefault(krecord.value(), "NO RESPONSE FOUND");
 
-              System.out.println("kafka says: " + response);
-              kafkaContainer.publish(
-                  responseTopic,
-                  krecord.key(),
-                  response.getBytes(),
-                  rec -> {
-                    if (destination != null) {
-                      rec.headers().add("jms.JMSDestination", destination);
-                    }
-                  });
+              ProducerRecord<byte[], String> responseRecord = new ProducerRecord<>(
+                  responseTopic, krecord.key(), response);
+              if (destination != null) {
+                responseRecord.headers().add("jms.JMSDestination", destination);
+              }
+              try {
+                kafkaProducer.send(responseRecord).get();
+              } catch (Exception e) {
+                throw new RuntimeException(e);
+              }
             });
+            readyLatch.countDown();
           }
-        };
-        stages.release(1);
-        poller.run();
-        stages.release(3);
-        while (stages.availablePermits() > 0) {
-          poller.run();
         }
         System.out.println("kafka disconnected");
       } catch (Exception e) {
         e.printStackTrace();
+      } finally {
+        stoppedLatch.countDown();
       }
-      stages.release();
-    };
-
-    ForkJoinPool.commonPool().execute(consumerThread);
-    return stages;
+    }
   }
 
 }
