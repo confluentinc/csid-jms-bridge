@@ -7,6 +7,7 @@ package io.confluent.amq.bridge;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import io.confluent.amq.config.RoutingConfig;
 import io.confluent.amq.config.RoutingConfig.RoutedTopic;
 import io.confluent.amq.test.ArtemisTestServer;
@@ -41,6 +42,7 @@ import org.junit.jupiter.api.extension.RegisterExtension;
 import org.junit.jupiter.api.io.TempDir;
 import org.testcontainers.containers.KafkaContainer;
 
+@SuppressFBWarnings("MS_SHOULD_BE_FINAL")
 public class RequestResponseTest {
 
   @TempDir
