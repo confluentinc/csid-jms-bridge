@@ -1,5 +1,24 @@
 # Developer Setup
 
+## Releasing
+
+Use the maven release plugin to perform releases
+`mvn release:prepare`
+`mvn release:perform`
+
+In order to publish a release to github that includes the release archive
+you will need to make sure that your `~/.m2/settings.xml` includes credentials for github.
+Here is an example:
+
+```xml
+     <server>
+         <id>github</id>
+         <username>your-user-name</username>
+         <privateKey>your-oauth-key</privateKey>
+     </server>
+```
+The publication of that release will occur during the `mvn release:perform`.
+
 ## IDE
 
 ### Intellij

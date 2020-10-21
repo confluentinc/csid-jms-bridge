@@ -1,12 +1,22 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+  <groupId>io.confluent</groupId>
   <artifactId>jms-bridge-pom</artifactId>
   <packaging>pom</packaging>
   <version>2.2.0-SNAPSHOT</version>
 
   <name>JMS Bridge Parent</name>
+  <description>A fully compliant JMS 2.0 broker with tight integration to Kafka.</description>
+
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <artifactId>common</artifactId>
+    <groupId>io.confluent</groupId>
+    <version>6.0.0</version>
+  </parent>
 
   <scm>
-    <connection>scm:git:git@github.com:confluentinc/csid-jms-bridge.git</connection>
+    <connection>scm:git:git://github.com:confluentinc/csid-jms-bridge.git</connection>
     <developerConnection>scm:git:git@github.com:confluentinc/csid-jms-bridge.git</developerConnection>
     <url>https://github.com/confluentinc/csid-jms-bridge</url>
     <tag>HEAD</tag>
@@ -19,41 +29,8 @@
   </modules>
 
   <build>
+
     <plugins>
-      <plugin>
-        <artifactId>maven-compiler-plugin</artifactId>
-        <configuration>
-          <compilerArgs>
-            <arg>-Xlint:all,-processing,-serial,-options,-path</arg>
-            <arg>-parameters</arg>
-            <arg>${compile.warnings-flag}</arg>
-          </compilerArgs>
-          <compilerVersion>1.8</compilerVersion>
-          <showDeprecation>true</showDeprecation>
-          <showWarnings>true</showWarnings>
-          <source>1.8</source>
-          <target>1.8</target>
-        </configuration>
-        <groupId>org.apache.maven.plugins</groupId>
-      </plugin>
-
-      <plugin>
-        <artifactId>maven-checkstyle-plugin</artifactId>
-        <configuration>
-          <propertiesLocation>checkstyle/checkstyle.properties</propertiesLocation>
-          <suppressionsLocation>checkstyle/suppressions.xml</suppressionsLocation>
-        </configuration>
-        <groupId>org.apache.maven.plugins</groupId>
-      </plugin>
-
-      <plugin>
-        <artifactId>maven-surefire-plugin</artifactId>
-        <configuration>
-          <argLine>-verbose:gc -Xloggc:"${project.build.directory}/gc.log"</argLine>
-        </configuration>
-        <groupId>org.apache.maven.plugins</groupId>
-      </plugin>
-
       <plugin>
         <artifactId>spotbugs-maven-plugin</artifactId>
         <configuration>
@@ -77,7 +54,6 @@
           </execution>
         </executions>
         <groupId>com.github.spotbugs</groupId>
-        <version>${spotbugs.maven.plugin.version}</version>
       </plugin>
 
       <plugin>
@@ -159,41 +135,10 @@
         <version>3.0.0-M1</version>
         <configuration>
           <tagNameFormat>v@{project.version}</tagNameFormat>
-        </configuration>
-      </plugin>
-
-      <plugin>
-        <groupId>com.amashchenko.maven.plugin</groupId>
-        <artifactId>gitflow-maven-plugin</artifactId>
-        <version>1.14.0</version>
-        <configuration>
-          <verbose>true</verbose>
-          <!-- We use maven wrapper in all our projects instead of a local maven installation -->
-          <mvnExecutable>./mvnw</mvnExecutable>
-
-          <!-- Don’t push to the git remote. Very useful for testing locally -->
-          <pushRemote>true</pushRemote>
-
-          <!-- Set to true to immediately bump the development version when creating a release branch -->
-          <commitDevelopmentVersionAtStart>false</commitDevelopmentVersionAtStart>
-
-          <!-- Which digit to increas in major.minor.patch versioning, the values being 0.1.2 respectively.
-               By default the rightmost number is increased.
-               Pass in the number via parameter or profile to allow configuration,
-               since everything set in the file can't be overwritten via command line -->
-          <versionDigitToIncrement>${gitflowDigitToIncrement}</versionDigitToIncrement>
-
-          <!-- Execute mvn verify before release -->
-          <preReleaseGoals>verify</preReleaseGoals>
-          <preHotfixGoals>verify</preHotfixGoals>
-
-          <!-- Configure branches -->
-          <gitFlowConfig>
-            <origin>origin</origin>
-            <productionBranch>master</productionBranch>
-            <developmentBranch>2.1.x</developmentBranch>
-          </gitFlowConfig>
-          <!-- optional configuration -->
+          <autoVersionSubmodules>true</autoVersionSubmodules>
+          <useReleaseProfile>false</useReleaseProfile>
+          <releaseProfiles>release</releaseProfiles>
+          <goals>deploy</goals>
         </configuration>
       </plugin>
 
@@ -223,7 +168,7 @@
     <dependency>
       <groupId>com.github.spotbugs</groupId>
       <artifactId>spotbugs-annotations</artifactId>
-      <version>4.0.0</version>
+      <version>${spotbugs.version}</version>
       <optional>true</optional>
     </dependency>
 
@@ -231,17 +176,17 @@
     <dependency>
       <artifactId>slf4j-api</artifactId>
       <groupId>org.slf4j</groupId>
-      <version>1.7.30</version>
+      <version>${slf4j-api.version}</version>
     </dependency>
     <dependency>
       <groupId>org.apache.logging.log4j</groupId>
       <artifactId>log4j-core</artifactId>
-      <version>2.13.3</version>
+      <version>${log4j.version}</version>
     </dependency>
     <dependency>
       <groupId>org.apache.logging.log4j</groupId>
       <artifactId>log4j-slf4j-impl</artifactId>
-      <version>2.13.3</version>
+      <version>${log4j.version}</version>
     </dependency>
 
 
@@ -345,49 +290,21 @@
   </dependencies>
   </dependencyManagement>
 
-  <modelVersion>4.0.0</modelVersion>
-
-  <parent>
-    <artifactId>common</artifactId>
-    <groupId>io.confluent</groupId>
-    <version>6.0.0</version>
-  </parent>
-
-  <pluginRepositories>
-    <pluginRepository>
-      <id>confluent</id>
-      <url>https://packages.confluent.io/maven/</url>
-    </pluginRepository>
-    <pluginRepository>
-      <id>confluent-snapshots</id>
-      <snapshots>
-        <enabled>true</enabled>
-      </snapshots>
-      <url>https://s3-us-west-2.amazonaws.com/confluent-snapshots/</url>
-    </pluginRepository>
-  </pluginRepositories>
 
   <properties>
     <activemq.version>2.13.0</activemq.version>
     <airline.version>2.8.0</airline.version>
     <compile.warnings-flag>-Werror</compile.warnings-flag>
     <git-commit-id-plugin.version>2.2.6</git-commit-id-plugin.version>
-    <protobuf.version>3.12.2</protobuf.version>
     <kafka.version>2.5.0</kafka.version>
-    <myjunit.version>5.6.2</myjunit.version>
+    <log4j.version>2.13.3</log4j.version>
+    <maven.deploy.skip>true</maven.deploy.skip>
     <mockito.version>3.3.3</mockito.version>
+    <myjunit.version>5.6.2</myjunit.version>
+    <protobuf.version>3.12.2</protobuf.version>
+    <release.artifact>${project.build.directory}/${project.artifactId}-${project.version}-package.zip</release.artifact>
+    <release.repositoryId>confluentinc/csid-jms-bridge</release.repositoryId>
   </properties>
-
-  <repositories>
-    <repository>
-      <id>confluent</id>
-      <url>https://packages.confluent.io/maven/</url>
-    </repository>
-    <repository>
-      <id>confluent-snapshots</id>
-      <url>https://s3-us-west-2.amazonaws.com/confluent-snapshots/</url>
-    </repository>
-  </repositories>
 
 </project>
 
