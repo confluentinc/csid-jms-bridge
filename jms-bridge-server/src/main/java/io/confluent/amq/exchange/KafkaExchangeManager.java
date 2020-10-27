@@ -4,20 +4,25 @@
 
 package io.confluent.amq.exchange;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Sets;
 import io.confluent.amq.ComponentLifeCycle;
+import io.confluent.amq.ComponentLifeCycle.State;
 import io.confluent.amq.ConfluentAmqServer;
-import io.confluent.amq.JmsBridgeConfiguration;
+import io.confluent.amq.config.BridgeConfig;
 import io.confluent.amq.config.RoutingConfig;
 import io.confluent.amq.config.RoutingConfig.RoutedTopic;
 import io.confluent.amq.exchange.KafkaTopicExchange.Builder;
 import io.confluent.amq.logging.StructuredLogger;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.apache.activemq.artemis.api.core.ActiveMQException;
@@ -45,10 +50,11 @@ import org.apache.activemq.artemis.core.transaction.Transaction;
  *
  * <p>
  * Potential changes that could impact the exchange are:
- * </p>
- *
- * <p>
- * 1. Kafka security changes 2. Kafka topic creation/deletion 3. AMQ address binding changes
+ *   <ul>
+ *    <li>Kafka security changes</li>
+ *    <li>Kafka topic creation/deletion</li>
+ *    <li>AMQ address binding changes</li>
+ *   </ul>
  * </p>
  */
 @SuppressWarnings("checkstyle:ClassDataAbstractionCoupling")
@@ -57,7 +63,8 @@ public class KafkaExchangeManager implements ActiveMQServerPlugin {
   private static final StructuredLogger SLOG = StructuredLogger
       .with(b -> b.loggerClass(KafkaExchangeManager.class));
 
-  private final JmsBridgeConfiguration bridgeConfig;
+  private final BridgeConfig bridgeConfig;
+  private final RoutingConfig routingConfig;
   private final ConfluentAmqServer amqServer;
   private final KafkaExchange exchange;
   private final KafkaExchangeIngress ingress;
@@ -65,10 +72,12 @@ public class KafkaExchangeManager implements ActiveMQServerPlugin {
 
   private final ComponentLifeCycle state = new ComponentLifeCycle(SLOG);
 
-  public KafkaExchangeManager(JmsBridgeConfiguration bridgeConfig,
+  public KafkaExchangeManager(
+      BridgeConfig bridgeConfig,
       ConfluentAmqServer amqServer) {
 
     this.bridgeConfig = bridgeConfig;
+    this.routingConfig = bridgeConfig.routing().orElse(null);
     this.amqServer = amqServer;
 
     this.exchange = new KafkaExchange();
@@ -86,8 +95,25 @@ public class KafkaExchangeManager implements ActiveMQServerPlugin {
         amqServer.getKafkaIntegration().getKafkaIO());
   }
 
+  @VisibleForTesting
+  protected KafkaExchangeManager(BridgeConfig bridgeConfig,
+      ConfluentAmqServer amqServer, KafkaExchange exchange,
+      KafkaExchangeIngress ingress, KafkaExchangeEgress egress) {
+
+    this.bridgeConfig = bridgeConfig;
+    this.routingConfig = bridgeConfig.routing().orElse(null);
+    this.amqServer = amqServer;
+    this.exchange = exchange;
+    this.ingress = ingress;
+    this.egress = egress;
+  }
+
   public boolean isEnabled() {
-    return bridgeConfig.getBridgeConfig().routing().isPresent();
+    return routingConfig != null;
+  }
+
+  public State getState() {
+    return state.getState();
   }
 
   @Override
@@ -105,6 +131,12 @@ public class KafkaExchangeManager implements ActiveMQServerPlugin {
     }
   }
 
+  /**
+   * Fetch the list of Kafka topics that are currently being consumed for propagation of it's
+   * messages to the corresponding Kafka topic exchange address. An existing Kafka topic exchange
+   * does not mean the corresponding Kafka topic is being consumed since the messages may not be
+   * routable (unbound topic address).
+   */
   public Collection<String> currentSubscribedKafkaTopics() {
     return this.egress.currentConsumerTopics();
   }
@@ -115,6 +147,15 @@ public class KafkaExchangeManager implements ActiveMQServerPlugin {
     }
 
     state.doStart(this::doStart);
+
+    try {
+      synchronizeTopics();
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
+
+    amqServer.getScheduledPool().schedule(
+        this::topicSyncTask, routingConfig.metadataRefreshMs(), TimeUnit.MILLISECONDS);
   }
 
   private void doStart() {
@@ -136,25 +177,30 @@ public class KafkaExchangeManager implements ActiveMQServerPlugin {
           .message("Failed to start exchange egress"), e);
       throw e;
     }
+  }
 
-    try {
-      synchronizeTopics();
-    } catch (Exception e) {
-      throw new RuntimeException(e);
+  private void topicSyncTask() {
+    if (!state.isStarted()) {
+      SLOG.info(b -> b
+          .event("StopTopicSyncTask")
+          .message("The Kafka exchange manager is not running, stopping topic sync task."));
+      return;
     }
 
-    RoutingConfig routingConfig = bridgeConfig.getBridgeConfig().routing().get();
-    amqServer.getScheduledPool().schedule(() -> {
-      if (state.isStarted()) {
-        return;
-      }
-
-      try {
-        this.synchronizeTopics();
-      } catch (Exception e) {
-        throw new RuntimeException(e);
-      }
-    }, routingConfig.metadataRefreshMs(), TimeUnit.MILLISECONDS);
+    try {
+      this.synchronizeTopics();
+      SLOG.debug(b -> b
+          .event("ScheduleNextTopicSync")
+          .putTokens("delayMs", routingConfig.metadataRefreshMs())
+          .message("Scheduling next topic sync."));
+      amqServer.getScheduledPool()
+          .schedule(this::topicSyncTask, routingConfig.metadataRefreshMs(), TimeUnit.MILLISECONDS);
+    } catch (Exception e) {
+      SLOG.error(b -> b
+          .event("StopTopicSyncTask")
+          .message("The topic sync task has failed."), e);
+      throw new RuntimeException(e);
+    }
   }
 
   public void stop() {
@@ -186,13 +232,13 @@ public class KafkaExchangeManager implements ActiveMQServerPlugin {
 
   @Override
   public void afterAddBinding(Binding binding) throws ActiveMQException {
-    this.exchange.bindingAdded(binding.getAddress().toString());
+    this.exchange.addReader(binding.getAddress().toString());
   }
 
   @Override
   public void afterRemoveBinding(Binding binding, Transaction tx, boolean deleteData)
       throws ActiveMQException {
-    this.exchange.bindingRemoved(binding.getAddress().toString());
+    this.exchange.removeReader(binding.getAddress().toString());
   }
 
   public void prepare() {
@@ -201,35 +247,36 @@ public class KafkaExchangeManager implements ActiveMQServerPlugin {
     });
   }
 
-  public Queue createIngressQueue(String addressName, String name) throws Exception {
-    QueueConfiguration ingressQueueConf = new QueueConfiguration(name)
-        .setAddress(addressName)
-        .setRoutingType(RoutingType.MULTICAST)
-        .setDurable(true);
-    Queue queue = amqServer.locateQueue(name);
-    if (queue == null) {
-      return amqServer.createQueue(ingressQueueConf);
-    } else {
-      return queue;
-    }
-  }
 
-  public AddressInfo createIngressAddress(String name) throws Exception {
-    AddressInfo ingressAddress = new AddressInfo(
-        SimpleString.toSimpleString(name),
-        RoutingType.MULTICAST);
-
-    return amqServer.addOrUpdateAddressInfo(ingressAddress);
-  }
-
+  /**
+   * Synchronize the current set of kafka topic exchanges against the current set of available Kafka
+   * topics.  Adds, updates and removes exchanges as necessary based on the configured topic routing
+   * rules. This must be called before changes in the set of available Kafka topics will be
+   * reflected in AMQ.
+   */
   public void synchronizeTopics() throws Exception {
     synchronizeTopics(false);
   }
 
-  public void synchronizeTopics(boolean forceCreate) throws Exception {
+  /**
+   * Synchronize the current set of kafka topic exchanges against the current set of available Kafka
+   * topics.  Adds, updates and removes exchanges as necessary based on the configured topic routing
+   * rules.
+   *
+   * @param forceCreate force the recreation of all exchanges instead of only newly found ones.
+   */
+  protected void synchronizeTopics(boolean forceCreate) throws Exception {
+    if (!state.isStarted()) {
+      SLOG.info(b -> b.event("SynchronizeTopics")
+          .markFailure()
+          .putTokens("state", state.getState())
+          .message("Synchronizing of topics cannot be done when not in a 'started' state."));
+      return;
+    }
+
     SLOG.info(b -> b.event("SynchronizeTopics"));
     //create the basic ingress parts: address, queue and binding
-    Set<KafkaTopicExchange> discoveredExchanges = discoverTopicExchanges();
+    Set<KafkaTopicExchange> discoveredExchanges = discoverTopicExchanges(routingConfig.topics());
     Set<KafkaTopicExchange> currentExchanges = exchange.getAllExchanges();
     Set<KafkaTopicExchange> newExchanges = Sets.difference(discoveredExchanges, currentExchanges);
     Set<KafkaTopicExchange> removedExchanges = Sets
@@ -242,61 +289,85 @@ public class KafkaExchangeManager implements ActiveMQServerPlugin {
       kteEntityMap = createExchangeEntities(newExchanges);
     }
 
-    for (KafkaTopicExchange kte : kteEntityMap.keySet()) {
-      int bindings = amqServer.getPostOffice()
-          .getBindingsForAddress(SimpleString.toSimpleString(kte.amqAddressName()))
+    for (Entry<KafkaTopicExchange, IngressEntities> en : kteEntityMap.entrySet()) {
+      int bindings = (int) amqServer.getPostOffice()
+          .getBindingsForAddress(SimpleString.toSimpleString(en.getKey().amqAddressName()))
           .getBindings()
-          .size();
+          .stream()
+          .filter(b ->
+              Objects.equals(Objects.toString(b.getUniqueName()), en.getValue().divertName))
+          .count();
 
-      exchange.addTopicExchange(kte, bindings);
+      exchange.addTopicExchange(en.getKey(), true, bindings);
     }
 
     for (KafkaTopicExchange kte : removedExchanges) {
-      int bindings = amqServer.getPostOffice()
-          .getBindingsForAddress(SimpleString.toSimpleString(kte.amqAddressName()))
-          .getBindings()
-          .size();
-      if (bindings > 1) {
-        exchange.pauseExchange(kte);
-        AddressControl topicAddressControl =
-            (AddressControl) amqServer.getManagementService().getResource(
-                ResourceNames.ADDRESS + kte.amqAddressName());
-        topicAddressControl.pause();
-      } else {
-        exchange.removeExchange(kte);
-        deleteIngressEntities(kte);
-      }
+      exchange.removeExchange(kte);
+      deleteIngressEntities(kte);
     }
 
     SLOG.info(b -> b.event("SynchronizeTopics").markCompleted());
   }
 
-  public void deleteIngressEntities(KafkaTopicExchange kte) throws Exception {
+  /**
+   * Attempts to cleanup AMQ entities associated to a kafka topic exchange (see {@link
+   * #createExchangeEntities(KafkaTopicExchange)}). This may not always be  possible due to existing
+   * bindings and in that case they will be paused to prevent further publishing.
+   *
+   * @param kte the kafka topic exchange to pause or delete the entities for
+   */
+  protected void deleteIngressEntities(KafkaTopicExchange kte) throws Exception {
+    int bindings = amqServer.getPostOffice()
+        .getBindingsForAddress(SimpleString.toSimpleString(kte.amqAddressName()))
+        .getBindings()
+        .size();
 
-    Queue ingressQueue = amqServer.locateQueue(kte.ingressQueueName());
-    if (ingressQueue != null) {
-      ingressQueue.deleteQueue(true);
+    if (bindings > 1) {
+      //pause the address allowing existing bindings to stay valid.
+      AddressControl topicAddressControl =
+          (AddressControl) amqServer.getManagementService().getResource(
+              ResourceNames.ADDRESS + kte.amqAddressName());
+      topicAddressControl.pause(true);
+
+    } else {
+      //only the divert remains bound
+      Queue ingressQueue = amqServer.locateQueue(kte.ingressQueueName());
+      if (ingressQueue != null) {
+        ingressQueue.deleteQueue(true);
+      }
+
+      amqServer.destroyDivert(SimpleString.toSimpleString(
+          KafkaExchangeUtil.createDivertName(kte.amqAddressName())));
+      amqServer.removeAddressInfo(SimpleString.toSimpleString(kte.ingressQueueName()), null, true);
+      amqServer.removeAddressInfo(SimpleString.toSimpleString(kte.amqAddressName()), null, true);
     }
-
-    amqServer.destroyDivert(SimpleString.toSimpleString(
-        KafkaExchangeUtil.createDivertName(kte.amqAddressName())));
-    amqServer.removeAddressInfo(SimpleString.toSimpleString(kte.ingressQueueName()), null, true);
-    amqServer.removeAddressInfo(SimpleString.toSimpleString(kte.amqAddressName()), null, true);
   }
 
-  @SuppressWarnings("OptionalGetWithoutIsPresent")
-  public Set<KafkaTopicExchange> discoverTopicExchanges() {
+  /**
+   * <p>
+   * Given a list of topic routes process each one against a all eligible Kafka topics. Eligible
+   * topics are ones accessible by the JMS Bridge Kafka principal, are not internal journal topics
+   * and do not begin with an underscore ('_').
+   * </p>
+   * <p>
+   * The topic routes are processed in order with last in winning for each topic (in the case
+   * multiple routes match a topic).
+   * </p>
+   *
+   * @param topicRoutes the topic routing rules
+   * @return set of uninitialized kafka topic exchanges
+   */
+  protected Set<KafkaTopicExchange> discoverTopicExchanges(List<RoutedTopic> topicRoutes) {
     //go through the topics and match them against the routed topics creating topic exchanges
-    RoutingConfig routingConfig = bridgeConfig.getBridgeConfig().routing().get();
     Set<String> kafkaTopics = amqServer.getKafkaIntegration().getKafkaIO().listTopics();
     Set<KafkaTopicExchange> allExchanges = new HashSet<>();
-    for (RoutedTopic routedTopic : routingConfig.topics()) {
+    for (RoutedTopic routedTopic : topicRoutes) {
       SLOG.info(b -> b
           .event("ProcessRoutingTopicRule")
           .markStarted()
           .putTokens("topicRule", routedTopic));
 
-      Pattern matcher = Pattern.compile(routedTopic.match());
+      Pattern matcher = Pattern.compile("^" + routedTopic.match() + "$");
       Set<KafkaTopicExchange> exchanges = kafkaTopics.stream()
           .filter(t -> !t.equals(amqServer.getKafkaIntegration().getBindingsJournal().topic()))
           .filter(t -> !t.equals(amqServer.getKafkaIntegration().getMessagesJournal().topic()))
@@ -328,21 +399,30 @@ public class KafkaExchangeManager implements ActiveMQServerPlugin {
     return allExchanges;
   }
 
-  public Map<KafkaTopicExchange, IngressEntities> createExchangeEntities(
+  /**
+   * See {@link #createExchangeEntities(KafkaTopicExchange)}. This supports doing many at once.
+   *
+   * @return a map of entities created, one for each exchange
+   */
+  protected Map<KafkaTopicExchange, IngressEntities> createExchangeEntities(
       Set<KafkaTopicExchange> allExchanges) throws Exception {
 
-    Map<KafkaTopicExchange, IngressEntities> resultMap = new HashMap<>();
-    for (KafkaTopicExchange exchange : allExchanges) {
+    return allExchanges.stream()
+        .collect(Collectors.toMap(Function.identity(), this::createExchangeEntities));
+  }
 
-      AddressInfo topicAddress = new AddressInfo(
-          SimpleString.toSimpleString(exchange.amqAddressName()),
-          RoutingType.MULTICAST);
-      topicAddress = amqServer.addOrUpdateAddressInfo(topicAddress);
+  /**
+   * Creates and registeres the AMQ entities (Address, Queue, Divert) required for a topic exchange
+   * to function fully. If the entities already exist then they will be updated if required and
+   * returned.
+   *
+   * @return the AMQ entities created or found
+   */
+  protected IngressEntities createExchangeEntities(KafkaTopicExchange exchange) {
 
-      AddressInfo ingressAddress = new AddressInfo(
-          SimpleString.toSimpleString(exchange.ingressQueueName()),
-          RoutingType.MULTICAST);
-      ingressAddress = amqServer.addOrUpdateAddressInfo(ingressAddress);
+    try {
+      final AddressInfo topicAddress = createIngressAddress(exchange.amqAddressName());
+      final AddressInfo ingressAddress = createIngressAddress(exchange.ingressQueueName());
 
       String divertName = KafkaExchangeUtil.createDivertName(topicAddress.getName().toString());
       DivertConfiguration divertConfig = new DivertConfiguration()
@@ -362,15 +442,42 @@ public class KafkaExchangeManager implements ActiveMQServerPlugin {
           exchange.ingressQueueName(), exchange.ingressQueueName());
       ingressQueue.addConsumer(this.ingress);
 
-      resultMap.put(exchange, new IngressEntities(
-          divertConfig.getName(), topicAddress, ingressAddress, ingressQueue));
+      return new IngressEntities(
+          divertConfig.getName(), topicAddress, ingressAddress, ingressQueue);
+    } catch (Exception e) {
+      throw new RuntimeException(e);
     }
-
-    return resultMap;
   }
 
-  public String divertFilter() {
-    String hopsHeaderKey = Headers.createHopsKey(bridgeConfig.getBridgeConfig().id());
+
+  private AddressInfo createIngressAddress(String name) throws Exception {
+    AddressInfo ingressAddress = new AddressInfo(
+        SimpleString.toSimpleString(name),
+        RoutingType.MULTICAST);
+
+    return amqServer.addOrUpdateAddressInfo(ingressAddress);
+  }
+
+  private Queue createIngressQueue(String addressName, String name) throws Exception {
+    QueueConfiguration ingressQueueConf = new QueueConfiguration(name)
+        .setAddress(addressName)
+        .setRoutingType(RoutingType.MULTICAST)
+        .setDurable(true);
+    Queue queue = amqServer.locateQueue(name);
+    if (queue == null) {
+      queue = amqServer.createQueue(ingressQueueConf);
+    } else {
+      queue = amqServer.updateQueue(ingressQueueConf);
+    }
+    return queue;
+  }
+
+  /**
+   * A JMS/AMQ filter that that is applied to the divert that forwards messages to Kafka. Breaks
+   * potential data cycles by filtering out data that originated from Kafka.
+   */
+  protected String divertFilter() {
+    String hopsHeaderKey = Headers.createHopsKey(bridgeConfig.id());
     return String.format(" %s is null or %s < 1", hopsHeaderKey, hopsHeaderKey);
   }
 

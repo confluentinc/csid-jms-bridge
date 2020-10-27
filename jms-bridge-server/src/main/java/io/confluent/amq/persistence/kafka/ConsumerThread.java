@@ -19,6 +19,7 @@ import java.util.stream.Collectors;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRebalanceListener;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.serialization.ByteArrayDeserializer;
@@ -36,6 +37,7 @@ public abstract class ConsumerThread<K, V> implements Runnable, ConsumerRebalanc
   public static Builder<byte[], byte[]> newByteArrayBuilder(Map<String, Object> consumerProps) {
     return new Builder<byte[], byte[]>()
         .putAllConsumerProps(consumerProps)
+        .putConsumerProps(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest")
         .keyDeser(BYTE_ARRAY_DESERIALIZER)
         .valueDeser(BYTE_ARRAY_DESERIALIZER);
   }
@@ -119,7 +121,11 @@ public abstract class ConsumerThread<K, V> implements Runnable, ConsumerRebalanc
       try (KafkaConsumer<K, V> consumer = createConsumer()) {
         while (running) {
           if (!consumer.subscription().isEmpty()) {
-            consumer.poll(Duration.ofMillis(pollMs())).forEach(receiver()::onRecieve);
+            ConsumerRecords<K, V>  records = consumer.poll(Duration.ofMillis(pollMs()));
+            for (ConsumerRecord<K, V> r: records) {
+              receiver().onRecieve(r);
+            }
+
           }
 
           Collection<String> updatedTopicList = topicUpdateRef.getAndSet(null);

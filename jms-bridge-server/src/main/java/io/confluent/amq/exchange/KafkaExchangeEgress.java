@@ -6,7 +6,7 @@ package io.confluent.amq.exchange;
 
 import io.confluent.amq.ComponentLifeCycle;
 import io.confluent.amq.ConfluentAmqServer;
-import io.confluent.amq.JmsBridgeConfiguration;
+import io.confluent.amq.config.BridgeConfig;
 import io.confluent.amq.exchange.KafkaExchange.ExchangeChangeListener;
 import io.confluent.amq.logging.StructuredLogger;
 import io.confluent.amq.persistence.kafka.ConsumerThread;
@@ -35,7 +35,7 @@ public class KafkaExchangeEgress implements ExchangeChangeListener,
 
   private static final StringDeserializer STRING_DESERIALIZER = new StringDeserializer();
 
-  private final JmsBridgeConfiguration config;
+  private final BridgeConfig config;
   private final ConfluentAmqServer server;
   private final Map<String, KafkaTopicExchange> topicExchangeMap;
   private final KafkaIO kafkaIO;
@@ -45,7 +45,7 @@ public class KafkaExchangeEgress implements ExchangeChangeListener,
   private volatile ConsumerThread<byte[], byte[]> consumerThread;
 
   public KafkaExchangeEgress(
-      JmsBridgeConfiguration config,
+      BridgeConfig config,
       ConfluentAmqServer server,
       KafkaExchange kafkaExchange,
       KafkaIO kafkaIO) {
@@ -54,7 +54,7 @@ public class KafkaExchangeEgress implements ExchangeChangeListener,
     this.server = server;
     this.kafkaIO = kafkaIO;
     this.topicExchangeMap = new ConcurrentHashMap<>();
-    this.hopsHeaderKey = Headers.createHopsKey(config.getBridgeConfig().id());
+    this.hopsHeaderKey = Headers.createHopsKey(config.id());
     kafkaExchange.registerListener(this);
 
     state.doPrepare(() -> {
@@ -118,7 +118,7 @@ public class KafkaExchangeEgress implements ExchangeChangeListener,
 
     Map<String, Object> jmsHeaders = Headers.convertHeaders(
         kafkaRecord.headers(),
-        config.getBridgeConfig().id(),
+        config.id(),
         true);
     jmsHeaders.forEach(coreMessage::putObjectProperty);
 
@@ -155,7 +155,7 @@ public class KafkaExchangeEgress implements ExchangeChangeListener,
   public void doStart() {
     consumerThread = kafkaIO.startConsumerThread(b -> b
         .addAllTopics(topicExchangeMap.keySet())
-        .groupId(config.getBridgeConfig().id() + ".exchange")
+        .groupId(config.id() + ".exchange")
         .receiver(this)
         .pollMs(100L)
         .valueDeser(new ByteArrayDeserializer())

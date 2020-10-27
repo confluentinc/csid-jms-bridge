@@ -7,6 +7,7 @@ package io.confluent.amq.bridge;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
+import com.google.common.collect.ImmutableMap;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import io.confluent.amq.config.RoutingConfig;
 import io.confluent.amq.config.RoutingConfig.RoutedTopic;
@@ -36,6 +37,8 @@ import org.apache.kafka.common.serialization.ByteArrayDeserializer;
 import org.apache.kafka.common.serialization.ByteArraySerializer;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
@@ -56,26 +59,37 @@ public class RequestResponseTest {
           .withEnv("KAFKA_DELETE_TOPIC_ENABLE", "true")
           .withEnv("KAFKA_AUTO_CREATE_TOPICS_ENABLE", "false"));
 
-  @RegisterExtension
-  @Order(300)
-  public static final ArtemisTestServer amqServer = ArtemisTestServer
-      .embedded(kafkaContainer, b -> b
-          .mutateJmsBridgeConfig(br -> br
-              .putKafka(ConsumerConfig.AUTO_COMMIT_INTERVAL_MS_CONFIG, "500")
-              .routing(new RoutingConfig.Builder()
-                  .addTopics(new RoutedTopic.Builder()
-                      .messageType("TEXT")
-                      .match("response.*")
-                      .consumeAlways(true)
-                      .addressTemplate("test.${topic}"))
-                  .addTopics(new RoutedTopic.Builder()
-                      .messageType("TEXT")
-                      .match("request.*")
-                      .addressTemplate("test.${topic}"))
-                  .build())
-          )
-          .dataDirectory(tempdir.toAbsolutePath().toString()));
+  public static ArtemisTestServer amqServer;
 
+  @BeforeAll
+  public static void beforeClass() throws Exception {
+    amqServer = ArtemisTestServer
+        .embedded(kafkaContainer, b -> b
+            .mutateJmsBridgeConfig(br -> br
+                .putKafka(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest")
+                .putKafka(ConsumerConfig.AUTO_COMMIT_INTERVAL_MS_CONFIG, "500")
+                .routing(new RoutingConfig.Builder()
+                    .addTopics(new RoutedTopic.Builder()
+                        .messageType("TEXT")
+                        .match("response.*")
+                        .consumeAlways(true)
+                        .addressTemplate("test.${topic}"))
+                    .addTopics(new RoutedTopic.Builder()
+                        .messageType("TEXT")
+                        .match("request.*")
+                        .addressTemplate("test.${topic}"))
+                    .build())
+            )
+            .dataDirectory(tempdir.toAbsolutePath().toString()));
+    amqServer.start();
+  }
+
+  @AfterAll
+  public static void afterClass() {
+    if (amqServer != null) {
+      amqServer.stop();
+    }
+  }
 
   @Test
   public void testKafkaTopicAddressIsAvailable() throws Exception {
@@ -139,6 +153,10 @@ public class RequestResponseTest {
 
   public static class KafkaResponder implements Runnable {
 
+    private static final Map<String, String> DEFAULT_PROPS = ImmutableMap.of(
+        ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest"
+    );
+
     private final Properties kafkaProps;
     private final Map<String, String> requestResponseMap;
     private final String requestTopic;
@@ -149,7 +167,10 @@ public class RequestResponseTest {
 
     public KafkaResponder(Properties kafkaProps,
         Map<String, String> requestResponseMap, String requestTopic, String responseTopic) {
-      this.kafkaProps = kafkaProps;
+      Properties props = new Properties();
+      props.putAll(kafkaProps);
+      props.putAll(DEFAULT_PROPS);
+      this.kafkaProps = props;
       this.requestResponseMap = requestResponseMap;
       this.requestTopic = requestTopic;
       this.responseTopic = responseTopic;
@@ -197,7 +218,6 @@ public class RequestResponseTest {
                   ? replyTo.value()
                   : null;
 
-
               System.out.println("Request: " + krecord.value());
 
               final String response = requestResponseMap
@@ -209,7 +229,7 @@ public class RequestResponseTest {
                 responseRecord.headers().add("jms.JMSDestination", destination);
               }
               try {
-                kafkaProducer.send(responseRecord).get();
+                System.out.println("" + kafkaProducer.send(responseRecord).get());
               } catch (Exception e) {
                 throw new RuntimeException(e);
               }

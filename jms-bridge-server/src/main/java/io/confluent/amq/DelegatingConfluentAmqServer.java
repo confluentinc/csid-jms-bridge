@@ -87,41 +87,41 @@ import org.apache.activemq.artemis.utils.critical.CriticalAnalyzer;
 @SuppressWarnings({"checkstyle:ParameterNumber", "unused", "rawtypes"})
 public class DelegatingConfluentAmqServer implements ActiveMQServer {
 
-  private final ConfluentAmqServer confluentAmqServer;
+  private final ConfluentAmqServerImpl confluentAmqServer;
 
   public DelegatingConfluentAmqServer() {
-    confluentAmqServer = new ConfluentAmqServer();
+    confluentAmqServer = new ConfluentAmqServerImpl();
   }
 
   public DelegatingConfluentAmqServer(final JmsBridgeConfiguration configuration) {
-    confluentAmqServer = new ConfluentAmqServer(configuration);
+    confluentAmqServer = new ConfluentAmqServerImpl(configuration);
   }
 
   public DelegatingConfluentAmqServer(final JmsBridgeConfiguration configuration,
       final ActiveMQServer parentServer) {
-    confluentAmqServer = new ConfluentAmqServer(configuration, parentServer);
+    confluentAmqServer = new ConfluentAmqServerImpl(configuration, parentServer);
   }
 
   public DelegatingConfluentAmqServer(final JmsBridgeConfiguration configuration,
       final MBeanServer mbeanServer) {
-    confluentAmqServer = new ConfluentAmqServer(configuration, mbeanServer);
+    confluentAmqServer = new ConfluentAmqServerImpl(configuration, mbeanServer);
   }
 
   public DelegatingConfluentAmqServer(final JmsBridgeConfiguration configuration,
       final ActiveMQSecurityManager securityManager) {
-    confluentAmqServer = new ConfluentAmqServer(configuration);
+    confluentAmqServer = new ConfluentAmqServerImpl(configuration);
   }
 
   public DelegatingConfluentAmqServer(final JmsBridgeConfiguration configuration,
       final MBeanServer mbeanServer,
       final ActiveMQSecurityManager securityManager) {
-    confluentAmqServer = new ConfluentAmqServer(configuration, mbeanServer, securityManager);
+    confluentAmqServer = new ConfluentAmqServerImpl(configuration, mbeanServer, securityManager);
   }
 
   public DelegatingConfluentAmqServer(final JmsBridgeConfiguration configuration,
       final MBeanServer mbeanServer,
       final ActiveMQSecurityManager securityManager, final ActiveMQServer parentServer) {
-    confluentAmqServer = new ConfluentAmqServer(configuration, mbeanServer, securityManager,
+    confluentAmqServer = new ConfluentAmqServerImpl(configuration, mbeanServer, securityManager,
         parentServer);
   }
 
@@ -129,7 +129,7 @@ public class DelegatingConfluentAmqServer implements ActiveMQServer {
       final MBeanServer mbeanServer,
       final ActiveMQSecurityManager securityManager, final ActiveMQServer parentServer,
       final ServiceRegistry serviceRegistry) {
-    confluentAmqServer = new ConfluentAmqServer(configuration, mbeanServer, securityManager,
+    confluentAmqServer = new ConfluentAmqServerImpl(configuration, mbeanServer, securityManager,
         parentServer, serviceRegistry);
   }
 

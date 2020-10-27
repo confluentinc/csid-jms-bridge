@@ -137,6 +137,10 @@ public class ArtemisTestServer implements
 
   @Override
   public void close() {
+    stop();
+  }
+
+  public void stop() {
     try {
       afterEach();
       afterAll();

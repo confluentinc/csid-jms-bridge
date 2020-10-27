@@ -5,7 +5,7 @@
 package io.confluent.amq.exchange;
 
 import io.confluent.amq.ComponentLifeCycle;
-import io.confluent.amq.JmsBridgeConfiguration;
+import io.confluent.amq.config.BridgeConfig;
 import io.confluent.amq.logging.StructuredLogger;
 import io.confluent.amq.persistence.kafka.KafkaIO;
 import java.util.ArrayList;
@@ -43,7 +43,7 @@ public class KafkaExchangeIngress implements Consumer, KafkaExchange.ExchangeCha
       .with(b -> b.loggerClass(KafkaExchangeIngress.class));
 
 
-  private final JmsBridgeConfiguration config;
+  private final BridgeConfig config;
   private final KafkaProducer<byte[], byte[]> producer;
   private final KafkaExchange exchange;
   private final java.util.Map<Long, MessageReference> refs = new LinkedHashMap<>();
@@ -52,7 +52,7 @@ public class KafkaExchangeIngress implements Consumer, KafkaExchange.ExchangeCha
   private final ComponentLifeCycle state = new ComponentLifeCycle(SLOG);
 
   public KafkaExchangeIngress(
-      JmsBridgeConfiguration config,
+      BridgeConfig config,
       KafkaExchange kafkaExchange,
       KafkaIO kafkaIO,
       Long sequentialId) {
@@ -118,7 +118,7 @@ public class KafkaExchangeIngress implements Consumer, KafkaExchange.ExchangeCha
       return HandleStatus.NO_MATCH;
     }
 
-    if (!this.exchange.isExchangePaused(topicExchange)) {
+    if (!this.exchange.exchangeWriteable(topicExchange)) {
       SLOG.debug(b -> b
           .event("HandleMessage")
           .eventResult("Busy")
@@ -195,7 +195,7 @@ public class KafkaExchangeIngress implements Consumer, KafkaExchange.ExchangeCha
         .putTokens("message", reference.getMessageID()));
 
     ICoreMessage coreMessage = reference.getMessage().toCore();
-    String bridgeId = config.getBridgeConfig().id();
+    String bridgeId = config.id();
 
     Map<String, byte[]> headers = Headers.convertHeaders(coreMessage, bridgeId, true);
     final byte[] key = extractKey(route, headers);

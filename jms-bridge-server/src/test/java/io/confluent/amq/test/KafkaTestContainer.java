@@ -82,6 +82,7 @@ public class KafkaTestContainer implements
 
   @Override
   public void beforeAll(ExtensionContext extensionContext) throws Exception {
+    System.out.println("###### STARTING KAFKA CONTAINER ######");
     this.kafkaContainer.start();
 
     Properties kafkaProps = defaultProps();
@@ -108,6 +109,7 @@ public class KafkaTestContainer implements
 
   @Override
   public void afterAll(ExtensionContext extensionContext) throws Exception {
+    System.out.println("###### STOPPING KAFKA CONTAINER ######");
     this.adminClient.close();
     this.producer.close();
     this.kafkaIO.stop();

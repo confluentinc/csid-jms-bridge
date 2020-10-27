@@ -70,18 +70,12 @@ public class ComponentLifeCycle {
     TransitionResult tr = null;
     logger.info(b -> b.event(loggingEvent(nextState)));
 
-
     if (state == nextState) {
       //no transition needed, already at desired state
       tr = new TransitionResult(true, null, null);
     } else if (isLegalTransition(nextState)) {
-      try {
-        activity.run();
-      } catch (Throwable t) {
-        tr = new TransitionResult(false, null, t);
-      }
+      activity.run();
       state = nextState;
-
       tr = new TransitionResult(true, null, null);
     } else {
 
@@ -138,6 +132,7 @@ public class ComponentLifeCycle {
   }
 
   public static class TransitionResult {
+
     private final boolean success;
     private final String invalidTransitionMessage;
     private final Throwable error;
