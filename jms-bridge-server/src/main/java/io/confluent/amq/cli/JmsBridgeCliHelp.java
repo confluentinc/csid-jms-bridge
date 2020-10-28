@@ -4,40 +4,27 @@
 
 package io.confluent.amq.cli;
 
-import com.github.rvesse.airline.HelpOption;
 import com.github.rvesse.airline.help.Help;
-import io.confluent.amq.logging.StructuredLogger;
-import java.io.IOException;
-import javax.inject.Inject;
+import java.io.ByteArrayOutputStream;
+import java.nio.charset.StandardCharsets;
 
 public class JmsBridgeCliHelp extends Help<Runnable> implements BaseCommand {
 
-  private static final StructuredLogger SLOG = StructuredLogger.with(b -> b
-      .loggerClass(JmsBridgeCliHelp.class));
-
-  @Inject
-  HelpOption<Runnable> help;
-
   public JmsBridgeCliHelp() {
+    super();
   }
 
   @Override
   public int execute(CommandIo io) throws Exception {
-    showHelp(io);
+    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    help(global, command, includeHidden, baos);
+
+    if (baos.size() == 0) {
+      io.output().println("See the -h or --help flags for usage information");
+    } else {
+      io.output().print(new String(baos.toByteArray(), StandardCharsets.UTF_8));
+    }
     return 0;
   }
 
-  @Override
-  public boolean helpRequested() {
-    return help.help;
-  }
-
-  @Override
-  public void showHelp(CommandIo io) {
-    try {
-      help(global, command, this.includeHidden, io.output());
-    } catch (IOException e) {
-      throw new RuntimeException("Error generating usage documentation", e);
-    }
-  }
 }

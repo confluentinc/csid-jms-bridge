@@ -26,7 +26,7 @@ import javax.jms.Topic;
 import javax.jms.TopicSubscriber;
 
 @Command(name = "receive", description = "receive text messages from a JMS topic")
-public class ReceiveCommand extends DefaultCommand {
+public class ReceiveCommand implements BaseCommand {
 
   @Inject
   JmsClientOptions jmsClientOptions = new JmsClientOptions();
@@ -48,7 +48,7 @@ public class ReceiveCommand extends DefaultCommand {
   boolean binToText = false;
 
   @Override
-  public int run(CommandIo io) throws Exception {
+  public int execute(CommandIo io) throws Exception {
     jmsClientOptions.doWithSession(this.receive(io));
     return 0;
   }

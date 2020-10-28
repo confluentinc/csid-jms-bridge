@@ -6,11 +6,13 @@ package io.confluent.amq.cli;
 
 import com.github.rvesse.airline.Cli;
 import com.github.rvesse.airline.builder.CliBuilder;
+import com.github.rvesse.airline.help.Help;
 import com.github.rvesse.airline.model.GlobalMetadata;
 import com.github.rvesse.airline.parser.ParseResult;
 import com.github.rvesse.airline.parser.errors.ParseException;
 import com.github.rvesse.airline.parser.errors.handlers.CollectAll;
 import io.confluent.amq.logging.StructuredLogger;
+import java.util.Collections;
 
 @SuppressWarnings("checkstyle:HideUtilityClassConstructor")
 public class JmsBridgeCli {
@@ -36,50 +38,29 @@ public class JmsBridgeCli {
   }
 
   protected int execute(String[] args) throws Exception {
+
     Cli<BaseCommand> cli = buildCli();
-    try {
-      // Parse with a result to allow us to inspect the results of parsing
-      ParseResult<BaseCommand> result = cli.parseWithResult(args);
-
-      if (result.wasSuccessful()) {
-        // Parsed successfully, so just run the command and exit
-        SLOG.debug(b -> b
-            .event("ParseCommand")
-            .markSuccess()
-            .putTokens("command", result.getCommand().getClass().getSimpleName()));
-
-        //help was requested, either by default command or using -h, --help
-        if (result.getCommand().helpRequested()) {
-          SLOG.debug(b -> b
-              .event("HelpRequested")
-              .putTokens("command", result.getCommand().getClass().getSimpleName()));
-
-          result.getCommand().showHelp(io);
-          return 0;
-        }
-
-        return result.getCommand().execute(io);
-
-      } else {
-        SLOG.debug(b -> b
-            .event("ParseCommand")
-            .markFailure()
-            .putTokens("command", result.getCommand().getClass().getSimpleName()));
-
-        return showErrors(cli.getMetadata(), result, args);
-
+    for (final String arg : args) {
+      if ("--help".equals(arg) || "-h".equals(arg)) {
+        Help.help(cli.getMetadata(), Collections.emptyList());
+        return 0;
       }
-
-    } catch (Exception e) {
-      SLOG.debug(
-          b -> b.event("ExceptionThrown"),
-          e);
-
-      // Errors should be being collected so if anything is thrown it is unexpected
-      io.error().println(String.format("Error: %s", e.getMessage()));
-      e.printStackTrace(io.error());
     }
 
+    try {
+      ParseResult<BaseCommand> parseResult = cli.parseWithResult(args);
+      if (parseResult.wasSuccessful()) {
+        return parseResult.getCommand().execute(io);
+      } else {
+        for (ParseException e : parseResult.getErrors()) {
+          io.output().println("Error: " + e.getMessage());
+        }
+        io.output().println("See the -h or --help flags for usage information");
+      }
+    } catch (Exception e) {
+      io.output().println("Unknown error occurred: " + e.getMessage());
+      e.printStackTrace(io.output());
+    }
     return 1;
   }
 
@@ -94,11 +75,13 @@ public class JmsBridgeCli {
 
     cliBuilder
         .withGroup("jms")
+        .withDefaultCommand(ReceiveCommand.class)
         .withCommand(ReceiveCommand.class)
         .withCommand(SendCommand.class);
 
     cliBuilder
         .withGroup("journal")
+        .withDefaultCommand(ReadJournalCommand.class)
         .withCommand(ReadJournalCommand.class);
 
     return cliBuilder.build();

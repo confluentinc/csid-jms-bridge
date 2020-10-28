@@ -17,7 +17,7 @@ import javax.jms.MessageProducer;
 import javax.jms.Topic;
 
 @Command(name = "send", description = "Send text messages to a JMS topic")
-public class SendCommand extends DefaultCommand {
+public class SendCommand implements BaseCommand {
 
   @Inject
   protected JmsClientOptions jmsClientOptions = new JmsClientOptions();
@@ -28,7 +28,7 @@ public class SendCommand extends DefaultCommand {
   protected String topic;
 
   @Override
-  public int run(CommandIo io) throws Exception {
+  public int execute(CommandIo io) throws Exception {
     jmsClientOptions.doWithSession(this.send(io));
     return 0;
   }

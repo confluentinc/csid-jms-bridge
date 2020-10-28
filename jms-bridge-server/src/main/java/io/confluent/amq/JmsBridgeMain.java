@@ -4,28 +4,29 @@
 
 package io.confluent.amq;
 
+import com.github.rvesse.airline.HelpOption;
 import com.github.rvesse.airline.SingleCommand;
 import com.github.rvesse.airline.annotations.Arguments;
 import com.github.rvesse.airline.annotations.Command;
 import com.github.rvesse.airline.annotations.Option;
+import io.confluent.amq.cli.BaseCommand;
+import io.confluent.amq.cli.CommandIo;
 import io.confluent.amq.config.BridgeConfig;
 import io.confluent.amq.config.BridgeConfigFactory;
 import java.io.File;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
-import org.apache.activemq.artemis.core.server.embedded.EmbeddedActiveMQ;
+import javax.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 @Command(name = "jms-bridge-server-start", description = "Start the JMS Bridge server.")
-public class JmsBridgeMain {
+public class JmsBridgeMain implements BaseCommand  {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(JmsBridgeMain.class);
 
-  @Option(name = "--vanilla",
-      hidden = true,
-      description = "Startup a vanilla embedded AMQ server instead of the JMS-Bridge")
-  protected boolean useVanilla = false;
+  @Inject
+  protected HelpOption<BaseCommand> help;
 
   @Option(name = "--broker-xml", hidden = true)
   protected String brokerXml;
@@ -33,20 +34,19 @@ public class JmsBridgeMain {
   @Arguments(description = "The path to a file containing configuration details.")
   protected String configPath;
 
-  public static void main(final String[] args) {
-    final JmsBridgeMain jmsBridgeMain = new JmsBridgeMain();
-    final int status = jmsBridgeMain.execute(args, JmsBridgeMain.class);
-    if (status != 0) {
-      System.exit(status);
+  public static void main(final String[] args) throws Exception {
+    JmsBridgeMain cmd = SingleCommand.singleCommand(JmsBridgeMain.class).parse(args);
+    if (cmd.help.showHelpIfRequested()) {
+      return;
     }
+    System.exit(cmd.execute(CommandIo.create()));
   }
 
-  protected <T extends JmsBridgeMain> int execute(final String[] args, final Class<T> cmdClazz) {
+  @Override
+  public int execute(CommandIo io) throws Exception {
 
-    final SingleCommand<T> parser = SingleCommand.singleCommand(cmdClazz);
-    final JmsBridgeMain cmd = parser.parse(args);
     try {
-      cmd.run();
+      run();
     } catch (Throwable t) {
       LOGGER.error("Failed to start JMS-Bridge.", t);
       return 1;
@@ -69,30 +69,8 @@ public class JmsBridgeMain {
   protected ConfluentEmbeddedAmq loadServer(final BridgeConfig bridgeConfig,
       final String brokerXmlPath) {
 
-    if (!useVanilla) {
-      return new ConfluentEmbeddedAmqImpl
-          .Builder(brokerXmlPath, bridgeConfig).build();
-    } else {
-      LOGGER.info("Starting vanilla embedded AMQ server. No JMS-Bridge functionality included.");
-      return defaultEmbeddedServer(brokerXmlPath);
-    }
-  }
-
-  private ConfluentEmbeddedAmq defaultEmbeddedServer(final String brokerXmlPath) {
-    final EmbeddedActiveMQ embeddedAmqServer = new EmbeddedActiveMQ();
-    embeddedAmqServer.setConfigResourcePath(brokerXmlPath);
-    return new ConfluentEmbeddedAmq() {
-      @Override
-      public void start() throws Exception {
-        embeddedAmqServer.start();
-      }
-
-      @Override
-      public void stop() throws Exception {
-        embeddedAmqServer.stop();
-      }
-    };
-
+    return new ConfluentEmbeddedAmqImpl
+        .Builder(brokerXmlPath, bridgeConfig).build();
   }
 
   public void run() {

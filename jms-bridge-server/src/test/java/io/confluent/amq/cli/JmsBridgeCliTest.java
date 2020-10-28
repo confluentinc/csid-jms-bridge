@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.ServiceLoader;
+import java.util.function.Predicate;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -72,21 +73,22 @@ public class JmsBridgeCliTest {
   public void callSendWithHelpOption() throws Exception {
     cli.execute(new String[]{"jms", "send", "--help"});
 
-    assertCommandHelp("jms send");
+    assertUsage();
   }
 
   @Test
   @DisplayName("call with invalid command chain: send")
   public void callBadArgs() throws Exception {
     cli.execute(new String[]{"send"});
-    assertLineFound("Unknown command send");
+    assertLineFound("Unknown command send"::equals);
   }
 
   @Test
   @DisplayName("call with invalid help command chain: help send")
   public void callInvalidHelpCommandChain() throws Exception {
     cli.execute(new String[]{"help", "send"});
-    assertLineFound("Unknown command send");
+    assertLinesFound(Arrays.asList(
+        "Unknown command send"::equals, l -> l.contains("-h or --help")));
   }
 
   @Test
@@ -94,7 +96,7 @@ public class JmsBridgeCliTest {
   public void callCommandBadArgs() throws Exception {
     cli.execute(new String[]{"jms", "send", "--args"});
 
-    assertLineFound("Found unexpected parameters: [--args]");
+    assertLineFound("Error: Found unexpected parameters: [--args]"::equals);
   }
 
   @Test
@@ -118,7 +120,7 @@ public class JmsBridgeCliTest {
     };
 
     mycli.execute(new String[]{"jms"});
-    assertLineFound("Error: BOOM", true);
+    assertLineFound(l -> l.contains("BOOM"));
   }
 
   //Helper methods below
@@ -129,42 +131,38 @@ public class JmsBridgeCliTest {
 
   public void assertCommandHelp(String command, boolean fromError) {
     List<String> lines = assertLinesFound(Arrays.asList(
-        "NAME", "SYNOPSIS", "OPTIONS"
+        "NAME"::equals, "SYNOPSIS"::equals, "OPTIONS"::equals
     ));
 
     final String fullCommand = "jms-bridge " + command;
     assertTrue(lines.stream().anyMatch(l -> l.contains(fullCommand)),
-        String.format("Expected %s output to contain %s",
-            fromError ? "error" : "standard",
-            command));
+        "Found unexpected command output");
 
   }
 
-  public List<String> assertLineFound(String line) {
-    return assertLineFound(line, false);
+  public List<String> assertLineFound(Predicate<String> match) {
+    return assertLineFound(match, false);
   }
 
-  public List<String> assertLineFound(String match, boolean fromError) {
+  public List<String> assertLineFound(Predicate<String> match, boolean fromError) {
     final List<String> lines = readLines(fromError);
     logCli(lines);
-    assertTrue(lines.stream().anyMatch(match::equals),
-        String.format("Expected %s output to contain line: '%s'",
-            fromError ? "error" : "standard",
-            match));
+    assertTrue(lines.stream().anyMatch(match),
+        "Found unexpected command output");
 
     return lines;
   }
 
-  public List<String> assertLinesFound(Iterable<String> lines) {
+  public List<String> assertLinesFound(Iterable<Predicate<String>> lines) {
     return assertLinesFound(lines, false);
   }
 
-  public List<String> assertLinesFound(Iterable<String> matches, boolean fromError) {
+  public List<String> assertLinesFound(Iterable<Predicate<String>> matches, boolean fromError) {
     final List<String> lines = readLines(fromError);
     logCli(lines);
 
-    for (String match : matches) {
-      assertTrue(lines.stream().anyMatch(match::equals),
+    for (Predicate<String> match : matches) {
+      assertTrue(lines.stream().anyMatch(match),
           String.format("Expected %s output to contain line: '%s'",
               fromError ? "error" : "standard",
               match));
@@ -179,7 +177,7 @@ public class JmsBridgeCliTest {
   }
 
   public void assertUsage(boolean fromError) {
-    assertLineFound("usage: jms-bridge <command> [ <args> ]", fromError);
+    assertLineFound("usage: jms-bridge <command> [ <args> ]"::equals, fromError);
   }
 
   public List<String> readLines(boolean fromError) {
