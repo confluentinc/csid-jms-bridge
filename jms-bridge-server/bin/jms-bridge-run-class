@@ -5,7 +5,7 @@
 
 if [ $# -lt 1 ];
 then
-  echo "USAGE: $0 [-daemon] [opts] [-help]"
+  echo "USAGE: $0 [-daemon] [opts]"
     exit 1
 fi
 
@@ -15,10 +15,7 @@ shift
 DAEMON_NAME=""
 GC_LOG_ENABLED=""
 DAEMON_MODE=""
-HELP=""
-if [ "$1" = "help" ]; then
-  HELP="true"
-fi
+
 while [ $# -gt 0 ]; do
   COMMAND="$1"
   case "$COMMAND" in
@@ -32,10 +29,6 @@ while [ $# -gt 0 ]; do
       ;;
     -daemon)
       DAEMON_MODE="true"
-      shift
-      ;;
-    -help)
-      HELP="true"
       shift
       ;;
    *)
@@ -149,12 +142,6 @@ if [ "x$GC_LOG_ENABLED" = "xtrue" ]; then
   else
     JMS_BRIDGE_GC_LOG_OPTS="-Xloggc:$LOG_DIR/$GC_LOG_FILE_NAME -verbose:gc -XX:+PrintGCDetails -XX:+PrintGCDateStamps -XX:+PrintGCTimeStamps -XX:+UseGCLogFileRotation -XX:NumberOfGCLogFiles=10 -XX:GCLogFileSize=100M"
   fi
-fi
-
-
-if [ "x$HELP" = "xtrue" ]; then
-  exec "$JAVA" -cp "$JMS_BRIDGE_CLASSPATH" "$MAIN" --help
-  exit 1
 fi
 
 OPTIONS=($JMS_BRIDGE_HEAP_OPTS)
