@@ -39,7 +39,10 @@ public class JmsBridgeMain implements BaseCommand  {
     if (cmd.help.showHelpIfRequested()) {
       return;
     }
-    System.exit(cmd.execute(CommandIo.create()));
+    int status = cmd.execute(CommandIo.create());
+    if (status != 0) {
+      System.exit(status);
+    }
   }
 
   @Override
