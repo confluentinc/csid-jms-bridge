@@ -10,8 +10,8 @@ import io.confluent.amq.logging.LogFormat;
 import io.confluent.amq.persistence.kafka.ConsumerThread.Builder;
 import io.confluent.amq.persistence.kafka.journal.JournalEntryKeyPartitioner;
 import io.confluent.amq.persistence.kafka.journal.serde.ProtoSerializer;
+import java.util.Collection;
 import java.util.Collections;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -22,18 +22,16 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import org.apache.activemq.artemis.api.core.ICoreMessage;
-import org.apache.activemq.artemis.api.core.SimpleString;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.ConsumerGroupDescription;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.admin.OffsetSpec;
+import org.apache.kafka.clients.admin.TopicDescription;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.TopicPartition;
-import org.apache.kafka.common.header.internals.RecordHeader;
 import org.apache.kafka.common.serialization.LongSerializer;
 import org.apache.kafka.common.serialization.Serializer;
 import org.apache.kafka.common.serialization.StringSerializer;
@@ -59,10 +57,6 @@ public class KafkaIO {
   private volatile int state = 0;
   private volatile KafkaProducer<? extends Message, ? extends Message> kafkaProducer;
   private volatile AdminClient adminClient;
-
-  public static boolean isKafkaMessage(ICoreMessage message) {
-    return message.getPropertyNames().contains(KafkaRef.SS_HEADER);
-  }
 
   public KafkaIO(Properties kafkaProps) {
     this.kafkaProps = new Properties();
@@ -195,6 +189,16 @@ public class KafkaIO {
     }
   }
 
+  public Map<String, TopicDescription> describeTopics(Collection<String> topics) {
+    return fetchWithAdminClient(admin -> {
+      try {
+        return admin.describeTopics(topics).all().get();
+      } catch (Exception e) {
+        throw new RuntimeException(e);
+      }
+    });
+  }
+
   /**
    * Create the topic unless it already exists, if it does exist then do nothing.
    *
@@ -297,86 +301,6 @@ public class KafkaIO {
     }
   }
 
-
-  /* //save for future reference
-  public CompletableFuture<KafkaRef> writeMessage(Message message) {
-    ICoreMessage coreMessage = message.toCore();
-
-    final CompletableFuture<KafkaRef> future = new CompletableFuture<>();
-    KafkaRef kafkaRef = null;
-    byte[] value = null;
-    if (coreMessage.getType() == Message.TEXT_TYPE) {
-      value = TextMessageUtil.readBodyText(coreMessage.getBodyBuffer()).toString()
-          .getBytes(StandardCharsets.UTF_8);
-    } else if (coreMessage.getType() == Message.BYTES_TYPE) {
-      value = new byte[coreMessage.getBodyBufferSize()];
-      BytesMessageUtil.bytesReadBytes(coreMessage.getReadOnlyBodyBuffer(), value);
-    }
-
-    if (value != null) {
-      if (LOGGER.isDebugEnabled()) {
-        LOGGER.debug("Writing message to kafka: " + message);
-      }
-      String correlationId = Objects.toString(message.getCorrelationID(), null);
-      String topic = message.getAddress();
-
-      ProducerRecord<byte[], byte[]> krecord = null;
-      if (correlationId != null) {
-        krecord = new ProducerRecord<>(
-            topic, correlationId.getBytes(StandardCharsets.UTF_8), value);
-      } else {
-        krecord = new ProducerRecord<>(topic, value);
-      }
-
-      convertHeaders(coreMessage).forEach(krecord.headers()::add);
-
-      kafkaProducer.send(krecord, (meta, err) -> {
-        if (err != null) {
-          future.completeExceptionally(err);
-        } else {
-          if (LOGGER.isDebugEnabled()) {
-            LOGGER.info("Published kafka record metadata is: " + meta);
-          }
-          future.complete(new KafkaRef(meta.topic(), meta.partition(), meta.offset()));
-        }
-      });
-    } else {
-      future.complete(null);
-    }
-
-    return future;
-  }
-  */
-
-  private List<RecordHeader> convertHeaders(ICoreMessage message) {
-    final List<RecordHeader> kheaders = new LinkedList<>();
-    byte[] msgId = longSerializer.serialize("", message.getMessageID());
-    kheaders.add(new RecordHeader("jms.MessageID", msgId));
-
-    for (SimpleString hdrname : message.getPropertyNames()) {
-      if (!hdrname.toString().startsWith("_")) {
-        Object property = message.getBrokerProperty(hdrname);
-        String propname = hdrname.toString();
-        byte[] propdata = null;
-        if (property instanceof byte[]) {
-          propdata = (byte[]) property;
-        } else if (property != null) {
-          propdata = stringSerializer.serialize("", property.toString());
-        }
-
-        if (propdata != null) {
-          if (!propname.contains("KAFKA")) {
-            propname = "jms." + propname;
-          }
-          LOGGER.warn("Setting header: " + propname);
-          kheaders.add(new RecordHeader(propname, propdata));
-        }
-      }
-    }
-
-    return kheaders;
-  }
-
   public void stop() {
     try {
       rwlock.writeLock().lock();
@@ -387,58 +311,6 @@ public class KafkaIO {
       state = STOPPED;
     } finally {
       rwlock.writeLock().unlock();
-    }
-  }
-
-  public static class KafkaRef {
-
-    public static final String HEADER = "KAFKA_REF";
-    public static final SimpleString SS_HEADER = SimpleString.toSimpleString(HEADER);
-
-    private final String topic;
-    private final int partition;
-    private final long offset;
-
-    public KafkaRef(String topic, int partition, long offset) {
-      this.topic = topic;
-      this.partition = partition;
-      this.offset = offset;
-    }
-
-    public KafkaRef(String asStringOutput) {
-      String[] parts = asStringOutput.split("\\|");
-      if (parts.length != 3) {
-        throw new IllegalArgumentException("Invalid KafkaRef String: '" + asStringOutput + "'");
-      }
-      try {
-        this.topic = parts[0];
-        this.partition = Integer.parseInt(parts[1]);
-        this.offset = Long.parseLong(parts[2]);
-      } catch (NumberFormatException e) {
-        throw new IllegalArgumentException("Invalid KafkaRef String: '" + asStringOutput + "'",
-            e);
-      }
-    }
-
-    public String getTopic() {
-      return topic;
-    }
-
-    public int getPartition() {
-      return partition;
-    }
-
-    public long getOffset() {
-      return offset;
-    }
-
-    public String asString() {
-      return topic + '|' + partition + '|' + offset;
-    }
-
-    @Override
-    public String toString() {
-      return asString();
     }
   }
 }

@@ -40,6 +40,7 @@ import org.junit.jupiter.api.io.TempDir;
 import org.testcontainers.containers.KafkaContainer;
 import org.testcontainers.utility.MountableFile;
 
+@SuppressWarnings("checkstyle:ClassDataAbstractionCoupling")
 public class KafkaToJmsSecurityTest {
 
   private static final String ADMIN_USER = "User:admin";
@@ -232,8 +233,8 @@ public class KafkaToJmsSecurityTest {
                 ResourceType.TOPIC, null, PatternType.ANY),
             new AccessControlEntryFilter(
                 AlICE_USER, "*", AclOperation.WRITE, AclPermissionType.ALLOW)))
-            .values().get().forEach(
-            acl -> TestSupport.println("Admin alice ACL write topic -> {}", acl.pattern().name()));
+            .values().get().forEach(acl ->
+            TestSupport.println("Admin alice ACL write topic -> {}", acl.pattern().name()));
       });
 
       producer.partitionsFor(readAccessTopics.get(0)).forEach(pi ->

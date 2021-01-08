@@ -14,14 +14,24 @@ import io.confluent.amq.persistence.domain.proto.JournalRecordType;
 import io.confluent.amq.persistence.kafka.KafkaRecordUtils;
 import io.confluent.amq.persistence.kafka.journal.JournalEntryKeyPartitioner;
 import io.confluent.amq.persistence.kafka.journal.ProtocolRecordType;
+import io.confluent.amq.persistence.kafka.journal.impl.KafkaJournalLoaderCallback;
 import io.confluent.amq.persistence.kafka.journal.serde.ProtoSerializer;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.apache.activemq.artemis.core.journal.PreparedTransactionInfo;
+import org.apache.activemq.artemis.core.journal.RecordInfo;
+import org.apache.activemq.artemis.core.journal.TransactionFailureCallback;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerConfig;
@@ -34,6 +44,7 @@ import org.opentest4j.AssertionFailedError;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+@SuppressWarnings("checkstyle:ClassDataAbstractionCoupling")
 public final class TestSupport {
 
   /**
@@ -46,6 +57,25 @@ public final class TestSupport {
 
   public static void println(String format, Object... objects) {
     LOGGER.info(format, objects);
+  }
+
+  public static Map<String, String> baseStreamProps(Path tempdir) {
+    return baseStreamProps(tempdir, Collections.emptyMap());
+  }
+
+  public static Map<String, String> baseStreamProps(Path tempdir, Map<String, String> moreProps) {
+    Path stateDir = tempdir.resolve("_stream-" + System.currentTimeMillis());
+
+    try {
+      Files.createDirectory(stateDir);
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
+
+    Map<String, String> streamProps = new HashMap<>();
+    streamProps.put(StreamsConfig.STATE_DIR_CONFIG, stateDir.toAbsolutePath().toString());
+    streamProps.putAll(moreProps);
+    return streamProps;
   }
 
 
@@ -261,6 +291,45 @@ public final class TestSupport {
               stopwatch.elapsed(TimeUnit.MILLISECONDS)), fail);
     }
   }
+
+  public static LoaderCallbackData createLoaderCallback() {
+    return new LoaderCallbackData();
+  }
+
+  public static class LoaderCallbackData implements TransactionFailureCallback {
+
+    public static LoaderCallbackData build() {
+      return new LoaderCallbackData();
+    }
+
+    public final List<RecordInfo> committedRecords = new LinkedList<>();
+    public final List<PreparedTransactionInfo> preppedTxs = new LinkedList<>();
+    public final Map<Long, TxFailedRecords> failedTxids = new HashMap<>();
+    public final KafkaJournalLoaderCallback callback;
+
+    public LoaderCallbackData() {
+      this.callback = KafkaJournalLoaderCallback.from(committedRecords, preppedTxs, this, false);
+    }
+
+    @Override
+    public void failedTransaction(long transactionID, List<RecordInfo> records,
+        List<RecordInfo> recordsToDelete) {
+      failedTxids.put(transactionID, new TxFailedRecords(records, recordsToDelete));
+    }
+  }
+
+  public static class TxFailedRecords {
+
+    final List<RecordInfo> records;
+    final List<RecordInfo> deleteRecords;
+
+    public TxFailedRecords(List<RecordInfo> records,
+        List<RecordInfo> deleteRecords) {
+      this.records = records;
+      this.deleteRecords = deleteRecords;
+    }
+  }
+
 
   public interface RunnableWithScissors {
     void run() throws Exception;

@@ -5,6 +5,7 @@
 package io.confluent.amq.persistence.kafka.journal.impl;
 
 import io.confluent.amq.logging.StructuredLogger;
+import io.confluent.amq.persistence.domain.proto.EpochEvent;
 import io.confluent.amq.persistence.domain.proto.JournalEntry;
 import io.confluent.amq.persistence.domain.proto.JournalEntryKey;
 import io.confluent.amq.persistence.domain.proto.JournalRecord;
@@ -12,39 +13,146 @@ import io.confluent.amq.persistence.domain.proto.JournalRecordType;
 import io.confluent.amq.persistence.domain.proto.TransactionReference;
 import io.confluent.amq.persistence.kafka.KafkaRecordUtils;
 import io.confluent.amq.persistence.kafka.journal.JournalStreamTransformer;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
-import org.apache.commons.lang3.tuple.Pair;
 import org.apache.kafka.streams.KeyValue;
+import org.apache.kafka.streams.processor.ProcessorContext;
+import org.apache.kafka.streams.processor.PunctuationType;
+import org.apache.kafka.streams.processor.Punctuator;
+import org.apache.kafka.streams.state.KeyValueIterator;
 import org.apache.kafka.streams.state.ValueAndTimestamp;
 
-public class TransactionProcessor extends JournalStreamTransformer {
+public class TransactionProcessor
+    extends JournalStreamTransformer<ValueAndTimestamp<JournalEntry>>
+    implements Punctuator {
 
   private static final StructuredLogger SLOG = StructuredLogger
       .with(b -> b.loggerClass(TransactionProcessor.class));
 
-  public TransactionProcessor(String journalName, String storeName) {
-    super(journalName, storeName);
+  private final long transactionTimeoutMs;
+  private final long transactionScanIntervalMs;
+
+  public TransactionProcessor(String journalName, String txStoreName) {
+    this(journalName,
+        txStoreName,
+        Duration.ofMinutes(5).toMillis(),
+        Duration.ofMinutes(5).toMillis());
   }
 
+  public TransactionProcessor(
+      String journalName, String txStoreName, long transactionTimeoutMs, long scanIntervalMs) {
+    super(journalName, txStoreName);
+    this.transactionTimeoutMs = transactionTimeoutMs;
+    this.transactionScanIntervalMs = scanIntervalMs;
+  }
+
+  @Override
+  public void init(ProcessorContext context) {
+    super.init(context);
+    context.schedule(
+        Duration.ofMillis(transactionScanIntervalMs), PunctuationType.STREAM_TIME, this);
+  }
+
+  @Override
+  public void punctuate(long timestamp) {
+    SLOG.debug(b -> b
+        .name(getJournalName())
+        .event("TransactionExpiryScan")
+        .markStarted()
+        .putTokens("streamTimestamp", Instant.ofEpochMilli(timestamp)));
+    List<ValueAndTimestamp<JournalEntry>> txRefs = new LinkedList<>();
+    try (KeyValueIterator<JournalEntryKey, ValueAndTimestamp<JournalEntry>> all
+        = getStore().all()) {
+
+      while (all.hasNext()) {
+        KeyValue<JournalEntryKey, ValueAndTimestamp<JournalEntry>> entry = all.next();
+        if (entry.value != null
+            && entry.value.value() != null
+            && entry.value.value().hasTransactionReference()
+            && timestamp - entry.value.timestamp() > transactionTimeoutMs) {
+
+          txRefs.add(entry.value);
+        }
+      }
+    }
+
+    for (ValueAndTimestamp<JournalEntry> valueAndTimestamp: txRefs) {
+      TransactionReference txRef =  valueAndTimestamp.value().getTransactionReference();
+      boolean isPrepared = txRef.getEntryReferencesList().stream()
+          .map(k -> getStore().get(k))
+          .filter(kv -> kv.value() != null && kv.value().hasAppendedRecord())
+          .anyMatch(kv ->
+              kv.value().getAppendedRecord().getRecordType() == JournalRecordType.PREPARE_TX);
+
+      if (!isPrepared) {
+        SLOG.debug(b -> b
+            .name(getJournalName())
+            .event("ExpireTransaction")
+            .putTokens("transactionId", txRef.getTxId())
+            .putTokens("timestamp", Instant.ofEpochMilli(valueAndTimestamp.timestamp())));
+        rollback(txRef, timestamp);
+      }
+    }
+
+    SLOG.debug(b -> b
+        .name(getJournalName())
+        .event("TransactionExpiryScan")
+        .markCompleted());
+  }
+
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   @Override
   public Iterable<KeyValue<JournalEntryKey, JournalEntry>> transform(JournalEntryKey readOnlyKey,
       JournalEntry entry) {
 
-    if (entry == null
-        || !entry.hasAppendedRecord()
-        || !KafkaRecordUtils.isTxRecord(entry.getAppendedRecord())) {
+    if (entry != null) {
+      if (entry.hasEpochEvent()) {
 
-      //passthrough
-      return Collections.singletonList(KeyValue.pair(readOnlyKey, entry));
+        JournalEntry readyEvent = JournalEntry.newBuilder(entry)
+            .mergeEpochEvent(EpochEvent.newBuilder()
+                .setEpochStage(EpochCoordinator.EPOCH_STAGE_READY)
+                .buildPartial())
+            .build();
+
+        SLOG.trace(b -> b
+            .addJournalEntryKey(readOnlyKey)
+            .addJournalEntry(entry)
+            .event("ProcessEpochRecord"));
+
+        return Collections.singletonList(KeyValue.pair(readOnlyKey, readyEvent));
+
+        //TX records
+      } else if (entry.hasAppendedRecord()
+          && KafkaRecordUtils.isTxRecord(entry.getAppendedRecord())) {
+
+        SLOG.trace(b -> b
+            .addJournalEntryKey(readOnlyKey)
+            .addJournalEntry(entry)
+            .event("ProcessTransactionRecord"));
+
+        return processTx(readOnlyKey, entry);
+      }
     }
+
+    SLOG.trace(b -> b
+        .addJournalEntryKey(readOnlyKey)
+        .addJournalEntry(entry)
+        .event("RecordPassThrough"));
+
+    //passthrough
+    return Collections.singletonList(KeyValue.pair(readOnlyKey, entry));
+  }
+
+  private Iterable<KeyValue<JournalEntryKey, JournalEntry>> processTx(
+      JournalEntryKey key, JournalEntry entry) {
 
     List<KeyValue<JournalEntryKey, JournalEntry>> results = Collections.emptyList();
 
     long txId = entry.getAppendedRecord().getTxId();
-    Pair<TransactionReference, Long> txReferencePair = findTransactionRef(txId);
-    TransactionReference txReference = txReferencePair.getLeft();
+    TransactionReference txReference = findTransactionRef(txId);
     final long timestamp = getContext().timestamp();
 
     switch (entry.getAppendedRecord().getRecordType()) {
@@ -59,24 +167,29 @@ public class TransactionProcessor extends JournalStreamTransformer {
       case DELETE_RECORD_TX:
       case ANNOTATE_RECORD_TX:
         //aggregate onto current reference
-        results = updateTxReferences(readOnlyKey, txReference, timestamp);
+        results = updateTxReferences(key, entry, txReference, timestamp);
         break;
       default:
         SLOG.warn(b -> b
             .name(getJournalName())
             .event("NotTXRecord")
-            .addJournalEntryKey(readOnlyKey)
+            .addJournalEntryKey(key)
             .addJournalEntry(entry));
         break;
 
     }
 
-    logResults(SLOG, results);
     return results;
   }
 
   private List<KeyValue<JournalEntryKey, JournalEntry>> updateTxReferences(
-      JournalEntryKey newRecordKey, TransactionReference txReference, long timestamp) {
+      JournalEntryKey newRecordKey, JournalEntry entry, TransactionReference txReference,
+      long timestamp) {
+
+    ValueAndTimestamp<JournalEntry> txRecord = ValueAndTimestamp
+        .make(entry, timestamp);
+
+    getStore().put(newRecordKey, txRecord);
 
     JournalEntryKey txRefKey =
         KafkaRecordUtils.transactionReferenceKeyFromTxId(txReference.getTxId());
@@ -93,7 +206,7 @@ public class TransactionProcessor extends JournalStreamTransformer {
 
     getStore().put(txRefKey, valAndTs);
 
-    return Collections.singletonList(KeyValue.pair(txRefKey, updatedRefEntry));
+    return Collections.emptyList();
   }
 
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
@@ -126,7 +239,6 @@ public class TransactionProcessor extends JournalStreamTransformer {
 
           JournalEntryKey newRecordKey = KafkaRecordUtils.keyFromEntry(newEntry);
           txResults.add(KeyValue.pair(newRecordKey, newEntry));
-          getStore().put(newRecordKey, ValueAndTimestamp.make(newEntry, timestamp));
         } else {
           //bad ref in TX
           SLOG.warn(b -> b
@@ -140,8 +252,7 @@ public class TransactionProcessor extends JournalStreamTransformer {
         }
       }
     }
-
-    txResults.addAll(tombstones(txReference, timestamp));
+    cleanupTx(txReference, timestamp);
     return txResults;
   }
 
@@ -172,49 +283,39 @@ public class TransactionProcessor extends JournalStreamTransformer {
   private List<KeyValue<JournalEntryKey, JournalEntry>> rollback(
       TransactionReference txReference, long timestamp) {
 
-    return tombstones(txReference, timestamp);
+    cleanupTx(txReference, timestamp);
+
+    return Collections.emptyList();
   }
 
-  private List<KeyValue<JournalEntryKey, JournalEntry>> tombstones(
-      TransactionReference txReference, long timestamp) {
+  private void cleanupTx(TransactionReference txReference, long timestamp) {
 
-    List<KeyValue<JournalEntryKey, JournalEntry>> tsList = new LinkedList<>();
     //delete all tx records
     for (JournalEntryKey key : txReference.getEntryReferencesList()) {
-      tsList.add(KeyValue.pair(key, null));
       getStore().delete(key);
     }
 
     //delete the TX record and reference itself
     JournalEntryKey txKey = KafkaRecordUtils.transactionKeyFromTxId(txReference.getTxId());
-    tsList.add(KeyValue.pair(txKey, null));
     getStore().delete(txKey);
 
     JournalEntryKey txRefKey = KafkaRecordUtils
         .transactionReferenceKeyFromTxId(txReference.getTxId());
-    tsList.add(KeyValue.pair(txRefKey, null));
     getStore().delete(txRefKey);
-
-    return tsList;
   }
 
 
-  private Pair<TransactionReference, Long> findTransactionRef(Long txId) {
+  private TransactionReference findTransactionRef(Long txId) {
     JournalEntryKey txRefKey = KafkaRecordUtils.transactionReferenceKeyFromTxId(txId);
     ValueAndTimestamp<JournalEntry> txReferenceTs = getStore().get(txRefKey);
 
     TransactionReference txReference;
-    long timestamp;
     if (txReferenceTs == null) {
-
       txReference = TransactionReference.newBuilder().setTxId(txId).build();
-      timestamp = getContext().timestamp();
-
     } else {
       txReference = txReferenceTs.value().getTransactionReference();
-      timestamp = Math.max(txReferenceTs.timestamp(), getContext().timestamp());
     }
 
-    return Pair.of(txReference, timestamp);
+    return txReference;
   }
 }

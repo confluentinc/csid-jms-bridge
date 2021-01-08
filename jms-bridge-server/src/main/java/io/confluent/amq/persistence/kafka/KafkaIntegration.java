@@ -7,6 +7,7 @@ package io.confluent.amq.persistence.kafka;
 import io.confluent.amq.JmsBridgeConfiguration;
 import io.confluent.amq.config.BridgeConfig;
 import io.confluent.amq.config.BridgeConfig.JournalConfig;
+import io.confluent.amq.config.BridgeConfigFactory;
 import io.confluent.amq.logging.StructuredLogger;
 import io.confluent.amq.persistence.kafka.journal.KJournal;
 import io.confluent.amq.persistence.kafka.journal.impl.KafkaJournal;
@@ -44,7 +45,6 @@ public class KafkaIntegration {
     nodeUuid = UUIDGenerator.getInstance().generateUUID();
     bridgeId = config.id();
     applicationId = applicationId(bridgeId);
-    String clientId = String.format("%s_%s", bridgeId, nodeUuid.toString());
 
     List<JournalSpec> jspecs = new LinkedList<>();
     jspecs.add(
@@ -58,13 +58,16 @@ public class KafkaIntegration {
             config.journals().messages(),
             true));
 
-    journalProcessor = new KafkaJournalProcessor(
+    this.kafkaIO = new KafkaIO(BridgeConfigFactory.mapToProps(config.kafka()));
+    this.kafkaIO.start();
+
+    final String clientId = String.format("%s_%s", bridgeId, nodeUuid.toString());
+    this.journalProcessor = new KafkaJournalProcessor(
         jspecs,
         clientId,
         applicationId,
-        this.config);
-
-    kafkaIO = new KafkaIO(config.kafka());
+        this.config.streams(),
+        this.kafkaIO);
 
     bindingsJournal = journalProcessor.getJournal(KafkaJournalStorageManager.BINDINGS_NAME);
     messagesJournal = journalProcessor.getJournal(KafkaJournalStorageManager.MESSAGES_NAME);
@@ -75,13 +78,38 @@ public class KafkaIntegration {
 
     return new JournalSpec.Builder()
         .journalName(journalName)
-        .journalTopic(
-            jconfig.topic().name().orElse(KafkaJournal.journalTopic(bridgeId, journalName)))
+
+        .mutateJournalWalTopic(wt -> wt
+            .partitions(jconfig.walTopic().partitions())
+            .replication(jconfig.walTopic().replication())
+            .name(jconfig.walTopic().name()
+                .orElse(KafkaJournal.journalWalTopic(bridgeId, journalName)))
+            .putAllConfigs(getEffectiveJournalWalTopicProps(jconfig.walTopic().options())))
+
+        .mutateJournalTableTopic(tt -> tt
+            .partitions(jconfig.tableTopic().partitions())
+            .replication(jconfig.tableTopic().replication())
+            .name(jconfig.tableTopic().name()
+                .orElse(KafkaJournal.journalTableTopic(bridgeId, journalName)))
+            .putAllConfigs(getEffectiveJournalTableTopicProps(jconfig.tableTopic().options())))
+
         .performRouting(performRouting)
         .build();
   }
 
-  public Map<String, String> getEffectiveJournalTopicProps(Map<String, Object> configTopicProps) {
+  public Map<String, String> getEffectiveJournalWalTopicProps(
+      Map<String, Object> configTopicProps) {
+
+    Map<String, String> topicProps = new HashMap<>();
+    topicProps.put(TopicConfig.CLEANUP_POLICY_CONFIG, TopicConfig.CLEANUP_POLICY_DELETE);
+    configTopicProps.forEach((k, v) -> topicProps.put(k, v.toString()));
+
+    return topicProps;
+  }
+
+  public Map<String, String> getEffectiveJournalTableTopicProps(
+      Map<String, Object> configTopicProps) {
+
     Map<String, String> topicProps = new HashMap<>();
     configTopicProps.forEach((k, v) -> topicProps.put(k, v.toString()));
     topicProps.put(TopicConfig.CLEANUP_POLICY_CONFIG, TopicConfig.CLEANUP_POLICY_COMPACT);
@@ -110,29 +138,9 @@ public class KafkaIntegration {
   }
 
   /**
-   * Will create the necessary journal topics in kafka if needed.
-   */
-  public void createJournalTopics() {
-    kafkaIO.createTopicIfNotExists(
-        bindingsJournal.topic(),
-        config.journals().bindings().topic().partitions(),
-        config.journals().bindings().topic().replication(),
-        getEffectiveJournalTopicProps(config.journals().bindings().topic().options()));
-
-    kafkaIO.createTopicIfNotExists(
-        messagesJournal.topic(),
-        config.journals().messages().topic().partitions(),
-        config.journals().messages().topic().replication(),
-        getEffectiveJournalTopicProps(config.journals().messages().topic().options()));
-  }
-
-  /**
    * Will start both the KafkaIo and journal processors.
    */
   public synchronized void start() throws Exception {
-    kafkaIO.start();
-    createJournalTopics();
-
     this.journalProcessor.start();
     SLOG.info(
         b -> b.event("Starting").markSuccess());

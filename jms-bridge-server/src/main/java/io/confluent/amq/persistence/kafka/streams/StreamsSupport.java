@@ -32,5 +32,9 @@ public final class StreamsSupport {
 
     return new BranchSupport<>(stream, sb).specify();
   }
+
+  public static <K, V> BranchSupport.Spec<K, V> branchStream(KStream<K, V> stream) {
+    return branchStream(stream, null);
+  }
 }
 

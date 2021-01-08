@@ -11,10 +11,23 @@ import io.confluent.amq.persistence.domain.proto.JournalEntryKey;
 import io.confluent.amq.persistence.domain.proto.JournalRecord;
 import io.confluent.amq.persistence.domain.proto.JournalRecordType;
 import io.confluent.amq.persistence.domain.proto.MessageAnnotation;
+import io.confluent.amq.persistence.kafka.journal.impl.EpochCoordinator;
 import java.util.EnumSet;
 import org.apache.activemq.artemis.core.journal.RecordInfo;
+import org.apache.kafka.common.header.Header;
+import org.apache.kafka.common.header.Headers;
+import org.apache.kafka.common.serialization.IntegerDeserializer;
+import org.apache.kafka.common.serialization.IntegerSerializer;
 
 public final class KafkaRecordUtils {
+
+  public static final String EPOCH_RECORD_HEADER = "_epoch";
+  public static final int MESSAGE_ANNOTATIONS_EXTENDED_ID_CONSTANT = -1;
+  public static final int TRANSACTION_REFERENCE_EXTENDED_ID_CONSTANT = -2;
+
+  private static final EnumSet<JournalRecordType> TX_TERM_TYPES = EnumSet.of(
+      JournalRecordType.COMMIT_TX,
+      JournalRecordType.ROLLBACK_TX);
 
   private static final EnumSet<JournalRecordType> TX_TYPES = EnumSet.of(
       JournalRecordType.PREPARE_TX,
@@ -38,8 +51,8 @@ public final class KafkaRecordUtils {
       JournalRecordType.ANNOTATE_RECORD_TX
   );
 
-  public static final int MESSAGE_ANNOTATIONS_EXTENDED_ID_CONSTANT = -1;
-  public static final int TRANSACTION_REFERENCE_EXTENDED_ID_CONSTANT = -2;
+  private static final IntegerSerializer INTEGER_SERIALIZER = new IntegerSerializer();
+  private static final IntegerDeserializer INTEGER_DESERIALIZER = new IntegerDeserializer();
 
   private KafkaRecordUtils() {
   }
@@ -67,6 +80,10 @@ public final class KafkaRecordUtils {
 
     return new RecordInfo(jrec.getMessageId(), (byte) jrec.getProtocolRecordType(),
         jrec.getData().toByteArray(), isUpdate, (short) 0);
+  }
+
+  public static boolean isTxTerminalRecord(JournalRecord record) {
+    return record != null && TX_TERM_TYPES.contains(record.getRecordType());
   }
 
   public static boolean isTxRecord(JournalRecord record) {
@@ -134,5 +151,26 @@ public final class KafkaRecordUtils {
       }
     }
     return null;
+  }
+
+  public static JournalEntryKey epochKey() {
+    return JournalEntryKey.newBuilder()
+        .setTxId(-1)
+        .setMessageId(-1)
+        .setExtendedId(-1)
+        .build();
+  }
+
+  public static int getEpochHeader(Headers headers) {
+    Header hdr =  headers.lastHeader(EPOCH_RECORD_HEADER);
+    return hdr != null
+        ? INTEGER_DESERIALIZER.deserialize(null, hdr.value())
+        : 0;
+  }
+
+  public static void addEpochHeader(Headers headers) {
+    headers.add(
+        EPOCH_RECORD_HEADER,
+        INTEGER_SERIALIZER.serialize(null, EpochCoordinator.currentEpochId()));
   }
 }

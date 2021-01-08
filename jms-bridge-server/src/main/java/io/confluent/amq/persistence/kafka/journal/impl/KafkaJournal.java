@@ -11,6 +11,7 @@ import io.confluent.amq.persistence.domain.proto.JournalEntryKey;
 import io.confluent.amq.persistence.domain.proto.JournalRecord;
 import io.confluent.amq.persistence.domain.proto.JournalRecordType;
 import io.confluent.amq.persistence.kafka.KafkaIO;
+import io.confluent.amq.persistence.kafka.KafkaRecordUtils;
 import io.confluent.amq.persistence.kafka.journal.KJournal;
 import io.confluent.amq.persistence.kafka.journal.KafkaJournalRecord;
 import java.util.ArrayList;
@@ -59,9 +60,22 @@ import org.slf4j.LoggerFactory;
 @SuppressWarnings({"unchecked", "rawtypes", "checkstyle:ClassDataAbstractionCoupling",
     "checkstyle:OverloadMethodsDeclarationOrder"})
 public class KafkaJournal implements Journal {
+  private static final String TOPIC_FORMAT = "_jms.bridge_%s_%s_%s";
 
-  public static String journalTopic(String bridgeId, String journalName) {
-    return "_jms.bridge_" + bridgeId.toLowerCase() + "_" + journalName.toLowerCase();
+  public static String journalWalTopic(String bridgeId, String journalName) {
+    return String.format(
+        TOPIC_FORMAT,
+        bridgeId.toLowerCase(),
+        journalName.toLowerCase(),
+        "wal");
+  }
+
+  public static String journalTableTopic(String bridgeId, String journalName) {
+    return String.format(
+        TOPIC_FORMAT,
+        bridgeId.toLowerCase(),
+        journalName.toLowerCase(),
+        "tbl");
   }
 
   private static final Logger LOGGER = LoggerFactory.getLogger(KafkaJournal.class);
@@ -69,7 +83,6 @@ public class KafkaJournal implements Journal {
       .with(b -> b.loggerClass(KafkaJournal.class));
 
   private static final Integer MAX_RECORD_SIZE = 1024 * 1024;
-  public static final int SEGMENT_MAX_BYTES = 100 * 1024 * 1024;
 
   private final AtomicBoolean failed = new AtomicBoolean(false);
 
@@ -94,7 +107,7 @@ public class KafkaJournal implements Journal {
     this.journalName = processor.name();
     this.executor = executor;
     this.criticalIOErrorListener = criticalIOErrorListener;
-    this.destTopic = processor.topic();
+    this.destTopic = processor.walTopic();
   }
 
 
@@ -172,6 +185,7 @@ public class KafkaJournal implements Journal {
           record.getDestTopic(),
           record.getKafkaMessageKey(),
           JournalEntry.newBuilder().setAppendedRecord(record.getRecord()).build());
+      KafkaRecordUtils.addEpochHeader(producerRecord.headers());
 
       kafkaProducer.send(producerRecord, (meta, err) -> {
         if (err != null) {

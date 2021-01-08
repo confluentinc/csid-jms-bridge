@@ -16,9 +16,8 @@ import java.util.EnumSet;
 import java.util.LinkedList;
 import java.util.List;
 import org.apache.kafka.streams.KeyValue;
-import org.apache.kafka.streams.state.ValueAndTimestamp;
 
-public class MainRecordProcessor extends JournalStreamTransformer {
+public class MainRecordProcessor extends JournalStreamTransformer<JournalEntry> {
 
   private static final EnumSet<JournalRecordType> RECORDS_OF_INTEREST = EnumSet.of(
       JournalRecordType.DELETE_RECORD,
@@ -40,17 +39,21 @@ public class MainRecordProcessor extends JournalStreamTransformer {
         || !value.hasAppendedRecord()
         || !RECORDS_OF_INTEREST.contains(value.getAppendedRecord().getRecordType())) {
       //pass through
+      SLOG.trace(b -> b
+          .addJournalEntryKey(key)
+          .addJournalEntry(value)
+          .event("RecordPassThrough"));
       return Collections.singletonList(KeyValue.pair(key, value));
     }
 
     List<KeyValue<JournalEntryKey, JournalEntry>> results = Collections.emptyList();
     JournalEntryKey annKey = KafkaRecordUtils.annotationsKeyFromRecordKey(key);
-    ValueAndTimestamp<JournalEntry> annStoreValue = getStore().get(annKey);
+    JournalEntry annStoreValue = getStore().get(annKey);
 
     long timestamp = getContext().timestamp();
     AnnotationReference annRef;
     if (annStoreValue != null) {
-      annRef = annStoreValue.value().getAnnotationReference();
+      annRef = annStoreValue.getAnnotationReference();
     } else {
       annRef = AnnotationReference.getDefaultInstance();
     }
@@ -59,7 +62,7 @@ public class MainRecordProcessor extends JournalStreamTransformer {
       results = handleDelete(annRef, key);
 
     } else if (value.getAppendedRecord().getRecordType() == JournalRecordType.ANNOTATE_RECORD) {
-      results = handleAnnotation(annRef, key, timestamp);
+      results = handleAnnotation(annRef, key, value, timestamp);
 
     }
 
@@ -71,38 +74,38 @@ public class MainRecordProcessor extends JournalStreamTransformer {
       AnnotationReference currentRefs, JournalEntryKey key) {
 
     final List<KeyValue<JournalEntryKey, JournalEntry>> results = new LinkedList<>();
-    final JournalEntryKey annKey = KafkaRecordUtils.annotationsKeyFromRecordKey(key);
+    final JournalEntryKey annRefKey = KafkaRecordUtils.annotationsKeyFromRecordKey(key);
 
-    //delete main record
-    results.add(KeyValue.pair(key, null));
-    getStore().delete(key);
+    //delete the annotation reference itself
+    results.add(KeyValue.pair(annRefKey, null));
 
     //delete all annotation references
     if (currentRefs != AnnotationReference.getDefaultInstance()) {
-      for (JournalEntryKey annRefKey : currentRefs.getEntryReferencesList()) {
-        results.add(KeyValue.pair(annRefKey, null));
-        getStore().delete(key);
+      for (JournalEntryKey annKey : currentRefs.getEntryReferencesList()) {
+        results.add(KeyValue.pair(annKey, null));
       }
     }
 
-    //delete the annotation reference itself
-    results.add(KeyValue.pair(annKey, null));
-    getStore().delete(annKey);
+    //delete main record
+    results.add(KeyValue.pair(key, null));
 
     return results;
   }
 
   //aggregate annotation references for the message Id
   private List<KeyValue<JournalEntryKey, JournalEntry>> handleAnnotation(
-      AnnotationReference annRef, JournalEntryKey key, long timestamp) {
+      AnnotationReference currentRefs, JournalEntryKey key, JournalEntry value, long timestamp) {
 
     final List<KeyValue<JournalEntryKey, JournalEntry>> results = new LinkedList<>();
     final JournalEntryKey annKey = KafkaRecordUtils.annotationsKeyFromRecordKey(key);
 
+    //add the annotation first
+    results.add(KeyValue.pair(key, value));
+
     //new annotation, update our annotation reference list
     AnnotationReference updatedAnnotations = AnnotationReference.newBuilder()
         .setMessageId(annKey.getMessageId())
-        .addAllEntryReferences(annRef.getEntryReferencesList())
+        .addAllEntryReferences(currentRefs.getEntryReferencesList())
         .addEntryReferences(key)
         .build();
 
@@ -110,7 +113,7 @@ public class MainRecordProcessor extends JournalStreamTransformer {
         .setAnnotationReference(updatedAnnotations)
         .build();
 
-    getStore().put(annKey, ValueAndTimestamp.make(annEntry, timestamp));
+    //add the updated references
     results.add(KeyValue.pair(annKey, annEntry));
 
     return results;

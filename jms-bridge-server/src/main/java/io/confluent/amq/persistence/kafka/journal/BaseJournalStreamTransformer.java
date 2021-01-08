@@ -11,9 +11,8 @@ import org.apache.kafka.streams.KeyValue;
 import org.apache.kafka.streams.kstream.Transformer;
 import org.apache.kafka.streams.processor.ProcessorContext;
 import org.apache.kafka.streams.state.KeyValueStore;
-import org.apache.kafka.streams.state.ValueAndTimestamp;
 
-public abstract class BaseJournalStreamTransformer<K, V> implements
+public abstract class BaseJournalStreamTransformer<K, V, ST> implements
     Transformer<
         JournalEntryKey,
         JournalEntry,
@@ -22,7 +21,7 @@ public abstract class BaseJournalStreamTransformer<K, V> implements
   private final String journalName;
   private final String storeName;
   private ProcessorContext context;
-  private KeyValueStore<JournalEntryKey, ValueAndTimestamp<JournalEntry>> store;
+  private KeyValueStore<JournalEntryKey, ST> store;
 
   public BaseJournalStreamTransformer(String journalName, String storeName) {
     this.journalName = journalName;
@@ -33,7 +32,7 @@ public abstract class BaseJournalStreamTransformer<K, V> implements
   @SuppressWarnings("unchecked")
   public void init(ProcessorContext context) {
     this.context = context;
-    this.store = (KeyValueStore<JournalEntryKey, ValueAndTimestamp<JournalEntry>>)
+    this.store = (KeyValueStore<JournalEntryKey, ST>)
         context.getStateStore(this.storeName);
   }
 
@@ -68,7 +67,7 @@ public abstract class BaseJournalStreamTransformer<K, V> implements
     return context;
   }
 
-  protected KeyValueStore<JournalEntryKey, ValueAndTimestamp<JournalEntry>> getStore() {
+  protected KeyValueStore<JournalEntryKey, ST> getStore() {
     return store;
   }
 }

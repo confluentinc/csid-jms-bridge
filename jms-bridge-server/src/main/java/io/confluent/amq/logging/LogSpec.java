@@ -5,6 +5,7 @@
 package io.confluent.amq.logging;
 
 import io.confluent.amq.persistence.domain.proto.AnnotationReference;
+import io.confluent.amq.persistence.domain.proto.EpochEvent;
 import io.confluent.amq.persistence.domain.proto.JournalEntry;
 import io.confluent.amq.persistence.domain.proto.JournalEntryKey;
 import io.confluent.amq.persistence.domain.proto.JournalRecord;
@@ -85,6 +86,8 @@ public interface LogSpec {
         return addJournalRecord(record.getAppendedRecord());
       } else if (record.hasAnnotationReference()) {
         return addAnnotations(record.getAnnotationReference());
+      } else if (record.hasEpochEvent()) {
+        return addEpochEvent(record.getEpochEvent());
       } else if (record.hasTransactionReference()) {
         return this
             .putTokens("entryType", "TransactionReference")
@@ -93,6 +96,14 @@ public interface LogSpec {
       } else {
         return this.putTokens("journalEntry", "invalid");
       }
+    }
+
+    public Builder addEpochEvent(EpochEvent event) {
+      return this
+          .putTokens("entryType", "EpochEvent")
+          .putTokens("partition", event.getPartition())
+          .putTokens("stage", event.getEpochStage())
+          .putTokens("epochId", event.getEpochId());
     }
 
     public Builder addAnnotations(AnnotationReference annotations) {

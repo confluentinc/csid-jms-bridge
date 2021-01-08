@@ -7,31 +7,33 @@ package io.confluent.amq.persistence.kafka.journal.impl;
 import static io.confluent.amq.persistence.kafka.journal.KJournalState.CREATED;
 import static io.confluent.amq.persistence.kafka.journal.KJournalState.STARTED;
 
-import com.google.common.base.Stopwatch;
-import io.confluent.amq.config.BridgeConfig;
 import io.confluent.amq.logging.StructuredLogger;
 import io.confluent.amq.persistence.domain.proto.JournalEntry;
 import io.confluent.amq.persistence.domain.proto.JournalEntryKey;
 import io.confluent.amq.persistence.domain.proto.JournalRecordType;
+import io.confluent.amq.persistence.kafka.KafkaIO;
 import io.confluent.amq.persistence.kafka.journal.JournalEntryKeyPartitioner;
 import io.confluent.amq.persistence.kafka.journal.KJournal;
 import io.confluent.amq.persistence.kafka.journal.KJournalState;
 import io.confluent.amq.persistence.kafka.journal.serde.JournalKeySerde;
 import io.confluent.amq.persistence.kafka.journal.serde.JournalValueSerde;
 import io.confluent.amq.persistence.kafka.streams.StreamsSupport;
-import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
-import java.util.concurrent.Semaphore;
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import org.apache.kafka.clients.admin.TopicDescription;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.streams.KafkaStreams;
 import org.apache.kafka.streams.KafkaStreams.State;
 import org.apache.kafka.streams.KafkaStreams.StateListener;
-import org.apache.kafka.streams.LagInfo;
 import org.apache.kafka.streams.StoreQueryParameters;
 import org.apache.kafka.streams.StreamsBuilder;
 import org.apache.kafka.streams.StreamsConfig;
@@ -70,30 +72,68 @@ public class KafkaJournalProcessor implements StateListener {
   private static final StructuredLogger SLOG = StructuredLogger
       .with(b -> b.loggerClass(KafkaJournalProcessor.class));
 
-  private final BridgeConfig bridgeConfig;
-  private final Semaphore streamsReady;
-  private final Map<String, KJournalImpl> journals;
   private final String clientId;
   private final String applicationId;
+  private final Map<String, String> streamsConfig;
+  private final KafkaIO kafkaIO;
+
+  private final EpochCoordinator epochCoordinator;
+  private final Map<String, KJournalImpl> journals;
 
   private volatile KJournalState journalState;
   private volatile KafkaStreams streams;
+  private volatile boolean loadComplete = false;
 
   public KafkaJournalProcessor(
       List<JournalSpec> journalSpecs,
       String clientId,
       String applicationId,
-      BridgeConfig bridgeConfig) {
+      Map<String, String> streamsConfig,
+      KafkaIO kafkaIO) {
 
-    journals = journalSpecs.stream()
-        .map(js -> new KJournalImpl(js, this))
-        .collect(Collectors.toMap(KJournalImpl::name, Function.identity()));
+    this(journalSpecs, clientId, applicationId, streamsConfig, kafkaIO, new EpochCoordinator());
+  }
+
+  protected KafkaJournalProcessor(
+      List<JournalSpec> journalSpecs,
+      String clientId,
+      String applicationId,
+      Map<String, String> streamsConfig,
+      KafkaIO kafkaIO,
+      EpochCoordinator epochCoordinator) {
 
     this.clientId = clientId;
     this.applicationId = applicationId;
-    this.streamsReady = new Semaphore(0);
-    this.bridgeConfig = bridgeConfig;
+    this.streamsConfig = streamsConfig;
+    this.kafkaIO = kafkaIO;
+
+    this.epochCoordinator = epochCoordinator;
     this.journalState = CREATED;
+
+    CompletableFuture[] loadingfutures = new CompletableFuture[journalSpecs.size()];
+    journals = ensureTopics(journalSpecs).stream()
+        .map(js -> new KJournalImpl(js, this, epochCoordinator))
+        .collect(Collectors.toMap(KJournalImpl::name, Function.identity()));
+
+    int idx = 0;
+    for (KJournalImpl j : journals.values()) {
+      loadingfutures[idx] = j.loader().onLoadComplete();
+      idx++;
+    }
+    CompletableFuture.allOf(loadingfutures).whenComplete((nil, t) -> {
+      if (t != null) {
+        SLOG.error(b -> b
+            .event("LoadListener")
+            .markFailure()
+            .message("Loading of a journal failed."), t);
+      }
+      loadComplete = true;
+      if (journalState == KJournalState.LOADING) {
+        transitionState(KJournalState.RUNNING);
+      }
+    });
+
+
   }
 
   public boolean isRunning() {
@@ -106,7 +146,7 @@ public class KafkaJournalProcessor implements StateListener {
       isAssigned = streams.localThreadsMetadata().stream()
           .flatMap(tm -> tm.activeTasks().stream())
           .flatMap(task -> task.topicPartitions().stream())
-          .anyMatch(tp -> kjournal.topic().equals(tp.topic()) && tp.partition() == partition);
+          .anyMatch(tp -> kjournal.walTopic().equals(tp.topic()) && tp.partition() == partition);
     }
     return isAssigned;
   }
@@ -119,6 +159,10 @@ public class KafkaJournalProcessor implements StateListener {
     return journals.get(name);
   }
 
+  public KJournalState currentState() {
+    return this.journalState;
+  }
+
   public synchronized void start() {
     if (journalState.validTransition(STARTED)) {
       Topology topology = createTopology();
@@ -126,7 +170,7 @@ public class KafkaJournalProcessor implements StateListener {
           .event("TopologyDescription")
           .message(topology.describe().toString()));
 
-      streams = new KafkaStreams(topology, effectiveStreamProperties());
+      streams = new KafkaStreams(topology, effectiveStreamProperties(), this.epochCoordinator);
       streams.setStateListener(this);
       streams.start();
 
@@ -142,6 +186,47 @@ public class KafkaJournalProcessor implements StateListener {
           .putTokens("nextState", KJournalState.STARTED)
           .message("Invalid state transition"));
     }
+  }
+
+  protected Collection<JournalSpec> ensureTopics(Collection<JournalSpec> journals) {
+    Set<String> topics = kafkaIO.listTopics();
+    journals.forEach(jspec -> {
+      if (!topics.contains(jspec.journalTableTopic().name())) {
+        kafkaIO.createTopic(
+            jspec.journalTableTopic().name(),
+            jspec.journalTableTopic().partitions(),
+            jspec.journalTableTopic().replication(),
+            jspec.journalTableTopic().configs());
+      }
+
+      if (!topics.contains(jspec.journalWalTopic().name())) {
+        kafkaIO.createTopic(
+            jspec.journalWalTopic().name(),
+            jspec.journalWalTopic().partitions(),
+            jspec.journalWalTopic().replication(),
+            jspec.journalWalTopic().configs());
+      }
+    });
+    Map<String, TopicDescription> topicDescriptions =
+        kafkaIO.describeTopics(journals.stream()
+            .flatMap(jspec ->
+                Stream.of(jspec.journalWalTopic().name(), jspec.journalTableTopic().name()))
+            .collect(Collectors.toSet()));
+
+    return journals.stream()
+        .map(jspec -> {
+          TopicDescription walTopic = topicDescriptions.get(jspec.journalWalTopic().name());
+          TopicDescription tblTopic = topicDescriptions.get(jspec.journalTableTopic().name());
+          return new JournalSpec.Builder().mergeFrom(jspec)
+              .mutateJournalWalTopic(t -> t
+                  .partitions(walTopic.partitions().size())
+                  .replication(walTopic.partitions().get(0).replicas().size()))
+              .mutateJournalTableTopic(t -> t
+                  .partitions(tblTopic.partitions().size())
+                  .replication(tblTopic.partitions().get(0).replicas().size()))
+              .build();
+        })
+        .collect(Collectors.toList());
   }
 
   public synchronized void stop() {
@@ -168,14 +253,17 @@ public class KafkaJournalProcessor implements StateListener {
 
 
   public Properties effectiveStreamProperties() {
-    //default the serdes to our journal entry types.
     Properties kstreamProps = new Properties();
-    kstreamProps.putAll(bridgeConfig.streams());
+    kstreamProps.putAll(streamsConfig);
     kstreamProps.put(StreamsConfig.APPLICATION_ID_CONFIG, applicationId);
     kstreamProps.put(StreamsConfig.CLIENT_ID_CONFIG, "jms-bridge_" + clientId);
+
+    //ensure our custom partitioner is used since it should depend on partial key values only
     kstreamProps.put(
         StreamsConfig.producerPrefix(ProducerConfig.PARTITIONER_CLASS_CONFIG),
         JournalEntryKeyPartitioner.class.getCanonicalName());
+
+    //default the serdes to our journal entry types.
     kstreamProps.put(StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG,
         JournalKeySerde.class.getCanonicalName());
     kstreamProps.put(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG,
@@ -187,8 +275,12 @@ public class KafkaJournalProcessor implements StateListener {
   synchronized void load(KJournalImpl kjournal, KafkaJournalLoaderCallback callback) {
     if (streams != null && journalState.isRunningState()) {
 
-      waitForStreamReady();
-      waitForFullRead(Duration.ofSeconds(60), Duration.ofSeconds(1));
+      try {
+        //todo: make this timeout configurable
+        kjournal.loader().onLoadComplete().get(60L, TimeUnit.SECONDS);
+      } catch (Exception e) {
+        throw new RuntimeException(e);
+      }
 
       StoreQueryParameters<ReadOnlyKeyValueStore<JournalEntryKey, JournalEntry>>
           storeQueryParameters = StoreQueryParameters
@@ -197,12 +289,22 @@ public class KafkaJournalProcessor implements StateListener {
               QueryableStoreTypes.<JournalEntryKey, JournalEntry>keyValueStore())
           .enableStaleStores();
 
+      StoreQueryParameters<ReadOnlyKeyValueStore<JournalEntryKey, JournalEntry>>
+          txStoreQueryParameters = StoreQueryParameters
+          .fromNameAndType(
+              kjournal.txStoreName(),
+              QueryableStoreTypes.<JournalEntryKey, JournalEntry>keyValueStore())
+          .enableStaleStores();
+
       //grab the state store now that we are loaded
       ReadOnlyKeyValueStore<JournalEntryKey, JournalEntry> store =
           streams.store(storeQueryParameters);
 
+      ReadOnlyKeyValueStore<JournalEntryKey, JournalEntry> txStore =
+          streams.store(txStoreQueryParameters);
+
       //finish the callback
-      kjournal.loader().executeLoadCallback(store, callback);
+      kjournal.loader().executeLoadCallback(store, txStore, callback);
 
     } else {
       throw new IllegalStateException(
@@ -213,14 +315,6 @@ public class KafkaJournalProcessor implements StateListener {
 
   @Override
   public void onChange(State newState, State oldState) {
-
-    if (newState == State.RUNNING) {
-      SLOG.info(b -> b.event("ReleasePermit"));
-      streamsReady.release();
-    } else {
-      SLOG.info(b -> b.event("DrainingPermits"));
-      streamsReady.drainPermits();
-    }
     transitionState(journalStateFromStreamsState(oldState, newState));
   }
 
@@ -243,7 +337,7 @@ public class KafkaJournalProcessor implements StateListener {
         state = KJournalState.FAILED;
         break;
       case RUNNING:
-        if (streamsReady.availablePermits() > 0) {
+        if (loadComplete) {
           state = KJournalState.RUNNING;
         } else {
           state = KJournalState.LOADING;
@@ -253,101 +347,6 @@ public class KafkaJournalProcessor implements StateListener {
         throw new IllegalStateException("Unexpected value: " + newState);
     }
     return state;
-  }
-
-  private void waitForStreamReady() {
-    SLOG.info(b -> b
-        .event("WaitForJournalReady")
-        .markStarted());
-
-    try {
-      streamsReady.acquire();
-    } catch (Exception e) {
-      String err = SLOG.logFormat().build(b -> b
-          .event("WaitForJournalReady")
-          .markFailure());
-
-      throw new RuntimeException(err, e);
-    } finally {
-      streamsReady.release();
-    }
-
-    SLOG.info(b -> b
-        .event("WaitForJournalReady")
-        .markCompleted());
-
-  }
-
-  private void waitForFullRead(Duration timeout, Duration delay) {
-    transitionState(KJournalState.LOADING);
-
-    SLOG.info(b -> b
-        .event("WaitForFullJournalRead")
-        .markStarted());
-
-    int count = 1;
-    Stopwatch stopwatch = Stopwatch.createStarted();
-    while (true) {
-      if (timeout.minus(stopwatch.elapsed()).isNegative()) {
-        SLOG.info(b -> b
-            .event("WaitForFullJournalRead")
-            .markFailure()
-            .putTokens("timeoutSeconds", timeout.getSeconds())
-            .putTokens("elapsedSeconds", stopwatch.elapsed().getSeconds()));
-        throw new RuntimeException("Failed to fully read journal within the maximum timeout.");
-      }
-
-      Map<String, Map<Integer, LagInfo>> lagInfo = streams.allLocalStorePartitionLags();
-      boolean allCaughtUp = lagInfo.entrySet().stream()
-          .peek(topicLagInfo -> {
-            final String topic = topicLagInfo.getKey();
-            topicLagInfo.getValue().forEach((partition, info) ->
-                SLOG.info(b -> b
-                    .event("WaitForFullJournalRead")
-                    .eventResult("LagInfo")
-                    .putTokens("topic", topic)
-                    .putTokens("partition", partition)
-                    .putTokens("currentOffsetPosition", info.currentOffsetPosition())
-                    .putTokens("endOffsetPosition", info.endOffsetPosition())
-                    .putTokens("offsetLag", info.offsetLag())
-                ));
-          })
-          .flatMap(topicLagInfo -> topicLagInfo.getValue().entrySet().stream())
-          .allMatch(entry -> entry.getValue().offsetLag() == 0);
-
-      if (allCaughtUp) {
-        count++;
-      }
-
-      if (count >= 2) {
-        SLOG.info(b -> b
-            .event("WaitForFullJournalRead")
-            .markCompleted()
-            .putTokens("elapsedSeconds", stopwatch.elapsed().getSeconds()));
-
-        transitionState(journalStateFromStreamsState(streams.state(), streams.state()));
-        break;
-
-      } else {
-        try {
-          Thread.sleep(delay.toMillis());
-
-          SLOG.info(b -> b
-              .event("WaitForFullJournalRead")
-              .eventResult("InProgress"));
-
-
-        } catch (Exception e) {
-          SLOG.info(b -> b
-              .event("WaitForFullJournalRead")
-              .markFailure()
-              .putTokens("timeoutSeconds", timeout.getSeconds())
-              .putTokens("elapsedSeconds", stopwatch.elapsed().getSeconds()));
-          transitionState(journalStateFromStreamsState(streams.state(), streams.state()));
-          throw new RuntimeException(e);
-        }
-      }
-    }
   }
 
   private void transitionState(KJournalState newState) {
@@ -364,24 +363,25 @@ public class KafkaJournalProcessor implements StateListener {
     Properties topoProps = new Properties();
     topoProps.setProperty(StreamsConfig.TOPOLOGY_OPTIMIZATION, StreamsConfig.OPTIMIZE);
 
-    final StreamsBuilder builder = new StreamsBuilder();
+    return JournalTopology.createTopology(journals.values(), epochCoordinator, topoProps);
+  }
 
-    journals.values().forEach(j -> addJournalTopology(j, builder));
-    return builder.build(topoProps);
+  private void updateLoadProgress(JournalEntryKey key, JournalEntry entry) {
+
   }
 
   private void addJournalTopology(KJournalImpl kjournal, StreamsBuilder streamsBuilder) {
     KeyValueBytesStoreSupplier supplier =
-        Stores.persistentKeyValueStore(kjournal.storeName());
-    Stores.keyValueStoreBuilder(supplier, new JournalKeySerde(), new JournalValueSerde());
+        LoadingStore.wrap(Stores.persistentKeyValueStore(kjournal.storeName()));
 
     KStream<JournalEntryKey, JournalEntry> journalStream = streamsBuilder
-        .table(kjournal.topic(),
+        .table(kjournal.walTopic(),
             Consumed
                 .<JournalEntryKey, JournalEntry>as(kjournal.prefix("journalSourceTable"))
                 .withOffsetResetPolicy(AutoOffsetReset.EARLIEST),
             Materialized.<JournalEntryKey, JournalEntry>as(supplier).withCachingDisabled())
         .toStream(Named.as(kjournal.prefix("journalSourceTableToStream")))
+        .peek(this::updateLoadProgress)
         .filter(
             (k, v) -> v != null, Named.as(kjournal.prefix("removeTombstones")))
         .filter(
@@ -392,7 +392,7 @@ public class KafkaJournalProcessor implements StateListener {
         .branchStream(journalStream, streamsBuilder)
 
         .when((k, v) -> v.hasAppendedRecord())
-        .branchTo((sb, st) -> this.handleRecordsAndAnnotations(kjournal, sb, st))
+        .branchTo(st -> this.handleRecordsAndAnnotations(kjournal, streamsBuilder, st))
 
         .done();
 
@@ -412,7 +412,7 @@ public class KafkaJournalProcessor implements StateListener {
 
     //allows records to passthough but transates TXs into their records when terminiated
     KStream<JournalEntryKey, JournalEntry> stream = txStream.flatTransform(
-        () -> new TransactionProcessor(kjournal.topic(), kjournal.storeName()),
+        () -> new TransactionProcessor(kjournal.walTopic(), kjournal.storeName()),
         Named.as(kjournal.prefix("handleTransactions")),
         kjournal.storeName());
 
@@ -429,7 +429,7 @@ public class KafkaJournalProcessor implements StateListener {
         .branchStream(recordStream, streamsBuilder)
 
         .when(appendedRecordTypeIs(JournalRecordType.ADD_RECORD))
-        .branchTo((sb, st) -> this.handleAddRecord(kjournal, sb, st))
+        .branchTo(st -> this.handleAddRecord(kjournal, streamsBuilder, st))
 
         .done();
 
@@ -453,7 +453,7 @@ public class KafkaJournalProcessor implements StateListener {
       KStream<JournalEntryKey, JournalEntry> recordStream) {
 
     KStream<JournalEntryKey, JournalEntry> stream = recordStream.flatTransform(
-        () -> new MainRecordProcessor(kjournal.topic(), kjournal.storeName()),
+        () -> new MainRecordProcessor(kjournal.walTopic(), kjournal.storeName()),
         Named.as(kjournal.prefix("handleDeleteAnnotateRecord")),
         kjournal.storeName());
 
@@ -476,7 +476,7 @@ public class KafkaJournalProcessor implements StateListener {
   protected void publishToJournalTopic(
       KJournalImpl kjournal, KStream<JournalEntryKey, JournalEntry> entryStream) {
 
-    entryStream.to(kjournal.topic());
+    entryStream.to(kjournal.walTopic());
   }
 
   Predicate<JournalEntryKey, JournalEntry> appendedRecordTypeIs(JournalRecordType rtype) {
@@ -492,7 +492,9 @@ public class KafkaJournalProcessor implements StateListener {
 
     String journalName();
 
-    String journalTopic();
+    TopicSpec journalWalTopic();
+
+    TopicSpec journalTableTopic();
 
     boolean performRouting();
 
@@ -501,6 +503,22 @@ public class KafkaJournalProcessor implements StateListener {
       public Builder() {
         this.performRouting(false);
       }
+    }
+  }
+
+  @FreeBuilder
+  public interface TopicSpec {
+
+    String name();
+
+    int partitions();
+
+    int replication();
+
+    Map<String, String> configs();
+
+    class Builder extends KafkaJournalProcessor_TopicSpec_Builder {
+
     }
   }
 
@@ -513,20 +531,19 @@ public class KafkaJournalProcessor implements StateListener {
 
     KJournalImpl(
         JournalSpec spec,
-        KafkaJournalProcessor processor) {
+        KafkaJournalProcessor processor,
+        EpochCoordinator epochCoordinator) {
 
       this.spec = spec;
       this.processor = processor;
-      this.storeName = spec.journalTopic() + "-store";
-      this.loader = new KafkaJournalLoader(spec.journalName());
+      this.storeName = spec.journalTableTopic().name() + "-store";
+      this.loader = new KafkaJournalLoader(
+          spec.journalName(), spec.journalWalTopic().partitions(), epochCoordinator);
     }
 
-    KafkaJournalLoader loader() {
+    @Override
+    public KafkaJournalLoader loader() {
       return loader;
-    }
-
-    String prefix(String subject) {
-      return storeName + "_" + subject;
     }
 
     @Override
@@ -540,8 +557,13 @@ public class KafkaJournalProcessor implements StateListener {
     }
 
     @Override
-    public String topic() {
-      return spec.journalTopic();
+    public String walTopic() {
+      return spec.journalWalTopic().name();
+    }
+
+    @Override
+    public String tableTopic() {
+      return spec.journalTableTopic().name();
     }
 
     @Override

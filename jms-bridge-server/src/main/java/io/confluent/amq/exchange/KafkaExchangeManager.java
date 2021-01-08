@@ -369,8 +369,8 @@ public class KafkaExchangeManager implements ActiveMQServerPlugin {
 
       Pattern matcher = Pattern.compile("^" + routedTopic.match() + "$");
       Set<KafkaTopicExchange> exchanges = kafkaTopics.stream()
-          .filter(t -> !t.equals(amqServer.getKafkaIntegration().getBindingsJournal().topic()))
-          .filter(t -> !t.equals(amqServer.getKafkaIntegration().getMessagesJournal().topic()))
+          .filter(t -> !t.equals(amqServer.getKafkaIntegration().getBindingsJournal().walTopic()))
+          .filter(t -> !t.equals(amqServer.getKafkaIntegration().getMessagesJournal().walTopic()))
           .filter(t -> !t.startsWith("_"))
           .filter(matcher.asPredicate())
           .map(topic -> new Builder()

@@ -4,9 +4,11 @@
 
 package io.confluent.amq.config;
 
+import com.google.common.collect.Maps;
 import com.typesafe.config.Config;
 import java.time.Duration;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import org.inferred.freebuilder.FreeBuilder;
 
@@ -15,9 +17,9 @@ public interface BridgeConfig {
 
   String id();
 
-  Map<String, Object> kafka();
+  Map<String, String> kafka();
 
-  Map<String, Object> streams();
+  Map<String, String> streams();
 
   JournalsConfig journals();
 
@@ -33,12 +35,16 @@ public interface BridgeConfig {
       Config bridgeConfig = rootConfig.getConfig("bridge");
       this.id(bridgeConfig.getString("id"))
           .journals(new JournalsConfig.Builder(bridgeConfig.getConfig("journals")))
-          .putAllKafka(bridgeConfig.getObject("kafka").unwrapped())
+          .putAllKafka(
+              Maps.transformValues(
+                  bridgeConfig.getObject("kafka").unwrapped(),
+                  Objects::toString))
           .putAllStreams(
-            bridgeConfig
-                .getConfig("streams")
-                .withFallback(bridgeConfig.getConfig("kafka"))
-                .root().unwrapped());
+              Maps.transformValues(
+                  bridgeConfig
+                      .getConfig("streams")
+                      .withFallback(bridgeConfig.getConfig("kafka")).root().unwrapped(),
+                  Objects::toString));
 
       if (bridgeConfig.hasPath("routing")) {
         this.routing(new RoutingConfig.Builder(bridgeConfig.getConfig("routing")).build());
@@ -82,7 +88,9 @@ public interface BridgeConfig {
   @FreeBuilder
   interface JournalConfig {
 
-    TopicConfig topic();
+    TopicConfig walTopic();
+
+    TopicConfig tableTopic();
 
     class Builder extends BridgeConfig_JournalConfig_Builder {
 
@@ -91,7 +99,8 @@ public interface BridgeConfig {
       }
 
       public Builder(Config journalConfig) {
-        this.topic(new TopicConfig.Builder(journalConfig.getConfig("topic")));
+        this.walTopic(new TopicConfig.Builder(journalConfig.getConfig("wal-topic")));
+        this.tableTopic(new TopicConfig.Builder(journalConfig.getConfig("table-topic")));
       }
 
     }

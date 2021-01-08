@@ -15,6 +15,8 @@ The ID numbers used are scraped from ActiveMQ's value for them but through exper
 discovered that these IDs do not have to match AMQ's since it never reads this low level detail
 except in their own journal implementations. Due to a lack of a good reason to change them
 they've been left as is though.
+
+Codes above 100 are system level administrative codes used for non-functional features.
 */
 enum JournalRecordType {
   UNKNOWN_JOURNAL_RECORD_TYPE = 0;
@@ -111,6 +113,29 @@ message JournalRecord {
 }
 
 /*
+  Indicates a change in the bridge epoch which most likely corresponds to a restart/start of the
+  bridge. All epochs should being with a 'START' and then be followed by a 'READY' for all
+  partitions in the journal topic.
+*/
+message EpochEvent {
+  /*
+    The epoch this event concerns. The value 0 is an invalid epoch.
+  */
+  int64 epochId = 1;
+
+  /*
+    The stage of the epoch that this event corresponds to. Initially stages of 'START' and 'READY'
+    are used.
+  */
+  string epochStage = 2;
+
+  /*
+  The partition associated to this epoch event.
+  */
+  int32 partition = 3;
+}
+
+/*
   Represents a collection of all transaction record keys for a specific transaction ID.
 */
 message TransactionReference {
@@ -162,5 +187,6 @@ message JournalEntry {
     JournalRecord appendedRecord = 1;
     TransactionReference transactionReference = 2;
     AnnotationReference annotationReference = 3;
+    EpochEvent epochEvent = 4;
   }
 }

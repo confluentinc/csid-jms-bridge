@@ -7,6 +7,7 @@ package io.confluent.amq.test;
 import static com.google.common.io.Resources.getResource;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.google.common.collect.Maps;
 import com.google.common.io.MoreFiles;
 import com.google.common.io.RecursiveDeleteOption;
 import com.google.common.io.Resources;
@@ -26,6 +27,7 @@ import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -107,14 +109,13 @@ public class ArtemisTestServer implements
     return String.format("%s-%d-%d", prefix, testSeq, nameSeq.getAndIncrement());
   }
 
-  public String messageJournalTopic() {
-    return KafkaJournal.journalTopic(
-        serverSpec.jmsBridgeConfig().id(),
-        KafkaJournalStorageManager.MESSAGES_NAME);
+  public String messageJournalTableTopic() {
+    return KafkaJournal.journalTableTopic(
+        serverSpec.jmsBridgeConfig().id(), KafkaJournalStorageManager.MESSAGES_NAME);
   }
 
-  public String bindingsJournalTopic() {
-    return KafkaJournal.journalTopic(
+  public String bindingsJournalTableTopic() {
+    return KafkaJournal.journalTableTopic(
         serverSpec.jmsBridgeConfig().id(),
         KafkaJournalStorageManager.BINDINGS_NAME);
   }
@@ -247,9 +248,8 @@ public class ArtemisTestServer implements
   }
 
   public synchronized void restartServer() throws Exception {
-    afterEach(null);
-    afterAll(null);
-    beforeAll(null);
+    this.embeddedAmq.stop();
+    this.embeddedAmq.start();
   }
 
   public synchronized Connection getConnection() {
@@ -444,8 +444,12 @@ public class ArtemisTestServer implements
       if (kafkaTestContainer != null) {
         specConsumer = specConsumer.andThen(b -> b
             .mutateJmsBridgeConfig(jb -> jb
-                .putAllKafka(BridgeConfigFactory.propsToMap(kafkaTestContainer.defaultProps()))
-                .putAllStreams(BridgeConfigFactory.propsToMap(kafkaTestContainer.defaultProps()))));
+                .putAllKafka(Maps.transformValues(
+                    BridgeConfigFactory.propsToMap(kafkaTestContainer.defaultProps()),
+                    Objects::toString))
+                .putAllStreams(Maps.transformValues(
+                    BridgeConfigFactory.propsToMap(kafkaTestContainer.defaultProps()),
+                    Object::toString))));
       }
 
       return new ArtemisTestServer(

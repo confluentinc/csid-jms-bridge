@@ -34,6 +34,12 @@ public final class BridgeConfigFactory {
     return props;
   }
 
+  public static Properties mapToProps(Map<String, String> propsMap) {
+    Properties props = new Properties();
+    propsMap.forEach((k, v) -> props.put(k, Objects.toString(v)));
+    return props;
+  }
+
   public static BridgeConfig gatherConfiguration(Path configUrl) {
     try {
       return gatherConfiguration(configUrl.toUri().toURL());

@@ -7,7 +7,6 @@ package io.confluent.amq.exchange;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.matches;
@@ -94,8 +93,8 @@ public class KafkaExchangeManagerTest {
     when(mockKafkaIntegration.getKafkaIO()).thenReturn(mockKafkaIo);
     when(mockKafkaIntegration.getBindingsJournal()).thenReturn(mockBindings);
     when(mockKafkaIntegration.getMessagesJournal()).thenReturn(mockMessages);
-    when(mockBindings.topic()).thenReturn(bindingsTopic);
-    when(mockMessages.topic()).thenReturn(messagesTopic);
+    when(mockBindings.walTopic()).thenReturn(bindingsTopic);
+    when(mockMessages.walTopic()).thenReturn(messagesTopic);
   }
 
   @Test

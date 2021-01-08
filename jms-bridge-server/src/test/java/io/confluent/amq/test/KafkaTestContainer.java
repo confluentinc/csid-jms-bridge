@@ -146,7 +146,7 @@ public class KafkaTestContainer implements
     ProducerRecord<byte[], byte[]> record = new ProducerRecord<>(topic, key, value);
     withRecord.accept(record);
     try {
-      return producer.send(record, (meta, err) -> {}).get();
+      return producer.send(record, (meta, err) -> { }).get();
     } catch (Exception e) {
       throw new RuntimeException(e);
     }

@@ -4,12 +4,11 @@
 
 package io.confluent.amq.exchange;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
-import io.confluent.amq.config.RoutingConfig.RoutedTopic;
-import io.confluent.amq.config.RoutingConfig.RoutedTopic.Builder;
 import io.confluent.amq.exchange.KafkaExchange.ExchangeChangeListener;
 import org.junit.jupiter.api.Test;
 

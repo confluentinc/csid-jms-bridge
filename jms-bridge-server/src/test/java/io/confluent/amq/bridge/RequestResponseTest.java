@@ -42,6 +42,7 @@ import org.junit.jupiter.api.extension.RegisterExtension;
 import org.junit.jupiter.api.io.TempDir;
 import org.testcontainers.containers.KafkaContainer;
 
+@SuppressWarnings("checkstyle:ClassDataAbstractionCoupling")
 @SuppressFBWarnings("MS_SHOULD_BE_FINAL")
 public class RequestResponseTest {
 

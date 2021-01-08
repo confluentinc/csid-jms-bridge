@@ -46,7 +46,7 @@ public class KafkaJournalDescriber {
     try (KafkaConsumer<byte[], byte[]> kafkaConsumer =
         new KafkaConsumer<>(this.kafkaProps, deser, deser)) {
 
-      String topic = KafkaJournal.journalTopic(this.bridgeId, this.journalName);
+      String topic = KafkaJournal.journalTableTopic(this.bridgeId, this.journalName);
 
       List<TopicPartition> assignment = kafkaConsumer.partitionsFor(topic, Duration.ofSeconds(5))
           .stream()
