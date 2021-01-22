@@ -74,22 +74,7 @@ public class KNodeManager extends NodeManager {
   @Override
   public void awaitLiveNode() throws Exception {
     SLOG.info(b -> b.event("AwaitLiveNode"));
-    do {
-      while (state == State.NOT_STARTED) {
-        Thread.sleep(10);
-      }
-
-      kafkaIntegration.waitForProcessorRunning();
-
-      if (state == State.PAUSED) {
-        Thread.sleep(10);
-      } else if (state == State.FAILING_BACK) {
-        Thread.sleep(10);
-      } else if (state == State.LIVE) {
-        break;
-      }
-    }
-    while (true);
+    kafkaIntegration.waitForProcessorObtainPartition();
     if (failoverPause > 0L) {
       Thread.sleep(failoverPause);
     }

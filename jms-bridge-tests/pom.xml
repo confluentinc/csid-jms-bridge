@@ -117,6 +117,7 @@
     <dependency>
       <artifactId>kafka</artifactId>
       <groupId>org.testcontainers</groupId>
+      <version>1.15.1</version>
       <scope>test</scope>
     </dependency>
    <dependency>

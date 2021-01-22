@@ -75,7 +75,7 @@ public class JmsSuiteRunner extends Suite {
   public static TemporaryFolder temporaryFolder = new TemporaryFolder();
 
   public static KafkaContainer kafkaContainer =
-      new KafkaContainer("5.4.0")
+      new KafkaContainer("5.5.2")
           .withEnv("KAFKA_DELETE_TOPIC_ENABLE", "true")
           .withEnv("KAFKA_AUTO_CREATE_TOPICS_ENABLE", "false");
 
