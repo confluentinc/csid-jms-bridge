@@ -1,0 +1,4 @@
+controller_project: "{{ hostvars[groups['gcp_controller'][0]].project }}"
+controller_zone: "{{ hostvars[groups['gcp_controller'][0]].zone }}"
+controller_node_exporter_port: 9100
+prometheus_jmx_port: 8888

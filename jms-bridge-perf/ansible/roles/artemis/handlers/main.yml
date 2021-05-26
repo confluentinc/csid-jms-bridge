@@ -1,0 +1,5 @@
+---
+- name: Restart artemis
+  ansible.builtin.service:
+    name: artemis
+    state: restarted

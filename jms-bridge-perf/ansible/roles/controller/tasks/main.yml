@@ -1,0 +1,166 @@
+---
+- name: Add Grafana apt repo key
+  ansible.builtin.apt_key:
+    url: https://packages.grafana.com/gpg.key
+    state: present
+
+- name: Add Grafana apt repo
+  ansible.builtin.apt_repository:
+    repo: deb https://packages.grafana.com/oss/deb stable main
+    state: present
+    filename: grafana
+
+- name: Install Prometheus
+  apt:
+    name: prometheus
+    update_cache: yes
+    state: present
+
+- name: Install Grafana
+  apt:
+    name: grafana
+    state: present
+
+- name: Shutdown grafana server
+  ansible.builtin.service:
+    name: grafana-server
+    state: stopped
+  notify:
+    - Restart grafana
+
+- name: Shutdown prometheus
+  ansible.builtin.service:
+    name: prometheus
+    state: stopped
+  notify:
+    - Restart prometheus
+
+- name: Shutdown grafana-reporter
+  ansible.builtin.systemd:
+    name: grafana-reporter
+    state: stopped
+  ignore_errors: yes
+  notify:
+    - Restart grafana-reporter
+
+- name: Install Grafana Renderer Dependencies
+  apt:
+    name:
+      - ca-certificates
+      - fonts-liberation
+      - libappindicator3-1
+      - libasound2
+      - libatk-bridge2.0-0
+      - libatk1.0-0
+      - libc6
+      - libcairo2
+      - libcups2
+      - libdbus-1-3
+      - libexpat1
+      - libfontconfig1
+      - libgbm1
+      - libgcc1
+      - libglib2.0-0
+      - libgtk-3-0
+      - libnspr4
+      - libnss3
+      - libpango-1.0-0
+      - libpangocairo-1.0-0
+      - libstdc++6
+      - libx11-6
+      - libx11-xcb1
+      - libxcb1
+      - libxcomposite1
+      - libxcursor1
+      - libxdamage1
+      - libxext6
+      - libxfixes3
+      - libxi6
+      - libxrandr2
+      - libxrender1
+      - libxss1
+      - libxtst6
+      - lsb-release
+      - wget
+      - xdg-utils
+      - texlive-latex-base
+      - texlive-fonts-recommended
+      - texlive-fonts-extra
+      - texlive-latex-extra
+    state: present
+
+- name: Copy over prometheus configuration
+  ansible.builtin.template:
+    src: prometheus.yml
+    dest: /etc/prometheus/prometheus.yml
+    mode: 0644
+
+- name: Copy over grafana dashboards and datasources
+  ansible.builtin.copy:
+    src: grafana/provision/
+    dest: /etc/grafana/provisioning
+    mode: 0644
+
+- name: Copy over grafana configuration
+  ansible.builtin.copy:
+    src: grafana/grafana.ini
+    dest: /etc/grafana/grafana.ini
+    mode: 0644
+
+- name: Install grafana renderer
+  ansible.builtin.command:
+    cmd: grafana-cli plugins install grafana-image-renderer
+
+- name: Ensure install directory for grafana-reporter exists
+  ansible.builtin.file:
+    path: /opt/grafana-reporter
+    state: directory
+    mode: 0755
+
+- name: Fetch grafana-reporter utility
+  ansible.builtin.get_url:
+    url: https://github.com/IzakMarais/reporter/releases/download/v2.3.1/grafana-reporter
+    dest: /opt/grafana-reporter/
+    mode: 0755
+
+- name: Copy over grafana-reporter templates
+  ansible.builtin.copy:
+    src: grafana-reporter/templates
+    dest: /etc/grafana-reporter/
+    mode: 0644
+
+- name: Copy over grafana-reporter systemd service configuration
+  ansible.builtin.copy:
+    src: grafana-reporter/grafana-reporter.service
+    dest: /lib/systemd/system/grafana-reporter.service
+    mode: 0644
+
+- name: Force systemd to reread configs to pickup new grafana-reporter service
+  ansible.builtin.systemd:
+    daemon_reload: yes
+
+- name: Enable prometheus service
+  ansible.builtin.systemd:
+    name: prometheus
+    enabled: yes
+    masked: no
+  notify:
+    - Restart prometheus
+
+- name: Enable grafana-server service
+  ansible.builtin.systemd:
+    name: grafana-server
+    enabled: yes
+    masked: no
+  notify:
+    - Restart grafana
+
+- name: Enable grafana-reporter service
+  ansible.builtin.systemd:
+    name: grafana-reporter
+    enabled: yes
+    masked: no
+  notify:
+    - Restart grafana-reporter
+
+

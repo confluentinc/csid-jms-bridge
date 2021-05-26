@@ -34,7 +34,7 @@ public enum KJournalState {
   }
 
   public boolean validTransition(KJournalState otherState) {
-    return validTransitions.contains(otherState.name());
+    return otherState == this || validTransitions.contains(otherState.name());
   }
 }
 

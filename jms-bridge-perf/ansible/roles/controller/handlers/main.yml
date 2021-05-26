@@ -1,0 +1,16 @@
+---
+- name: Restart grafana
+  ansible.builtin.service:
+    name: grafana-server
+    state: restarted
+
+- name: Restart prometheus
+  ansible.builtin.systemd:
+    state: restarted
+    name: prometheus
+
+- name: Restart grafana-reporter
+  ansible.builtin.systemd:
+    state: restarted
+    name: grafana-reporter
+

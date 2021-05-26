@@ -4,34 +4,10 @@
 
 package io.confluent.amq.exchange;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.matches;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.when;
-
-import io.confluent.amq.ComponentLifeCycle.State;
-import io.confluent.amq.ConfluentAmqServer;
-import io.confluent.amq.config.BridgeConfig;
-import io.confluent.amq.config.RoutingConfig;
-import io.confluent.amq.config.RoutingConfig.RoutedTopic;
-import io.confluent.amq.persistence.kafka.KafkaIO;
-import io.confluent.amq.persistence.kafka.KafkaIntegration;
-import io.confluent.amq.persistence.kafka.journal.KJournal;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 import org.apache.activemq.artemis.api.core.QueueConfiguration;
 import org.apache.activemq.artemis.api.core.SimpleString;
 import org.apache.activemq.artemis.api.core.management.AddressControl;
+import org.apache.activemq.artemis.core.persistence.StorageManager;
 import org.apache.activemq.artemis.core.postoffice.Binding;
 import org.apache.activemq.artemis.core.postoffice.Bindings;
 import org.apache.activemq.artemis.core.postoffice.PostOffice;
@@ -47,7 +23,35 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
-@ExtendWith(MockitoExtension.class)
+import io.confluent.amq.ComponentLifeCycle.State;
+import io.confluent.amq.ConfluentAmqServer;
+import io.confluent.amq.config.BridgeConfig;
+import io.confluent.amq.config.RoutingConfig;
+import io.confluent.amq.config.RoutingConfig.RoutedTopic;
+import io.confluent.amq.persistence.kafka.KafkaIO;
+import io.confluent.amq.persistence.kafka.KafkaIntegration;
+import io.confluent.amq.persistence.kafka.journal.KJournal;
+
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.matches;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
+
+@ExtendWith({MockitoExtension.class})
+@MockitoSettings(strictness = Strictness.LENIENT)
 public class KafkaExchangeManagerTest {
 
   @Mock
@@ -61,6 +65,9 @@ public class KafkaExchangeManagerTest {
 
   @Mock
   ConfluentAmqServer mockAmqServer;
+
+  @Mock
+  StorageManager mockStorageManager;
 
   @Mock
   ManagementService mockManagementService;
@@ -89,11 +96,19 @@ public class KafkaExchangeManagerTest {
         .thenAnswer(i -> i.getArgument(0));
     when(mockAmqServer.getManagementService()).thenReturn(mockManagementService);
     when(mockAmqServer.getPostOffice()).thenReturn(mockPostOffice);
+    when(mockAmqServer.isActive()).thenReturn(true);
+    when(mockAmqServer.getStorageManager()).thenReturn(mockStorageManager);
+
+    when(mockAmqServer.locateQueue(any(String.class))).thenReturn(mock(Queue.class));
+
+    when(mockStorageManager.generateID()).thenReturn(1000L);
 
     when(mockKafkaIntegration.getKafkaIO()).thenReturn(mockKafkaIo);
     when(mockKafkaIntegration.getBindingsJournal()).thenReturn(mockBindings);
     when(mockKafkaIntegration.getMessagesJournal()).thenReturn(mockMessages);
+
     when(mockBindings.walTopic()).thenReturn(bindingsTopic);
+
     when(mockMessages.walTopic()).thenReturn(messagesTopic);
   }
 
@@ -107,19 +122,20 @@ public class KafkaExchangeManagerTest {
     BridgeConfig bridgeConfig = new BridgeConfig.Builder()
         .id("test")
         .buildPartial();
-    KafkaExchangeManager manager = new KafkaExchangeManager(
-        bridgeConfig, mockAmqServer, kafkaExchange, mockIngress, mockEgress);
 
-    assertEquals(State.CREATED, manager.getState());
+    KafkaExchangeManager manager = new KafkaExchangeManager(bridgeConfig, mockKafkaIo);
+    manager.prepare(mockAmqServer, kafkaExchange, mockIngress, mockEgress);
+
+    assertEquals(State.PREPARED, manager.getState());
 
     manager.init(Collections.emptyMap());
-    assertEquals(State.CREATED, manager.getState());
+    assertEquals(State.PREPARED, manager.getState());
 
     manager.start();
-    assertEquals(State.CREATED, manager.getState());
+    assertEquals(State.PREPARED, manager.getState());
 
     manager.stop();
-    assertEquals(State.CREATED, manager.getState());
+    assertEquals(State.PREPARED, manager.getState());
 
     assertFalse(manager.isEnabled());
   }
@@ -132,8 +148,8 @@ public class KafkaExchangeManagerTest {
         .routing(new RoutingConfig.Builder().buildPartial())
         .buildPartial();
 
-    KafkaExchangeManager manager = new KafkaExchangeManager(
-        bridgeConfig, mockAmqServer, kafkaExchange, mockIngress, mockEgress);
+    KafkaExchangeManager manager = new KafkaExchangeManager(bridgeConfig, mockKafkaIo);
+    manager.prepare(mockAmqServer, kafkaExchange, mockIngress, mockEgress);
 
     manager.init(Collections.emptyMap());
     assertEquals(State.PREPARED, manager.getState());
@@ -148,8 +164,8 @@ public class KafkaExchangeManagerTest {
         .routing(new RoutingConfig.Builder().buildPartial())
         .buildPartial();
 
-    KafkaExchangeManager manager = new KafkaExchangeManager(
-        bridgeConfig, mockAmqServer, kafkaExchange, mockIngress, mockEgress);
+    KafkaExchangeManager manager = new KafkaExchangeManager(bridgeConfig, mockKafkaIo);
+    manager.prepare(mockAmqServer, kafkaExchange, mockIngress, mockEgress);
 
     manager.init(Collections.emptyMap());
     manager.synchronizeTopics();
@@ -161,15 +177,15 @@ public class KafkaExchangeManagerTest {
     BridgeConfig bridgeConfig = new BridgeConfig.Builder()
         .id("test")
         .routing(new RoutingConfig.Builder()
+            .metadataRefreshMs(1000)
             .addTopics(new RoutedTopic.Builder()
                 .match("foo.*"))
             .build())
         .buildPartial();
 
-    KafkaExchangeManager manager = new KafkaExchangeManager(
-        bridgeConfig, mockAmqServer, kafkaExchange, mockIngress, mockEgress);
+    KafkaExchangeManager manager = new KafkaExchangeManager(bridgeConfig, mockKafkaIo);
+    manager.prepare(mockAmqServer, kafkaExchange, mockIngress, mockEgress);
 
-    manager.init(Collections.emptyMap());
     MockDiscoverySupport mockSupport = new MockDiscoverySupport();
     mockSupport.init();
     mockSupport.mockTopics(
@@ -181,7 +197,10 @@ public class KafkaExchangeManagerTest {
         bindingsTopic
     );
 
-    manager.start();
+    manager.activated();
+    Runnable runner = mockSupport.verifyAndCaptureExecution(1, 1000L);
+    runner.run();
+
     assertEquals(2, kafkaExchange.getAllExchanges().size());
     assertEquals(1, kafkaExchange.getAllExchanges().stream()
         .filter(e -> e.kafkaTopicName().equals("foo-topic-1")).count());
@@ -200,8 +219,8 @@ public class KafkaExchangeManagerTest {
             .build())
         .buildPartial();
 
-    KafkaExchangeManager manager = new KafkaExchangeManager(
-        bridgeConfig, mockAmqServer, kafkaExchange, mockIngress, mockEgress);
+    KafkaExchangeManager manager = new KafkaExchangeManager(bridgeConfig, mockKafkaIo);
+    manager.prepare(mockAmqServer, kafkaExchange, mockIngress, mockEgress);
 
     manager.init(Collections.emptyMap());
     MockDiscoverySupport mockSupport = new MockDiscoverySupport();
@@ -215,7 +234,10 @@ public class KafkaExchangeManagerTest {
         bindingsTopic
     );
 
-    manager.start();
+    manager.activated();
+    Runnable runner = mockSupport.verifyAndCaptureExecution(1, 1000L);
+    runner.run();
+
     assertEquals(2, kafkaExchange.getAllExchanges().size());
     assertEquals(1, kafkaExchange.getAllExchanges().stream()
         .filter(e -> e.kafkaTopicName().equals("foo-topic-1")).count());
@@ -249,8 +271,8 @@ public class KafkaExchangeManagerTest {
             .build())
         .buildPartial();
 
-    KafkaExchangeManager manager = new KafkaExchangeManager(
-        bridgeConfig, mockAmqServer, kafkaExchange, mockIngress, mockEgress);
+    KafkaExchangeManager manager = new KafkaExchangeManager(bridgeConfig, mockKafkaIo);
+    manager.prepare(mockAmqServer, kafkaExchange, mockIngress, mockEgress);
 
     manager.init(Collections.emptyMap());
     MockDiscoverySupport mockSupport = new MockDiscoverySupport();
@@ -264,7 +286,10 @@ public class KafkaExchangeManagerTest {
         bindingsTopic
     );
 
-    manager.start();
+    manager.activated();
+    Runnable runner = mockSupport.verifyAndCaptureExecution(1, 1000L);
+    runner.run();
+
     assertEquals(2, kafkaExchange.getAllExchanges().size());
     assertEquals(1, kafkaExchange.getAllExchanges().stream()
         .filter(e -> e.kafkaTopicName().equals("foo-topic-1")).count());
@@ -300,8 +325,8 @@ public class KafkaExchangeManagerTest {
             .build())
         .buildPartial();
 
-    KafkaExchangeManager manager = new KafkaExchangeManager(
-        bridgeConfig, mockAmqServer, kafkaExchange, mockIngress, mockEgress);
+    KafkaExchangeManager manager = new KafkaExchangeManager(bridgeConfig, mockKafkaIo);
+    manager.prepare(mockAmqServer, kafkaExchange, mockIngress, mockEgress);
 
     manager.init(Collections.emptyMap());
     MockDiscoverySupport mockSupport = new MockDiscoverySupport();
@@ -311,7 +336,10 @@ public class KafkaExchangeManagerTest {
         "foobar-topic"
     );
 
-    manager.start();
+    manager.activated();
+    Runnable runner = mockSupport.verifyAndCaptureExecution(1, 1000L);
+    runner.run();
+
 
     mockSupport.mockTopics(
         "foobar-topic"
@@ -343,8 +371,8 @@ public class KafkaExchangeManagerTest {
             .build())
         .buildPartial();
 
-    KafkaExchangeManager manager = new KafkaExchangeManager(
-        bridgeConfig, mockAmqServer, kafkaExchange, mockIngress, mockEgress);
+    KafkaExchangeManager manager = new KafkaExchangeManager(bridgeConfig, mockKafkaIo);
+    manager.prepare(mockAmqServer, kafkaExchange, mockIngress, mockEgress);
 
     manager.init(Collections.emptyMap());
     MockDiscoverySupport mockSupport = new MockDiscoverySupport();
@@ -358,12 +386,13 @@ public class KafkaExchangeManagerTest {
         bindingsTopic
     );
 
-    manager.start();
-    Runnable runner = mockSupport.verifyAndCaptureExecution(1, 500L);
+    manager.activated();
+    Runnable runner = mockSupport.verifyAndCaptureExecution(1, 1000L);
+
     assertNotNull(runner);
 
     runner.run();
-    runner = mockSupport.verifyAndCaptureExecution(2, 500L);
+    runner = mockSupport.verifyAndCaptureExecution(1, 1000L);
     assertNotNull(runner);
 
   }

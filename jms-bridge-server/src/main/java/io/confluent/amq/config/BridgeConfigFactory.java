@@ -6,21 +6,33 @@ package io.confluent.amq.config;
 
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
+
 import io.confluent.amq.logging.StructuredLogger;
+
 import java.net.URL;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Properties;
+import java.util.stream.Collectors;
 
 public final class BridgeConfigFactory {
 
   private BridgeConfigFactory() {
   }
 
-  private static final StructuredLogger SLOG = StructuredLogger
+  public static final StructuredLogger SLOG = StructuredLogger
       .with(b -> b.loggerClass(BridgeConfigFactory.class));
+
+  public static Map<String, String> flattenConfig(Config config) {
+    return config.entrySet()
+        .stream()
+        .filter(en -> en.getValue() != null)
+        .collect(Collectors.toMap(
+            Map.Entry::getKey,
+            en -> en.getValue().unwrapped().toString()));
+  }
 
   public static Map<String, Object> propsToMap(Properties props) {
     Map<String, Object> propsMap = new HashMap<>();

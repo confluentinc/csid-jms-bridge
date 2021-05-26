@@ -14,7 +14,7 @@ public interface KJournal {
   }
 
   default String txStoreName() {
-    return storeName() + "_tx";
+    return storeName() + "_txGlobal";
   }
 
   String name();

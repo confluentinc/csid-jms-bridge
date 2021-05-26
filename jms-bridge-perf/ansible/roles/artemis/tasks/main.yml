@@ -1,0 +1,95 @@
+---
+- name: Install java
+  apt:
+    name: openjdk-11-jdk
+    state: present
+
+- name: Install prometheus_node_exporter
+  apt:
+    name: prometheus-node-exporter
+    update_cache: yes
+    state: present
+
+
+- name: Create artemis user account
+  ansible.builtin.user:
+    name: "{{ artemis_user }}"
+    system: True
+
+- name: Delete current installation
+  ansible.builtin.file:
+    path: "{{ artemis_home }}"
+    state: absent
+  tags: [never, clean]
+
+- name: Download and explode artemis archive
+  ansible.builtin.unarchive:
+    src: https://www.apache.org/dyn/closer.cgi?filename=activemq/activemq-artemis/{{ artemis_version }}/apache-artemis-{{ artemis_version }}-bin.tar.gz&action=download
+    dest: /opt/
+    creates: "{{ artemis_home }}"
+    mode: 0755
+    owner: "{{ artemis_user }}"
+
+
+- name: Download the prometheus javaagent jar
+  ansible.builtin.get_url:
+    url: https://repo1.maven.org/maven2/io/prometheus/jmx/jmx_prometheus_javaagent/{{ prometheus_agent_version }}/jmx_prometheus_javaagent-{{ prometheus_agent_version }}.jar
+    dest: "{{ artemis_home }}/lib/"
+    mode: 0755
+    owner: artemis
+
+- name: Copy over prometheus exporter config
+  ansible.builtin.copy:
+    src: jmx-prometheus-config.yml
+    dest: "{{ artemis_home }}"
+    owner: artemis
+    mode: 0644
+
+- name: Install artemis broker instance
+  ansible.builtin.command:
+    cmd: >
+      {{ artemis_home }}/bin/artemis create {{ artemis_instance_name }}
+      --allow-anonymous
+      --http-host 0.0.0.0
+      --relax-jolokia
+      --user=admin
+      --password=admin
+      --force
+      {{ artemis_instance_home }}
+
+- name: Change ownership of artemis instance
+  ansible.builtin.file:
+    path: "{{ artemis_instance_home }}"
+    state: directory
+    recurse: yes
+    owner: artemis
+    group: artemis
+    mode: 0755
+
+
+- name: Shutdown artemis
+  ansible.builtin.service:
+    name: artemis
+    state: stopped
+  ignore_errors: yes
+  notify:
+    - Restart artemis
+
+- name: Copy over systemd service file
+  ansible.builtin.template:
+    src: artemis.service
+    dest: /lib/systemd/system/artemis.service
+    mode: 0644
+
+- name: Force systemd to reread configs to pickup new grafana-reporter service
+  ansible.builtin.systemd:
+    daemon_reload: yes
+
+- name: Enable artemis service
+  ansible.builtin.systemd:
+    name: artemis
+    enabled: yes
+    masked: no
+  notify:
+    - Restart artemis
+

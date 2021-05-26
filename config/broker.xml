@@ -1,0 +1,64 @@
+<!--
+  ~ Copyright 2020 Confluent Inc.
+  -->
+
+<configuration xmlns="urn:activemq">
+  <core xmlns="urn:activemq:core">
+      <acceptors>
+          <!-- Default ActiveMQ Artemis Acceptor.  Multi-protocol adapter.  Currently supports Core, OpenWire, Stomp and AMQP. -->
+          <acceptor name="artemis">tcp://0.0.0.0:61616?tcpSendBufferSize=1048576;tcpReceiveBufferSize=1048576;amqpMinLargeMessageSize=102400;protocols=CORE,AMQP,STOMP,HORNETQ,MQTT,OPENWIRE;useEpoll=true;amqpCredits=1000;amqpLowCredits=300;amqpDuplicateDetection=true</acceptor>
+      </acceptors>
+      <!-- Default Connector.  Returned to clients during broadcast and distributed around cluster.  See broadcast and discovery-groups -->
+      <!--
+          <connectors>
+          <connector name="activemq">
+          tcp://${activemq.remoting.default.host:localhost}:${activemq.remoting.default.port:61616}
+          </connector>
+          </connectors>
+      -->
+          <!-- To define a
+              <cluster-connection name="my-cluster">
+              <address/>
+              <connector-ref>netty-connector</connector-ref>
+              <retry-interval>500</retry-interval>
+              <use-duplicate-detection>true</use-duplicate-detection>
+              <message-load-balancing>STRICT</message-load-balancing>
+              <max-hops>1</max-hops>
+              <static-connectors allow-direct-connections-only="true">
+              <connector-ref>server1-connector</connector-ref>
+              </static-connectors>
+              </cluster-connection>
+          -->
+
+              <!-- To Enable HA, an HA policy must be set, along with the servers designation. The Example configuration prodiced, statically sets the node as either a master or a slave. -->
+              <!-- Master node configuration
+                  <ha-policy>
+                  <shared-store>
+                  <master>
+                  <failover-on-shutdown>true</failover-on-shutdown>
+                  </master>
+                  </shared-store>
+                  </ha-policy>
+              -->
+
+                  <!-- Slave node configuration
+                      <ha-policy>
+                      <shared-store>
+                      <slave>
+                      <allow-failback>true</allow-failback>
+                      </slave>
+                      </shared-store>
+                      </ha-policy>
+                  -->
+                      <journal-directory>${jms-bridge.data.dir:./data}/journal</journal-directory>
+
+                      <journal-min-files>2</journal-min-files>
+
+                      <large-messages-directory>${jms-bridge.data.dir:./data}/large-messages</large-messages-directory>
+
+                      <paging-directory>${jms-bridge.data.dir:./data}/paging</paging-directory>
+
+                      <security-enabled>false</security-enabled>
+
+                  </core>
+              </configuration>

@@ -1,0 +1,6 @@
+---
+- name: Create or Update The JMS Bridge for the Test Environment
+  hosts: gcp_bridge
+  become: yes
+  roles:
+    - jms-bridge

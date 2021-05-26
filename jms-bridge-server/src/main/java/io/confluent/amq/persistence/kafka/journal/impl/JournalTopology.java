@@ -203,7 +203,7 @@ public class JournalTopology {
     final String globalStoreName = journal.storeName();
     StoreBuilder<KeyValueStore<JournalEntryKey, JournalEntry>> globalStoreBuilder = Stores
         .keyValueStoreBuilder(
-            Stores.persistentTimestampedKeyValueStore(globalStoreName),
+            Stores.persistentKeyValueStore(globalStoreName),
             JournalKeySerde.DEFAULT, JournalValueSerde.DEFAULT)
         .withLoggingDisabled();
 

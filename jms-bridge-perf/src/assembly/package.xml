@@ -1,0 +1,27 @@
+<!--
+  ~ Copyright 2020 Confluent Inc.
+  -->
+<assembly xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns="http://maven.apache.org/plugins/maven-assembly-plugin/assembly/1.1.2"
+  xsi:schemaLocation="http://maven.apache.org/plugins/maven-assembly-plugin/assembly/1.1.2
+          http://maven.apache.org/xsd/assembly-1.1.2.xsd">
+  <id>package</id>
+  <fileSets>
+    <fileSet>
+      <directory>target/appassembler/lib</directory>
+      <outputDirectory>lib</outputDirectory>
+      <excludes>
+        <exclude>maven-metadata-appassembler.xml</exclude>
+      </excludes>
+    </fileSet>
+    <fileSet>
+      <directory>target/appassembler/bin</directory>
+      <outputDirectory>bin</outputDirectory>
+    </fileSet>
+  </fileSets>
+  <baseDirectory>jms-bridge-perf</baseDirectory>
+  <formats>
+    <format>tar.gz</format>
+  </formats>
+
+</assembly>

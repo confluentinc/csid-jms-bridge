@@ -1,156 +1,83 @@
 /*
- * Copyright 2020 Confluent Inc.
+ * Copyright 2021 Confluent Inc.
  */
 
 package io.confluent.amq.exchange;
 
-import io.confluent.amq.ComponentLifeCycle;
-import io.confluent.amq.config.BridgeConfig;
-import io.confluent.amq.logging.StructuredLogger;
-import io.confluent.amq.persistence.kafka.KafkaIO;
-import java.util.ArrayList;
-import java.util.EnumSet;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Collectors;
 import org.apache.activemq.artemis.api.core.ICoreMessage;
+import org.apache.activemq.artemis.api.core.Message;
 import org.apache.activemq.artemis.core.filter.Filter;
 import org.apache.activemq.artemis.core.server.Consumer;
 import org.apache.activemq.artemis.core.server.HandleStatus;
 import org.apache.activemq.artemis.core.server.MessageReference;
-import org.apache.activemq.artemis.core.server.impl.QueueImpl;
+import org.apache.activemq.artemis.core.server.Queue;
 import org.apache.activemq.artemis.reader.BytesMessageUtil;
 import org.apache.activemq.artemis.reader.TextMessageUtil;
+import org.apache.kafka.clients.producer.Callback;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.clients.producer.RecordMetadata;
-import org.apache.kafka.common.errors.SerializationException;
-import org.apache.kafka.common.serialization.ByteArraySerializer;
 
-/**
- * Aids in the actual movement of data from AMQ to Kafka.
- */
-public class KafkaExchangeIngress implements Consumer, KafkaExchange.ExchangeChangeListener {
+import io.confluent.amq.config.BridgeConfig;
+import io.confluent.amq.logging.StructuredLogger;
+import io.confluent.amq.persistence.kafka.KafkaIO;
+
+import java.util.Collections;
+import java.util.EnumSet;
+import java.util.List;
+import java.util.Map;
+import javax.annotation.Nullable;
+
+
+public class KafkaExchangeIngress implements Consumer {
+
+  private static final StructuredLogger SLOG = StructuredLogger
+      .with(b -> b.loggerClass(KafkaExchangeIngress.class));
 
   private static final EnumSet<KExMessageType> ROUTEABLE_MESSAGE_TYPES = EnumSet.of(
       KExMessageType.BYTES,
       KExMessageType.TEXT
   );
 
-  private static final StructuredLogger SLOG = StructuredLogger
-      .with(b -> b.loggerClass(KafkaExchangeIngress.class));
+  private boolean active;
 
+  private final Queue queue;
+
+  private final long sequentialID;
 
   private final BridgeConfig config;
-  private final KafkaProducer<byte[], byte[]> producer;
-  private final KafkaExchange exchange;
-  private final java.util.Map<Long, MessageReference> refs = new LinkedHashMap<>();
-  private final Map<String, KafkaTopicExchange> queueExchangemap;
-  private final Long sequentialId;
-  private final ComponentLifeCycle state = new ComponentLifeCycle(SLOG);
+
+  private final KafkaTopicExchange exchange;
+
+  private final KafkaIO kafkaIO;
 
   public KafkaExchangeIngress(
       BridgeConfig config,
-      KafkaExchange kafkaExchange,
+      KafkaTopicExchange kafkaTopicExchange,
       KafkaIO kafkaIO,
-      Long sequentialId) {
+      Queue queue,
+      long sequentialID) {
 
     this.config = config;
-    this.exchange = kafkaExchange;
-    this.producer = kafkaIO.createProducer(new ByteArraySerializer(), new ByteArraySerializer());
-    this.sequentialId = sequentialId;
 
-    this.queueExchangemap = new ConcurrentHashMap<>();
-    exchange.registerListener(this);
+    this.exchange = kafkaTopicExchange;
 
-    state.doPrepare(() -> {
-      //do nothing
-    });
+    this.kafkaIO = kafkaIO;
+
+    this.queue = queue;
+
+    this.sequentialID = sequentialID;
+
   }
 
   @Override
-  public void onAddExchange(KafkaTopicExchange topicExchange) {
-    SLOG.debug(b -> b.event("AddExchange").putTokens("exchange", topicExchange));
-    queueExchangemap.put(topicExchange.ingressQueueName(), topicExchange);
-  }
-
-  @Override
-  public void onRemoveExchange(KafkaTopicExchange topicExchange) {
-    SLOG.debug(b -> b.event("RemoveExchange").putTokens("exchange", topicExchange));
-    queueExchangemap.remove(topicExchange.ingressQueueName());
-  }
-
-  @Override
-  public HandleStatus handle(MessageReference reference) {
-    if (!state.isStarted()) {
-      SLOG.debug(b -> b
-          .event("HandleMessage")
-          .eventResult("Busy")
-          .message("Exchange has not been started."));
-      return HandleStatus.BUSY;
-    }
-
-    String originalAddress = reference.getQueue().getAddress().toString();
-    KafkaTopicExchange topicExchange = queueExchangemap.get(originalAddress);
-    if (topicExchange == null) {
-      SLOG.debug(b -> b
-          .event("HandleMessage")
-          .eventResult("NoMatch")
-          .message("No KafkaTopicExchange exists matching address.")
-          .putTokens("address", originalAddress));
-      return HandleStatus.NO_MATCH;
-    }
-
-    ICoreMessage message = reference.getMessage().toCore();
-    if (!isRouteableMessageType(message)) {
-      SLOG.debug(b -> b
-          .event("HandleMessage")
-          .eventResult("NoMatch")
-          .message("Message is not of a supported message type.")
-          .putTokens("supportedMessageTypes", ROUTEABLE_MESSAGE_TYPES
-              .stream()
-              .map(KExMessageType::name)
-              .collect(Collectors.joining(", ")))
-          .putTokens("messageType", KExMessageType.fromId(message.getType())));
-
-      return HandleStatus.NO_MATCH;
-    }
-
-    if (!this.exchange.exchangeWriteable(topicExchange)) {
-      SLOG.debug(b -> b
-          .event("HandleMessage")
-          .eventResult("Busy")
-          .putTokens("address", originalAddress)
-          .message("Exchange for address is currently paused."));
-      return HandleStatus.BUSY;
-    }
-
-    reference.handled();
-
-    synchronized (refs) {
-      refs.put(reference.getMessageID(), reference);
-    }
-
-    return route(topicExchange, reference);
-  }
-
-  @Override
-  public void proceedDeliver(MessageReference reference) throws Exception {
-    //do nothing
+  public long sequentialID() {
+    return sequentialID;
   }
 
   @Override
   public Filter getFilter() {
     return null;
-  }
-
-  @Override
-  public List<MessageReference> getDeliveringMessages() {
-    synchronized (refs) {
-      return new ArrayList<>(refs.values());
-    }
   }
 
   @Override
@@ -160,96 +87,144 @@ public class KafkaExchangeIngress implements Consumer, KafkaExchange.ExchangeCha
 
   @Override
   public String toManagementString() {
-    return this.getClass().getSimpleName() + "[]";
+    return "KafkaExchangeIngress[" + queue.getName() + "/" + queue.getID() + "]";
   }
 
   @Override
   public void disconnect() {
-    //do nothing
+    //noop
+  }
+
+  public synchronized void start() throws Exception {
+    active = true;
+    SLOG.trace(b -> b
+        .event("Start")
+        .putTokens("queue", queue));
+    queue.addConsumer(this);
+    queue.deliverAsync();
+  }
+
+  public synchronized void stop() throws Exception {
+    active = false;
+    SLOG.trace(b -> b
+        .event("Stop")
+        .putTokens("queue", queue));
+    queue.removeConsumer(this);
+  }
+
+  public synchronized void close() {
+    active = false;
+    SLOG.trace(b -> b
+        .event("Close")
+        .putTokens("queue", queue));
+    queue.removeConsumer(this);
   }
 
   @Override
-  public long sequentialID() {
-    return sequentialId;
-  }
+  public synchronized HandleStatus handle(final MessageReference reference) throws Exception {
+    KafkaProducer<byte[], byte[]> producer = kafkaIO.getExternalProducer();
+    if (!active || null == producer) {
+      SLOG.trace(b -> b
+          .event("RouteMessage")
+          .markFailure()
+          .eventResult("NotReady")
+          .putTokens("exchange", exchange)
+          .putTokens("producerIsNull", null == producer)
+          .putTokens("message", reference.getMessageID()));
+      return HandleStatus.BUSY;
+    } else if (!isRouteableMessageType(reference.getMessage())) {
+      //add metric for unrouteable messages
+      //add metric for routed messages
+      SLOG.trace(b -> b
+          .event("RouteMessage")
+          .markFailure()
+          .eventResult("WrongMessageType")
+          .putTokens("exchange", exchange)
+          .putTokens("message", reference.getMessageID()));
+      return HandleStatus.NO_MATCH;
+    }
 
-  public void start() {
-    state.doStart(() -> {
-      //nothing needed to do
-    });
-  }
-
-  public void stop() {
-    state.doStop(() -> {
-      //nothing needed to do
-    });
-  }
-
-  public HandleStatus route(
-      KafkaTopicExchange route,
-      MessageReference reference) {
-
+    //add metric for routed messages
     SLOG.trace(b -> b
         .event("RouteMessage")
-        .putTokens("exchange", route)
+        .putTokens("exchange", exchange)
         .putTokens("message", reference.getMessageID()));
 
     ICoreMessage coreMessage = reference.getMessage().toCore();
     String bridgeId = config.id();
 
     Map<String, byte[]> headers = Headers.convertHeaders(coreMessage, bridgeId, true);
-    final byte[] key = extractKey(route, headers);
-    final byte[] value = extractValue(route, coreMessage);
+    byte[] key = extractKey(headers);
+    byte[] value = extractValue(coreMessage);
     ProducerRecord<byte[], byte[]> record = new ProducerRecord<>(
-        route.kafkaTopicName(), key, value);
+        exchange.kafkaTopicName(), key, value);
 
     headers.forEach(record.headers()::add);
 
-    try {
-      RecordMetadata meta = producer.send(record).get();
-      SLOG.trace(b -> b
-          .event("PublishRoutedMessage")
-          .markSuccess()
-          .addProducerRecord(record)
-          .addRecordMetadata(meta));
-    } catch (Exception e) {
-      SLOG.error(b -> b
-          .event("PublishRoutedMessage")
-          .markFailure(), e);
+    producer.send(record, ack(reference));
 
-      if (e instanceof SerializationException) {
-        return HandleStatus.HANDLED;
-      }
-
-      // The delivering count should also be decreased as to avoid inconsistencies
-      ((QueueImpl) reference.getQueue()).decDelivering(reference);
-
-      //we will retry this later.
-      return HandleStatus.BUSY;
-    } finally {
-
-      synchronized (refs) {
-        refs.remove(coreMessage.getMessageID());
-      }
-      coreMessage.usageDown();
-    }
+    //get more messages
+    queue.deliverAsync();
 
     return HandleStatus.HANDLED;
   }
 
+  @Override
+  public void proceedDeliver(MessageReference reference) {
+    // no op
+  }
 
-  public byte[] extractKey(KafkaTopicExchange exchange, Map<String, byte[]> headers) {
+  /* (non-Javadoc)
+   * @see org.apache.activemq.artemis.core.server.Consumer#getDeliveringMessages()
+   */
+  @Override
+  public List<MessageReference> getDeliveringMessages() {
+    return Collections.emptyList();
+  }
+
+
+  private Callback ack(MessageReference reference) {
+    return (RecordMetadata meta, Exception err) -> {
+      SLOG.trace(b -> b
+          .event("PublishRoutedMessage")
+          .markSuccess()
+          .putTokens("messageId", reference.getMessageID())
+          .addRecordMetadata(meta));
+
+      Exception ourErr = err;
+      if (null == ourErr) {
+        reference.handled();
+
+        try {
+          queue.acknowledge(reference);
+        } catch (Exception e) {
+          ourErr = e;
+        }
+        //add metric for successful publishes
+      }
+
+      if (null != ourErr) {
+        SLOG.error(b -> b
+            .event("PublishRoutedMessage")
+            .markFailure(), ourErr);
+        //add metric for failed publishes
+      }
+    };
+  }
+
+  public byte[] extractKey(Map<String, byte[]> headers) {
     byte[] key = headers.get(Headers.createKafkaJmsPropKey(Headers.HDR_CORRELATION_ID));
-    if (key == null) {
+    if (null == key) {
       key = headers.get(Headers.createKafkaJmsPropKey(exchange.originConfig().keyProperty()));
-      if (key == null) {
+      if (null == key) {
         key = headers.get(Headers.createKafkaJmsPropKey(Headers.HDR_MESSAGE_ID));
       }
     }
     return key;
   }
 
-  public byte[] extractValue(KafkaTopicExchange route, ICoreMessage message) {
+  @Nullable
+  public byte[] extractValue(ICoreMessage message) {
     switch (KExMessageType.fromId(message.getType())) {
       case BYTES:
         byte[] value = new byte[message.getBodyBufferSize()];
@@ -262,7 +237,8 @@ public class KafkaExchangeIngress implements Consumer, KafkaExchange.ExchangeCha
     }
   }
 
-  public boolean isRouteableMessageType(ICoreMessage message) {
-    return ROUTEABLE_MESSAGE_TYPES.contains(KExMessageType.fromId(message.getType()));
+  public boolean isRouteableMessageType(Message message) {
+    return ROUTEABLE_MESSAGE_TYPES.contains(KExMessageType.fromId(message.toCore().getType()));
   }
+
 }

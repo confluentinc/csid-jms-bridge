@@ -58,8 +58,8 @@ public interface RoutingConfig {
       //set defaults
       this();
 
-      if (routingConfig.hasPath("metadata-refresh-ms")) {
-        metadataRefreshMs(routingConfig.getInt("metadata-refresh-ms"));
+      if (routingConfig.hasPath("metadata.refresh.ms")) {
+        metadataRefreshMs(routingConfig.getInt("metadata.refresh.ms"));
       }
 
       if (routingConfig.hasPath("topics")) {
@@ -210,28 +210,28 @@ public interface RoutingConfig {
           match(routedTopicConfig.getString("match"));
         }
 
-        if (routedTopicConfig.hasPath("address-template")) {
-          addressTemplate(routedTopicConfig.getString("address-template"));
+        if (routedTopicConfig.hasPath("address.template")) {
+          addressTemplate(routedTopicConfig.getString("address.template"));
         }
 
-        if (routedTopicConfig.hasPath("message-type")) {
-          messageType(routedTopicConfig.getString("message-type"));
+        if (routedTopicConfig.hasPath("message.type")) {
+          messageType(routedTopicConfig.getString("message.type"));
         }
 
-        if (routedTopicConfig.hasPath("key-property")) {
-          keyProperty(routedTopicConfig.getString("key-property"));
+        if (routedTopicConfig.hasPath("key.property")) {
+          keyProperty(routedTopicConfig.getString("key.property"));
         }
 
-        if (routedTopicConfig.hasPath("correlation-key-override")) {
-          correlationKeyOverride(routedTopicConfig.getBoolean("correlation-key-override"));
+        if (routedTopicConfig.hasPath("correlation.key.override")) {
+          correlationKeyOverride(routedTopicConfig.getBoolean("correlation.key.override"));
         }
 
-        if (routedTopicConfig.hasPath("consume-always")) {
-          consumeAlways(routedTopicConfig.getBoolean("consume-always"));
+        if (routedTopicConfig.hasPath("consume.always")) {
+          consumeAlways(routedTopicConfig.getBoolean("consume.always"));
         }
 
-        if (routedTopicConfig.hasPath("resume-at-latest")) {
-          resumeAtLatest(routedTopicConfig.getBoolean("resume-at-latest"));
+        if (routedTopicConfig.hasPath("resume.at.latest")) {
+          resumeAtLatest(routedTopicConfig.getBoolean("resume.at.latest"));
         }
       }
 

@@ -1,0 +1,26 @@
+{%- set pcfg = dict() -%}
+{%- set _nop = pcfg.update(perf_defaults_cfg) -%}
+{%- set _nop = pcfg.update(perf_cfg) -%}
+[Unit]
+Description=JMS Bridge Performance Application
+
+[Service]
+Type=simple
+Environment="JAVA_OPTS={{ perf_java_opts }}"
+ExecStart={{ perf_install_dir }}/bin/jms-bridge-perf \
+    --pr-port={{ pcfg.prometheus_port }} \
+    --jms-url={{ pcfg.jms_url }} \
+    --message-size={{ pcfg.message_size_bytes }} \
+    --message-rate={{ pcfg.messages_per_second }} \
+    --test-duration={{ pcfg.test_duration_seconds }} \
+    {{ perf_scenario }} \
+{% for c in perf_scenario_cfg %}
+    {{ c | replace('%IDX', perf_host_idx) }} {% if not loop.last %}\{% endif %}
+
+{% endfor %}
+
+User={{ perf_user }}
+WorkingDirectory={{ perf_install_dir }}
+
+[Install]
+WantedBy=multi-user.target

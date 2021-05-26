@@ -94,8 +94,7 @@ public class KafkaTestContainer implements
     this.producer = new KafkaProducer<>(
         kafkaProps, new ByteArraySerializer(), new ByteArraySerializer());
 
-    this.kafkaIO = new KafkaIO(kafkaProps);
-    this.kafkaIO.start();
+    this.kafkaIO = new KafkaIO("unit-test", kafkaProps);
   }
 
   @Override

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ~ Copyright 2021 Confluent Inc.
+  -->
+
+<Configuration status="ERROR">
+  <Appenders>
+    <Console name="stdout" target="SYSTEM_OUT">
+      <PatternLayout pattern="[%d] %p %m %n"/>
+    </Console>
+  </Appenders>
+
+  <Loggers>
+    {% set log_props = env_to_props('LOG4J2_', '') -%}
+    {% for name, value in log_props.items() -%}
+     <Logger name="{{name}}" level="{{value}}" additivity="false">
+       <AppenderRef ref="stdout"/>
+     </Logger>
+    {% endfor -%}
+
+      <Root level="${env:LOG4J2ROOT:-WARN}">
+        <AppenderRef ref="stdout"/>
+      </Root>
+  </Loggers>
+</Configuration>

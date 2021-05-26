@@ -22,29 +22,22 @@
   </dependencySets>
   <fileSets>
     <fileSet>
-      <directory>${project.basedir}/docs</directory>
+      <directory>${project.build.directory}/docs</directory>
       <excludes>
         <exclude>.*</exclude>
       </excludes>
       <outputDirectory>share/doc/jms-bridge/</outputDirectory>
     </fileSet>
     <fileSet>
-      <directory>${project.basedir}</directory>
+      <directory>${project.parent.basedir}/bin</directory>
       <includes>
-        <include>README*</include>
-        <include>COPYRIGHT*</include>
+        <include>*</include>
       </includes>
-      <outputDirectory>share/doc/jms-bridge/</outputDirectory>
+      <outputDirectory>bin/</outputDirectory>
+      <fileMode>0755</fileMode>
     </fileSet>
     <fileSet>
-      <directory>${project.basedir}</directory>
-      <includes>
-        <include>bin/*</include>
-      </includes>
-      <outputDirectory></outputDirectory>
-    </fileSet>
-    <fileSet>
-      <directory>${project.basedir}/config</directory>
+      <directory>${project.parent.basedir}/config</directory>
       <includes>
         <include>*</include>
       </includes>

@@ -66,8 +66,8 @@ public class KafkaJournalTest {
   public void deleteCreatesTombstoneUpdatesStore() throws Exception {
     try (TestHelper test = new TestHelper(TestSupport.baseStreamProps(tempdir))) {
 
-      withAddRecord(0, kv -> test.walTopic.pipeInput(kv.key, kv.value));
-      withDeleteRecord(0, kv -> test.walTopic.pipeInput(kv.key, kv.value));
+      withAddRecord(1, kv -> test.walTopic.pipeInput(kv.key, kv.value));
+      withDeleteRecord(1, kv -> test.walTopic.pipeInput(kv.key, kv.value));
 
       // 1 add record
       // 1 ann refs tombstone
@@ -75,26 +75,26 @@ public class KafkaJournalTest {
       assertEquals(3, test.tableTopic.getQueueSize(), "No tombstones present.");
 
       withKeyValue(test.tableTopic.readKeyValue(), (k, v) -> {
-        assertEquals(0, k.getMessageId());
+        assertEquals(1, k.getMessageId());
         assertEquals(0, k.getExtendedId());
         assertNotNull(v.getAppendedRecord());
         assertEquals(JournalRecordType.ADD_RECORD, v.getAppendedRecord().getRecordType());
       });
 
       withKeyValue(test.tableTopic.readKeyValue(), (k, v) -> {
-        assertEquals(0, k.getMessageId());
+        assertEquals(1, k.getMessageId());
         assertEquals(KafkaRecordUtils.MESSAGE_ANNOTATIONS_EXTENDED_ID_CONSTANT, k.getExtendedId());
         assertNull(v);
       });
 
       withKeyValue(test.tableTopic.readKeyValue(), (k, v) -> {
-        assertEquals(0, k.getMessageId());
+        assertEquals(1, k.getMessageId());
         assertEquals(0, k.getExtendedId());
         assertNull(v);
       });
 
       test.withJournalStore(store ->
-          assertNull(store.get(KafkaRecordUtils.addDeleteKeyFromMessageId(0))));
+          assertNull(store.get(KafkaRecordUtils.addDeleteKeyFromMessageId(1))));
     }
   }
 
@@ -290,15 +290,15 @@ public class KafkaJournalTest {
   }
 
   public Stream<KeyValue<JournalEntryKey, JournalEntry>> createAddRecords(
-      int startIdInclusive, int count) {
+      int startIdExclusive, int count) {
 
-    return IntStream.range(startIdInclusive, startIdInclusive + count)
+    return IntStream.range(startIdExclusive, startIdExclusive + count + 1)
         .mapToObj(this::createAddRecord);
   }
 
   public KeyValue<JournalEntryKey, JournalEntry> createAddRecord(int messageid) {
 
-    return KeyValue.pair(
+    KeyValue<JournalEntryKey, JournalEntry> kv = KeyValue.pair(
         KafkaRecordUtils.addDeleteKeyFromMessageId(messageid),
         JournalEntry.newBuilder().setAppendedRecord(JournalRecord.newBuilder()
             .setRecordType(JournalRecordType.ADD_RECORD)
@@ -306,6 +306,7 @@ public class KafkaJournalTest {
             .setProtocolRecordType(ProtocolRecordType.ADD_MESSAGE_PROTOCOL.getValue())
             .setData(ByteString.copyFrom("Payload-" + messageid, StandardCharsets.UTF_8)))
             .build());
+    return kv;
   }
 
   public Consumer<KeyValue<JournalEntryKey, JournalEntry>> asTx(
@@ -396,11 +397,13 @@ public class KafkaJournalTest {
       EpochCoordinator epochCoordinator = new EpochCoordinator();
       this.processor = new KafkaJournalProcessor(
           Collections.singletonList(journalSpec), "testNode",
-          "testApp", bridgeConfig.streams(), mockKafkaIo, epochCoordinator);
+          "testApp", Duration.ofSeconds(60),
+          bridgeConfig.streams(), mockKafkaIo, epochCoordinator);
       ConsumerGroupMetadata mockMetadata = Mockito.mock(ConsumerGroupMetadata.class);
       Mockito.when(mockMetadata.generationId()).thenReturn(1);
       epochCoordinator.onAssignment(null, mockMetadata);
 
+      this.processor.initializeJournals();
       driver =
           createStreamsTestDriver(
               processor.createTopology(), processor.effectiveStreamProperties());

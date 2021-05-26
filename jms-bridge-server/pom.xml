@@ -8,11 +8,12 @@
   <parent>
     <artifactId>jms-bridge-pom</artifactId>
     <groupId>io.confluent</groupId>
-    <version>2.2.0-SNAPSHOT</version>
+    <version>3.0.1-SNAPSHOT</version>
   </parent>
 
   <properties>
     <main-class>io.confluent.amq.cli.JmsBridgeCli</main-class>
+    <package.dir>${project.build.directory}/package</package.dir>
   </properties>
 
   <build>
@@ -47,8 +48,15 @@
               <groupId>org.apache.activemq</groupId>
               <artifactId>artemis-jms-client-all</artifactId>
               <version>${activemq.version}</version>
-              <outputDirectory>${project.build.directory}/client-libs/</outputDirectory>
+              <outputDirectory>${package.dir}/lib/client-libs/</outputDirectory>
               <destFileName>jms-bridge-client-all-${activemq.version}.jar</destFileName>
+            </artifactItem>
+            <artifactItem>
+              <groupId>io.prometheus.jmx</groupId>
+              <artifactId>jmx_prometheus_javaagent</artifactId>
+              <version>0.15.0</version>
+              <outputDirectory>${package.dir}/lib/jmx-prometheus-javaagent/
+              </outputDirectory>
             </artifactItem>
           </artifactItems>
         </configuration>
@@ -95,7 +103,7 @@
         <artifactId>sphinx-maven-plugin</artifactId>
         <version>2.9.0</version>
         <configuration>
-          <sourceDirectory>docs</sourceDirectory>
+          <sourceDirectory>${project.parent.basedir}/docs</sourceDirectory>
           <outputDirectory>${project.build.directory}/docs</outputDirectory>
         </configuration>
         <executions>
@@ -238,6 +246,11 @@
     <dependency>
       <artifactId>junit-jupiter-engine</artifactId>
       <groupId>org.junit.jupiter</groupId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter-params</artifactId>
       <scope>test</scope>
     </dependency>
     <dependency>

@@ -1,0 +1,31 @@
+#For JMS Bridge
+jms_bridge_archive: "REQUIRED"
+jms_bridge_version: "REQUIRED"
+jms_bridge_user: jms-bridge
+
+jms_bridge_version_name: jms-bridge-server-{{ jms_bridge_version }}
+jms_bridge_home: /opt/jms-bridge
+
+jms_bridge_cfg: {}
+jms_bridge_defaults_cfg:
+  id: "load-test-1"
+
+jms_bridge_cfg_kafka: {}
+jms_bridge_defaults_cfg_kafka:
+  compression.type: snappy
+  batch.size: 256000
+  acks: all
+
+
+jms_bridge_cfg_journals: {}
+jms_bridge_defaults_cfg_journals:
+  ready.timeout: 5m
+
+
+jms_bridge_cfg_streams: {}
+jms_bridge_defaults_cfg_streams:
+  replication.factor: 3
+  acks: all
+  producer.compression.type: snappy
+  producer.batch.size: 512000
+

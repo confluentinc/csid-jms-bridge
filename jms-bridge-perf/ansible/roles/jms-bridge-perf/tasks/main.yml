@@ -1,0 +1,58 @@
+---
+- name: Create app user account
+  ansible.builtin.user:
+    name: "{{ perf_user }}"
+    system: True
+
+- name: Install prometheus_node_exporter
+  apt:
+    name: prometheus-node-exporter
+    update_cache: yes
+    state: present
+
+- name: Install java
+  apt:
+    name: openjdk-11-jdk
+    state: present
+
+- name: Delete current installation
+  ansible.builtin.file:
+    path: "{{ perf_install_dir }}"
+    state: absent
+  tags: [never, clean]
+
+- name: Force Copy over perf app installation
+  ansible.builtin.unarchive:
+    src: "{{ perf_archive }}"
+    dest: /home/{{ perf_user }}/
+    creates: "{{ perf_install_dir }}"
+    mode: 0755
+    owner: "{{ perf_user }}"
+
+- name: Copy over kafka consumer properties
+  ansible.builtin.template:
+    src: kafka-consumer.properties
+    dest: "{{ perf_install_dir }}/kafka-consumer.properties"
+    mode: 0644
+    owner: "{{ perf_user }}"
+
+- name: Copy over systemd file
+  ansible.builtin.template:
+    src: jms-bridge-perf.service
+    dest: /lib/systemd/system/{{ perf_user }}.service
+    mode: 0644
+
+- name: Force systemd to reread configs to pickup new perfapp service
+  ansible.builtin.systemd:
+    daemon_reload: yes
+
+- name: Enable {{ perf_user }} service
+  ansible.builtin.systemd:
+    name: "{{ perf_user }}"
+    enabled: yes
+    masked: no
+
+- name: Ensure {{ perf_user }} is started
+  ansible.builtin.systemd:
+    state: restarted
+    name: "{{ perf_user }}"

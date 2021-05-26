@@ -1,0 +1,17 @@
+[Unit]
+Description=Apache ActiveMQ Artemis
+After=network.target
+
+[Service]
+Type=forking
+User=artemis
+Group=artemis
+Environment=JAVA_ARGS=-javaagent:{{ artemis_home }}/lib/jmx_prometheus_javaagent-{{ prometheus_agent_version }}.jar={{ prometheus_jmx_port }}:{{ artemis_home }}/jmx-prometheus-config.yml
+ExecStart={{ artemis_instance_home }}/bin/artemis-service start
+ExecStop={{ artemis_instance_home }}/bin/artemis-service stop
+UMask=0007
+RestartSec=10
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

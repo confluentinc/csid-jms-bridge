@@ -15,6 +15,9 @@ import java.net.URL;
 import java.time.Duration;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.runners.Parameterized.Parameters;
 
 class BridgeConfigFactoryTest {
 
@@ -29,6 +32,11 @@ class BridgeConfigFactoryTest {
     assertEquals(
         "localhost:9092", config.streams().get(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG));
     assertEquals(4, config.streams().size());
+    assertTrue(config.streams().containsKey("bootstrap.servers"));
+    assertTrue(config.streams().containsKey("commit.interval.ms"));
+    assertTrue(config.streams().containsKey("cache.max.bytes.buffering"));
+    assertTrue(config.streams().containsKey("num.standby.replicas"));
+
     assertEquals(Duration.ofSeconds(60), config.journals().readyTimeout());
     assertEquals(Duration.ofSeconds(1), config.journals().readyCheckInterval());
   }
@@ -45,6 +53,8 @@ class BridgeConfigFactoryTest {
   public void testMinimalConfiguration() throws Exception {
     BridgeConfig config = getConfig("minimal.conf");
     assertEquals("minimal", config.id());
+    assertTrue(config.journals().topic().options().containsKey("segment.bytes"));
+    assertTrue(config.streams().containsKey("commit.interval.ms"));
   }
 
   @Test
@@ -69,6 +79,28 @@ class BridgeConfigFactoryTest {
 
   }
 
+  @ParameterizedTest
+  @ValueSource(strings = {
+      "route-good-config.conf",
+      "route-good-config.properties"
+  })
+  public void testMultipleRoutingRulesConfig(String configFile) throws Exception {
+    BridgeConfig config = getConfig(configFile);
+    assertTrue(config.routing().isPresent());
+
+    RoutingConfig routingConfig = config.routing().get();
+    assertEquals(2, routingConfig.topics().size());
+
+    RoutedTopic routedTopic1 = routingConfig.topics().get(0);
+    assertEquals("quick-start-request", routedTopic1.match());
+    assertEquals("TEXT", routedTopic1.messageType());
+
+    RoutedTopic routedTopic2 = routingConfig.topics().get(1);
+    assertEquals("quick-start-response", routedTopic2.match());
+    assertEquals("TEXT", routedTopic2.messageType());
+    assertTrue(routedTopic2.consumeAlways());
+
+  }
 
   private BridgeConfig getConfig(String configName) {
     URL testConfig = Resources.getResource("config/" + configName);

@@ -1,0 +1,8 @@
+---
+prometheus_jmx_port: 8888
+prometheus_agent_version: 0.15.0
+artemis_instance_name: artemis-perftest
+artemis_instance_home: /var/lib/{{ artemis_instance_name }}
+artemis_user: artemis
+artemis_version: 2.13.0
+artemis_home: /opt/apache-artemis-{{ artemis_version }}

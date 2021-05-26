@@ -1,0 +1,12 @@
+{
+  "perf_cfg": {
+    "message_size_bytes": 10000,
+    "messages_per_second": 500,
+    "test_duration_seconds": 300
+    },
+
+    "perf_scenario": "jms2jms",
+    "perf_scenario_cfg": [
+        "--topic jms-load-test-%IDX"
+    ]
+}

@@ -53,7 +53,6 @@ public class KNodeManager extends NodeManager {
   @Override
   public synchronized void start() throws Exception {
     super.start();
-    kafkaIntegration.start();
     SLOG.info(
         b -> b.event("StartedNodeManager").markSuccess());
   }

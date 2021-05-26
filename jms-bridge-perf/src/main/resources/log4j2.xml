@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ~ Copyright 2020 Confluent Inc.
+  -->
+
+<Configuration status="WARN">
+  <Appenders>
+    <Console name="stdout" target="SYSTEM_OUT">
+      <PatternLayout pattern="[%d] %p %m (%c:%L)%n"/>
+    </Console>
+  </Appenders>
+
+  <Loggers>
+    <Logger name="io.confluent.mq.perf" level="info" additivity="false">
+      <AppenderRef ref="stdout"/>
+    </Logger>
+    <Root level="ERROR">
+      <AppenderRef ref="stdout"/>
+    </Root>
+  </Loggers>
+</Configuration>

@@ -1,0 +1,8 @@
+---
+- name: Create / Update then Execute The JMS Bridge Tester Applications
+  hosts: gcp_perf
+  become: yes
+  vars:
+    jms_broker_ip: "{{ hostvars[groups['gcp_bridge'][0]].private_ip }}"
+  roles:
+    - jms-bridge-perf

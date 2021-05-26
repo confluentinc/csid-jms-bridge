@@ -5,38 +5,38 @@
 package io.confluent.amq.persistence.kafka;
 
 import com.google.protobuf.Message;
-import io.confluent.amq.config.BridgeConfigFactory;
-import io.confluent.amq.logging.LogFormat;
-import io.confluent.amq.persistence.kafka.ConsumerThread.Builder;
-import io.confluent.amq.persistence.kafka.journal.JournalEntryKeyPartitioner;
-import io.confluent.amq.persistence.kafka.journal.serde.ProtoSerializer;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Properties;
-import java.util.Set;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.function.Consumer;
-import java.util.function.Function;
-import java.util.stream.Collectors;
+import javax.annotation.Nullable;
+import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.ConsumerGroupDescription;
 import org.apache.kafka.clients.admin.NewTopic;
-import org.apache.kafka.clients.admin.OffsetSpec;
 import org.apache.kafka.clients.admin.TopicDescription;
-import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerConfig;
-import org.apache.kafka.common.TopicPartition;
-import org.apache.kafka.common.serialization.LongSerializer;
+import org.apache.kafka.common.errors.TopicExistsException;
+import org.apache.kafka.common.serialization.ByteArraySerializer;
 import org.apache.kafka.common.serialization.Serializer;
-import org.apache.kafka.common.serialization.StringSerializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import io.confluent.amq.config.BridgeConfigFactory;
+import io.confluent.amq.logging.LogFormat;
+import io.confluent.amq.persistence.kafka.journal.JournalEntryKeyPartitioner;
+import io.confluent.amq.persistence.kafka.journal.serde.ProtoSerializer;
+
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Properties;
+import java.util.Set;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.Consumer;
+import java.util.function.Function;
 
 @SuppressWarnings("checkstyle:ClassDataAbstractionCoupling")
 public class KafkaIO {
@@ -47,18 +47,20 @@ public class KafkaIO {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(KafkaIO.class);
   private static final LogFormat LOG_FORMAT = LogFormat.forSubject("KafkaIO");
+  private static final AtomicInteger ID_SEQ = new AtomicInteger(0);
 
   private final Properties kafkaProps;
-  private final StringSerializer stringSerializer = new StringSerializer();
-  private final LongSerializer longSerializer = new LongSerializer();
+  private final String baseClientId;
 
 
-  private final ReentrantReadWriteLock rwlock = new ReentrantReadWriteLock();
-  private volatile int state = 0;
-  private volatile KafkaProducer<? extends Message, ? extends Message> kafkaProducer;
+  private final ReadWriteLock rwlock = new ReentrantReadWriteLock();
+  private volatile int state;
+  private volatile KafkaProducer<? extends Message, ? extends Message> internalProducer;
+  private volatile KafkaProducer<byte[], byte[]> externalProducer;
   private volatile AdminClient adminClient;
 
-  public KafkaIO(Properties kafkaProps) {
+  public KafkaIO(String baseClientId, Map<?, ?> kafkaProps) {
+    this.baseClientId = baseClientId;
     this.kafkaProps = new Properties();
     this.kafkaProps.putAll(kafkaProps);
     this.kafkaProps.put(ProducerConfig.MAX_IN_FLIGHT_REQUESTS_PER_CONNECTION, 1);
@@ -69,21 +71,15 @@ public class KafkaIO {
 
   }
 
-  public KafkaIO(Map<String, Object> kafkaProps) {
-    this(BridgeConfigFactory.propsToMap(kafkaProps));
-  }
-
-
-  public Properties getKafkaProps() {
-    return kafkaProps;
-  }
-
-  public synchronized void start() {
+  protected void start() {
+    rwlock.writeLock().lock();
     try {
-      rwlock.writeLock().lock();
-      if (state == CREATED || state == STOPPED) {
+      if (CREATED == state || STOPPED == state) {
         ProtoSerializer<com.google.protobuf.Message> protoSerializer = new ProtoSerializer<>();
-        kafkaProducer = new KafkaProducer<>(kafkaProps, protoSerializer, protoSerializer);
+        internalProducer = createProducer("internal", protoSerializer, protoSerializer);
+        externalProducer = createProducer("external",
+            new ByteArraySerializer(), new ByteArraySerializer());
+
         adminClient = AdminClient.create(kafkaProps);
         Runtime.getRuntime().addShutdownHook(new Thread(this::stop));
         state = STARTED;
@@ -105,63 +101,13 @@ public class KafkaIO {
     });
   }
 
-  public Map<TopicPartition, Long> fetchLatestOffsets(String topic) {
-    return fetchWithAdminClient(admin -> {
-      try {
-        //get the partitions for the topic
-        List<TopicPartition> tpList = adminClient
-            .describeTopics(Collections.singleton(topic))
-            .all()
-            .get()
-            .get(topic)
-            .partitions()
-            .stream()
-            .map(tpi -> new TopicPartition(topic, tpi.partition()))
-            .collect(Collectors.toList());
-
-        //get the highwater marks (latest offsets)
-        return adminClient
-            .listOffsets(
-                tpList.stream().collect(Collectors.toMap(tp -> tp, tp -> OffsetSpec.latest())))
-            .all()
-            .get()
-            .entrySet()
-            .stream()
-            .collect(
-                Collectors.toMap(Entry::getKey, v -> v.getValue().offset()));
-
-      } catch (Exception e) {
-        throw new RuntimeException(e);
-      }
-    });
-  }
-
-  public void resetConsumerGroupOffsetsLatest(String consumerGroup, String topic) {
-    withAdminClient(admin -> {
-      try {
-        Map<TopicPartition, OffsetAndMetadata> groupOffsetMap = fetchLatestOffsets(topic)
-            .entrySet()
-            .stream()
-            .collect(
-                Collectors.toMap(Entry::getKey, v -> new OffsetAndMetadata(v.getValue())));
-
-        admin.alterConsumerGroupOffsets(
-            consumerGroup,
-            groupOffsetMap)
-            .all()
-            .get();
-        //done moving offsets around ... whew!
-      } catch (Exception e) {
-        throw new RuntimeException(e);
-      }
-    });
-  }
 
   /**
    * Creates a new consumer thread and starts it. It does not manage any more of it's lifecycle past
    * that point and is up to the caller to ensure it is stopped properly.
    */
-  public <K, V> ConsumerThread<K, V> startConsumerThread(Consumer<Builder<K, V>> spec) {
+  public <K, V> ConsumerThread<K, V> startConsumerThread(
+      Consumer<? super ConsumerThread.Builder<K, V>> spec) {
     ConsumerThread.Builder<K, V> builder = ConsumerThread.newBuilder();
     kafkaProps.forEach((k, v) -> builder.putConsumerProps(k.toString(), v));
     spec.accept(builder);
@@ -178,10 +124,10 @@ public class KafkaIO {
   }
 
   public Set<String> listTopics() {
-    return fetchWithAdminClient(this::listTopics);
+    return fetchWithAdminClient(KafkaIO::listTopics);
   }
 
-  private Set<String> listTopics(AdminClient admin) {
+  private static Set<String> listTopics(Admin admin) {
     try {
       return admin.listTopics().names().get();
     } catch (ExecutionException | InterruptedException e) {
@@ -199,16 +145,6 @@ public class KafkaIO {
     });
   }
 
-  /**
-   * Create the topic unless it already exists, if it does exist then do nothing.
-   *
-   * @return true if the topic was created false if it already exists
-   */
-  public boolean createTopicIfNotExists(String name, int partitions, int replication,
-      Map<String, String> options) {
-
-    return createTopic(name, partitions, replication, true, options);
-  }
 
   public void createTopic(String name, int partitions, int replication,
       Map<String, String> options) {
@@ -225,16 +161,15 @@ public class KafkaIO {
    * @param replication   the desired replication factor
    * @param checkIfExists check if the topic exists before creating it
    * @param options       any other topic options
-   * @return true if the topic was created false if it was not (due to existence check)
    */
-  private boolean createTopic(
+  private void createTopic(
       String name,
       int partitions,
       int replication,
       boolean checkIfExists,
       Map<String, String> options) {
 
-    return fetchWithAdminClient(admin -> {
+    fetchWithAdminClient(admin -> {
       LOGGER.info(LOG_FORMAT.build(b -> b
           .event("CreateTopic")
           .putTokens("topic", name)
@@ -250,62 +185,98 @@ public class KafkaIO {
       NewTopic topic = new NewTopic(name, partitions, (short) replication);
       topic.configs(options);
       try {
-        adminClient.createTopics(Collections.singletonList(topic)).all().get();
+        admin.createTopics(Collections.singletonList(topic)).all().get();
       } catch (ExecutionException | InterruptedException e) {
-        throw new RuntimeException(e);
+        if (e.getCause() instanceof TopicExistsException) {
+          LOGGER.info(LOG_FORMAT.build(b -> b
+              .event("CreateTopic")
+              .markFailure()
+              .message("Topic already exists, moving on.")
+              .putTokens("topic", name)));
+        }
       }
 
       return true;
     });
   }
 
+  /**
+   * <p>
+   * The internal producer is used to publish data to topics used internally by the JMS bridge and
+   * not meant for consumption outisde of it.
+   *</p>
+   *<p>
+   * If {@link #start()} has not been called prior to this then null may be returned.
+   *</p>
+   * @return the internal producer, may be null if this instance has not been started.
+   */
+  @Nullable
+  public KafkaProducer<? extends Message, ? extends Message> getInternalProducer() {
+    return internalProducer;
+  }
+
+  /**
+   * <p>
+   * The external producer is used to publish data to topics used not managed by the JMS Bridge.
+   * These are topics that may be consumed by other applications.
+   *</p>
+   *<p>
+   * If {@link #start()} has not been called prior to this then null may be returned.
+   *</p>
+   * @return the external producer, may be null if this instance has not been started.
+   */
+  @Nullable
+  public KafkaProducer<byte[], byte[]> getExternalProducer() {
+    return externalProducer;
+  }
+
   @SuppressWarnings("unchecked")
   public <K extends Message, V extends Message> void withProducer(
-      Consumer<Producer<K, V>> produceFn) {
+      Consumer<? super Producer<K, V>> produceFn) {
+    if (STARTED != state) {
+      start();
+    }
 
+    rwlock.readLock().lock();
     try {
-      rwlock.readLock().lock();
-      if (state == STARTED) {
-        produceFn.accept((Producer<K, V>) kafkaProducer);
-      } else {
-        throw new IllegalStateException("KafkaIO must be started before being used.");
-      }
+      produceFn.accept((Producer<K, V>) internalProducer);
     } finally {
       rwlock.readLock().unlock();
     }
   }
 
-  public <K, V> KafkaProducer<K, V> createProducer(Serializer<K> keySer, Serializer<V> valSer) {
-    KafkaProducer<K, V> producer = new KafkaProducer<>(kafkaProps, keySer, valSer);
+  public <K, V> KafkaProducer<K, V> createProducer(
+      String clientSuffix, Serializer<K> keySer, Serializer<V> valSer) {
+
+    Map<String, Object> lprops = new HashMap<>();
+    lprops.putAll(BridgeConfigFactory.propsToMap(kafkaProps));
+    lprops.put(
+        ProducerConfig.CLIENT_ID_CONFIG,
+        String.format("%s_%s_%s", baseClientId, clientSuffix, ID_SEQ.getAndIncrement()));
+    KafkaProducer<K, V> producer = new KafkaProducer<>(lprops, keySer, valSer);
     Runtime.getRuntime().addShutdownHook(new Thread(producer::close));
     return producer;
   }
 
-  public void withAdminClient(Consumer<AdminClient> adminClientFn) {
-    this.fetchWithAdminClient(admin -> {
-      adminClientFn.accept(admin);
-      return null;
-    });
-  }
+  public <T> T fetchWithAdminClient(Function<? super AdminClient, T> adminClientFn) {
+    if (STARTED != state) {
+      start();
+    }
 
-  public <T> T fetchWithAdminClient(Function<AdminClient, T> adminClientFn) {
+    rwlock.readLock().lock();
     try {
-      rwlock.readLock().lock();
-      if (state == STARTED) {
-        return adminClientFn.apply(adminClient);
-      } else {
-        throw new IllegalStateException("KafkaIO must be started before being used.");
-      }
+      return adminClientFn.apply(adminClient);
+
     } finally {
       rwlock.readLock().unlock();
     }
   }
 
   public void stop() {
+    rwlock.writeLock().lock();
     try {
-      rwlock.writeLock().lock();
-      if (state == STARTED) {
-        kafkaProducer.close();
+      if (STARTED == state) {
+        internalProducer.close();
         adminClient.close();
       }
       state = STOPPED;

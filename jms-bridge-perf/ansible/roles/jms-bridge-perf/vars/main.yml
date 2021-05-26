@@ -1,0 +1,45 @@
+
+# REQUIRED
+#perf_archive: /path/to/zip/archive.zip
+perf_user: jms-bridge-perf
+perf_install_dir: /home/jms-bridge-perf/jms-bridge-perf
+perf_java_opts: >-
+  -Xms512M
+  -Xmx4096M
+  -XX:+UseConcMarkSweepGC
+  -XX:+CMSClassUnloadingEnabled
+  -XX:+CMSScavengeBeforeRemark
+  -XX:+ExplicitGCInvokesConcurrent
+  -XX:NewRatio=1
+
+
+# REQUIRED
+# jms_broker_ip: "{{ hostvars[groups['gcp_bridge'][0]].networkInterfaces[0].networkIP }}"
+
+perf_host_idx: "{{ inventory_hostname_short | regex_replace('^.+-(?P<idx>\\d+)$',  '\\g<idx>') }}"
+
+# perf_cfg can be used to override parts of the perf_defaults_cfg map without forcing ansible
+# to use the "merge" configuration option for variable maps.
+perf_cfg: {}
+perf_defaults_cfg:
+  prometheus_port: 8888
+  message_size_bytes: 1000
+  messages_per_second: 100
+  test_duration_seconds: 300
+  jms_url: tcp://{{ jms_broker_ip }}:61616?minLargeMessageSize=1000001
+
+# REQUIRED
+#perf_scenario: name-of-scenario
+
+# The perf_scenario_cfg list has token replacement available for the placeholder %IDX.
+# The %IDX token will be replaced by the performance node index number.
+# The %IDX token can be used to isolate topics for timing purposes.
+#  E.g. my-topic-%IDX translates to my-topic-0, my-topic-1, ..., my-topic-n
+perf_scenario_cfg: []
+
+# Like perf_cfg and perf_defaults_cfg perf_kafka_consumer_cfg will override anything found in
+# perf_kafka_consumer_defaults_cfg.
+perf_kafka_consumer_cfg:
+perf_kafka_consumer_defaults_cfg:
+  group.id: perf-runner
+

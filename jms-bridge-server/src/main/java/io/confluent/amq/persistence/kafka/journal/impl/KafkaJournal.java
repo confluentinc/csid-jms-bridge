@@ -254,8 +254,6 @@ public class KafkaJournal implements Journal {
 
   @Override
   public void stop() throws Exception {
-    SLOG.debug(b -> b.name(journalName).event("Stop"));
-    this.processor.stop();
     this.state = JournalState.STOPPED;
     SLOG.debug(b -> b.name(journalName).event("Stop").markSuccess());
   }

@@ -2,7 +2,7 @@
   <groupId>io.confluent</groupId>
   <artifactId>jms-bridge-pom</artifactId>
   <packaging>pom</packaging>
-  <version>2.2.0-SNAPSHOT</version>
+  <version>3.0.1-SNAPSHOT</version>
 
   <name>JMS Bridge Parent</name>
   <description>A fully compliant JMS 2.0 broker with tight integration to Kafka.</description>
@@ -24,6 +24,8 @@
 
 
   <modules>
+      <module>jms-bridge-docker</module>
+      <module>jms-bridge-perf</module>
       <module>jms-bridge-server</module>
       <module>jms-bridge-tests</module>
   </modules>
@@ -31,11 +33,13 @@
   <build>
 
     <plugins>
+
+
       <plugin>
         <artifactId>spotbugs-maven-plugin</artifactId>
         <configuration>
           <effort>Max</effort>
-          <excludeFilterFile>findbugs/findbugs-exclude.xml</excludeFilterFile>
+          <excludeFilterFile>${project.basedir}/../findbugs/findbugs-exclude.xml</excludeFilterFile>
           <failOnError>true</failOnError>
           <includeTests>true</includeTests>
           <threshold>Max</threshold>
@@ -250,6 +254,12 @@
       <scope>test</scope>
     </dependency>
     <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter-params</artifactId>
+      <version>${myjunit.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
       <groupId>org.mockito</groupId>
       <artifactId>mockito-core</artifactId>
       <version>${mockito.version}</version>
@@ -279,7 +289,7 @@
       <artifactId>kafka</artifactId>
       <groupId>org.testcontainers</groupId>
       <scope>test</scope>
-      <version>1.14.3</version>
+      <version>1.15.2</version>
     </dependency>
    <dependency>
       <groupId>org.apache.kafka</groupId>
@@ -304,6 +314,8 @@
     <protobuf.version>3.12.2</protobuf.version>
     <release.artifact>${project.build.directory}/${project.artifactId}-${project.version}-package.zip</release.artifact>
     <release.repositoryId>confluentinc/csid-jms-bridge</release.repositoryId>
+    <skip.docker.build>true</skip.docker.build>
+    <skip.docker.test>true</skip.docker.test>
   </properties>
 
 </project>

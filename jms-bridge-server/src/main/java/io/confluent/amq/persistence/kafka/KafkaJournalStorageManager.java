@@ -74,12 +74,6 @@ public class KafkaJournalStorageManager extends JournalStorageManager {
     InitWorkAroundWrapper jbConfig = (InitWorkAroundWrapper) config;
 
     this.kafkaIntegration = jbConfig.kafkaIntegration;
-    try {
-      this.kafkaIntegration.start();
-    } catch (Exception e) {
-      throw new RuntimeException(e);
-    }
-
     this.kafkaIO = this.kafkaIntegration.getKafkaIO();
     this.messageJournal = new KafkaJournal(
         this.kafkaIntegration.getMessagesJournal(),

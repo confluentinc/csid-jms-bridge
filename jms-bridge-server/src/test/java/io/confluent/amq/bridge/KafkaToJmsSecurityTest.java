@@ -78,7 +78,7 @@ public class KafkaToJmsSecurityTest {
   @Order(200)
   public static final KafkaTestContainer kafkaContainer = new KafkaTestContainer(
       BASE_PROPS,
-      new KafkaContainer("5.4.0")
+      new KafkaContainer("5.5.2")
           .withEnv(
               "KAFKA_LISTENER_SECURITY_PROTOCOL_MAP",
               "BROKER:SASL_PLAINTEXT,PLAINTEXT:SASL_PLAINTEXT")

@@ -70,8 +70,9 @@ public class ConfluentAmqServerImpl extends ActiveMQServerImpl implements Conflu
 
     super(configuration, mbeanServer, securityManager, parentServer, serviceRegistry);
     kafkaIntegration = new KafkaIntegration(configuration);
-    kafkaExchangeManager = new KafkaExchangeManager(configuration.getBridgeConfig(), this);
-    this.getBrokerPlugins().add(kafkaExchangeManager);
+    kafkaExchangeManager = new KafkaExchangeManager(
+        configuration.getBridgeConfig(), kafkaIntegration.getKafkaIO());
+    this.registerBrokerPlugin(kafkaExchangeManager);
   }
 
 
@@ -93,12 +94,6 @@ public class ConfluentAmqServerImpl extends ActiveMQServerImpl implements Conflu
 
   public BridgeConfig getBridgeConfig() {
     return ((JmsBridgeConfiguration) getConfiguration()).getBridgeConfig();
-  }
-
-  @Override
-  public void stop() throws Exception {
-    super.stop();
-    afterStop();
   }
 
   @Override
@@ -147,17 +142,12 @@ public class ConfluentAmqServerImpl extends ActiveMQServerImpl implements Conflu
   }
 
   private void afterStart() {
-    try {
-      kafkaExchangeManager.start();
-    } catch (Exception e) {
-      throw new RuntimeException(e);
-    }
+    //do nothing
   }
 
   private void beforeStart() {
     try {
       kafkaIntegration.start();
-      kafkaExchangeManager.prepare();
     } catch (Exception e) {
       throw new RuntimeException(e);
     }

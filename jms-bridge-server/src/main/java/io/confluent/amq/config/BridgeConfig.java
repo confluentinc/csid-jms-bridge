@@ -4,13 +4,14 @@
 
 package io.confluent.amq.config;
 
-import com.google.common.collect.Maps;
 import com.typesafe.config.Config;
+import org.inferred.freebuilder.FreeBuilder;
+
 import java.time.Duration;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
-import org.inferred.freebuilder.FreeBuilder;
+
+import static io.confluent.amq.config.BridgeConfigFactory.flattenConfig;
 
 @FreeBuilder
 public interface BridgeConfig {
@@ -35,16 +36,10 @@ public interface BridgeConfig {
       Config bridgeConfig = rootConfig.getConfig("bridge");
       this.id(bridgeConfig.getString("id"))
           .journals(new JournalsConfig.Builder(bridgeConfig.getConfig("journals")))
-          .putAllKafka(
-              Maps.transformValues(
-                  bridgeConfig.getObject("kafka").unwrapped(),
-                  Objects::toString))
-          .putAllStreams(
-              Maps.transformValues(
-                  bridgeConfig
-                      .getConfig("streams")
-                      .withFallback(bridgeConfig.getConfig("kafka")).root().unwrapped(),
-                  Objects::toString));
+          .putAllKafka(flattenConfig(bridgeConfig.getConfig("kafka")))
+          .putAllStreams(flattenConfig(
+              bridgeConfig.getConfig("streams")
+                  .withFallback(bridgeConfig.getConfig("kafka"))));
 
       if (bridgeConfig.hasPath("routing")) {
         this.routing(new RoutingConfig.Builder(bridgeConfig.getConfig("routing")).build());
@@ -76,10 +71,10 @@ public interface BridgeConfig {
 
       public Builder(Config journalsConfig) {
         this.bindings(new JournalConfig.Builder(journalsConfig.getConfig("bindings")))
-            .maxMessageSize(journalsConfig.getBytes("max-message-size").intValue())
+            .maxMessageSize(journalsConfig.getBytes("max.message.size").intValue())
             .messages(new JournalConfig.Builder(journalsConfig.getConfig("messages")))
-            .readyTimeout(journalsConfig.getDuration("ready-timeout"))
-            .readyCheckInterval(journalsConfig.getDuration("ready-check-interval"))
+            .readyTimeout(journalsConfig.getDuration("ready.timeout"))
+            .readyCheckInterval(journalsConfig.getDuration("ready.check.interval"))
             .topic(new TopicConfig.Builder(journalsConfig.getConfig("topic")));
       }
     }
@@ -99,8 +94,8 @@ public interface BridgeConfig {
       }
 
       public Builder(Config journalConfig) {
-        this.walTopic(new TopicConfig.Builder(journalConfig.getConfig("wal-topic")));
-        this.tableTopic(new TopicConfig.Builder(journalConfig.getConfig("table-topic")));
+        this.walTopic(new TopicConfig.Builder(journalConfig.getConfig("wal.topic")));
+        this.tableTopic(new TopicConfig.Builder(journalConfig.getConfig("table.topic")));
       }
 
     }
@@ -126,7 +121,7 @@ public interface BridgeConfig {
       public Builder(Config topicConfig) {
         this.replication(topicConfig.getInt("replication"))
             .partitions(topicConfig.getInt("partitions"))
-            .putAllOptions(topicConfig.getObject("options").unwrapped());
+            .putAllOptions(flattenConfig(topicConfig.getConfig("options")));
 
         if (topicConfig.hasPath("name")) {
           this.name(topicConfig.getString("name"));

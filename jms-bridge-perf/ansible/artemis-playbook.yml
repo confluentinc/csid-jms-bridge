@@ -1,0 +1,6 @@
+---
+- name: Create or Update The Artemis broker for the Test Environment
+  hosts: gcp_bridge
+  become: yes
+  roles:
+    - artemis

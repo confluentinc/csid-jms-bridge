@@ -4,6 +4,15 @@
 
 package io.confluent.amq.persistence.kafka;
 
+import org.apache.activemq.artemis.utils.UUID;
+import org.apache.activemq.artemis.utils.UUIDGenerator;
+import org.apache.kafka.common.config.TopicConfig;
+
+import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+
 import io.confluent.amq.JmsBridgeConfiguration;
 import io.confluent.amq.config.BridgeConfig;
 import io.confluent.amq.config.BridgeConfig.JournalConfig;
@@ -13,13 +22,6 @@ import io.confluent.amq.persistence.kafka.journal.KJournal;
 import io.confluent.amq.persistence.kafka.journal.impl.KafkaJournal;
 import io.confluent.amq.persistence.kafka.journal.impl.KafkaJournalProcessor;
 import io.confluent.amq.persistence.kafka.journal.impl.KafkaJournalProcessor.JournalSpec;
-import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import org.apache.activemq.artemis.utils.UUID;
-import org.apache.activemq.artemis.utils.UUIDGenerator;
-import org.apache.kafka.common.config.TopicConfig;
 
 public class KafkaIntegration {
 
@@ -33,8 +35,6 @@ public class KafkaIntegration {
   private final BridgeConfig config;
   private final KafkaIO kafkaIO;
   private final KafkaJournalProcessor journalProcessor;
-  private final KJournal bindingsJournal;
-  private final KJournal messagesJournal;
   private final String bridgeId;
   private final UUID nodeUuid;
   private final String applicationId;
@@ -58,19 +58,15 @@ public class KafkaIntegration {
             config.journals().messages(),
             true));
 
-    this.kafkaIO = new KafkaIO(BridgeConfigFactory.mapToProps(config.kafka()));
-    this.kafkaIO.start();
-
     final String clientId = String.format("%s_%s", bridgeId, nodeUuid.toString());
+    this.kafkaIO = new KafkaIO(clientId, BridgeConfigFactory.mapToProps(config.kafka()));
     this.journalProcessor = new KafkaJournalProcessor(
         jspecs,
         clientId,
         applicationId,
+        config.journals().readyTimeout(),
         this.config.streams(),
         this.kafkaIO);
-
-    bindingsJournal = journalProcessor.getJournal(KafkaJournalStorageManager.BINDINGS_NAME);
-    messagesJournal = journalProcessor.getJournal(KafkaJournalStorageManager.MESSAGES_NAME);
   }
 
   private JournalSpec createProcessor(
@@ -141,6 +137,7 @@ public class KafkaIntegration {
    * Will start both the KafkaIo and journal processors.
    */
   public synchronized void start() throws Exception {
+    this.kafkaIO.start();
     this.journalProcessor.start();
     SLOG.info(
         b -> b.event("Starting").markSuccess());
@@ -163,17 +160,7 @@ public class KafkaIntegration {
 
   public void waitForProcessorObtainPartition() throws Exception {
     while (true) {
-      if (this.bindingsJournal.isAssignedPartition(0)) {
-        break;
-      } else {
-        Thread.sleep(100);
-      }
-    }
-  }
-
-  public void waitForProcessorReleasePartition() throws Exception {
-    while (true) {
-      if (!this.bindingsJournal.isAssignedPartition(0)) {
+      if (this.getBindingsJournal().isAssignedPartition(0)) {
         break;
       } else {
         Thread.sleep(100);
@@ -186,11 +173,11 @@ public class KafkaIntegration {
   }
 
   public KJournal getBindingsJournal() {
-    return bindingsJournal;
+    return journalProcessor.getJournal(KafkaJournalStorageManager.BINDINGS_NAME);
   }
 
   public KJournal getMessagesJournal() {
-    return messagesJournal;
+    return journalProcessor.getJournal(KafkaJournalStorageManager.MESSAGES_NAME);
   }
 
   private void doStop() {

@@ -1,0 +1,48 @@
+<!--
+  ~ Copyright 2020 Confluent Inc.
+  -->
+<assembly xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns="http://maven.apache.org/plugins/maven-assembly-plugin/assembly/1.1.2"
+  xsi:schemaLocation="http://maven.apache.org/plugins/maven-assembly-plugin/assembly/1.1.2
+          http://maven.apache.org/xsd/assembly-1.1.2.xsd">
+  <!-- Assembles all dependencies in target/ directory so scripts can easily run in a development
+       environment -->
+  <dependencySets>
+    <dependencySet>
+      <outputDirectory>share/java/jms-bridge-docker</outputDirectory>
+      <!-- Warning: Enabling useTransitiveFiltering is potentially unsafe,
+           cf. https://github.com/miguno/maven-assembly-transitive-deps-woes
+           and https://issues.apache.org/jira/browse/MASSEMBLY-504.  If
+           dependencies happen to be missing in the assembly you may want to
+           disable transitive filtering. -->
+      <useTransitiveFiltering>true</useTransitiveFiltering>
+      <useProjectArtifact>false</useProjectArtifact>
+      <excludes>
+        <exclude>io.prometheus.jmx:jmx_prometheus_javaagent</exclude>
+      </excludes>
+    </dependencySet>
+    <dependencySet>
+      <outputDirectory>share/java/jmx_prometheus_agent</outputDirectory>
+      <useProjectArtifact>false</useProjectArtifact>
+      <includes>
+        <include>io.prometheus.jmx:jmx_prometheus_javaagent</include>
+      </includes>
+    </dependencySet>
+  </dependencySets>
+
+  <fileSets>
+    <fileSet>
+      <directory>${project.basedir}/src/include/</directory>
+      <outputDirectory>.</outputDirectory>
+    </fileSet>
+  </fileSets>
+
+  <formats>
+    <format>dir</format>
+  </formats>
+
+  <id>package</id>
+
+  <includeBaseDirectory>false</includeBaseDirectory>
+
+</assembly>

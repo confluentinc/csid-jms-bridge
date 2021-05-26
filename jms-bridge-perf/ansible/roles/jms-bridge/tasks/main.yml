@@ -1,0 +1,105 @@
+---
+- name: Create jms-bridge user account
+  ansible.builtin.user:
+    name: "{{ jms_bridge_user }}"
+    system: True
+
+- name: Install prometheus_node_exporter
+  apt:
+    name: prometheus-node-exporter
+    update_cache: yes
+    state: present
+
+- name: Install java
+  apt:
+    name: openjdk-11-jdk
+    state: present
+
+- name: Install unzip
+  apt:
+    name: unzip
+    state: present
+
+- name: Delete current installation
+  ansible.builtin.file:
+    path: /opt/{{ jms_bridge_version_name }}
+    state: absent
+  tags: [never, clean]
+
+- name: Copy over bridge archive
+  ansible.builtin.unarchive:
+    src: "{{ jms_bridge_archive }}"
+    dest: /opt/
+    creates: /opt/{{ jms_bridge_version_name }}
+    mode: 0755
+
+- name: Make data directory writable
+  ansible.builtin.file:
+    path: /opt/{{ jms_bridge_version_name }}/data"
+    state: directory
+    owner: "{{ jms_bridge_user }}"
+    mode: 644
+
+- name: Link jms bridge install to jms_bridge_home
+  ansible.builtin.file:
+    path: "{{ jms_bridge_home }}"
+    src: /opt/{{ jms_bridge_version_name }}
+    state: link
+
+- name: Copy over bridge broker.xml
+  ansible.builtin.template:
+    src: templates/broker.xml
+    dest: "{{ jms_bridge_home }}/etc/jms-bridge/broker.xml"
+    mode: 0644
+    owner: "{{ jms_bridge_user }}"
+
+- name: Copy over bridge configuration
+  ansible.builtin.template:
+    src: templates/jms-bridge.conf
+    dest: "{{ jms_bridge_home }}/etc/jms-bridge/jms-bridge.conf"
+    mode: 0644
+    owner: "{{ jms_bridge_user }}"
+
+- name: Copy over log4j2 configuration
+  ansible.builtin.template:
+    src: templates/log4j2.xml
+    dest: "{{ jms_bridge_home }}/etc/jms-bridge/log4j2.xml"
+    mode: 0644
+    owner: "{{ jms_bridge_user }}"
+
+- name: Copy over prometheus jmx agent config
+  ansible.builtin.template:
+    src: jmx-prometheus-config.yml
+    dest: "{{ jms_bridge_home }}/etc/jms-bridge/jmx-prometheus-config.yml"
+    mode: 0644
+    owner: "{{ jms_bridge_user }}"
+
+- name: Copy over systemd run script
+  ansible.builtin.template:
+    src: jms-bridge-run.sh
+    dest: "{{ jms_bridge_home }}/bin/jms-bridge-run.sh"
+    mode: 0754
+    owner: "{{ jms_bridge_user }}"
+
+- name: Copy over systemd file
+  ansible.builtin.template:
+    src: jms-bridge.service
+    dest: /lib/systemd/system/jms-bridge.service
+    mode: 0644
+    owner: root
+    group: root
+
+- name: Force systemd to reread configs to pickup new jms-bridge service
+  ansible.builtin.systemd:
+    daemon_reload: yes
+
+- name: Enable JMS-Bridge service
+  ansible.builtin.systemd:
+    name: jms-bridge
+    enabled: yes
+    masked: no
+
+- name: Ensure JMS-Bridge is started
+  ansible.builtin.systemd:
+    state: restarted
+    name: jms-bridge

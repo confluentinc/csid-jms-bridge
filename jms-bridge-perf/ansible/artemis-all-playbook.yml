@@ -1,0 +1,4 @@
+---
+- import_playbook: artemis-playbook.yml
+- import_playbook: controller-playbook.yml
+- import_playbook: jms-bridge-perf-playbook.yml

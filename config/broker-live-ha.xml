@@ -1,0 +1,47 @@
+<!--
+  ~ Copyright 2020 Confluent Inc.
+  -->
+
+<configuration xmlns="urn:activemq">
+  <core xmlns="urn:activemq:core">
+
+    <bindings-directory>${jms-bridge.data.dir:./data}/bindings</bindings-directory>
+
+    <journal-directory>${jms-bridge.data.dir:./data}/journal</journal-directory>
+
+    <large-messages-directory>${jms-bridge.data.dir:./data}/large-messages</large-messages-directory>
+
+    <paging-directory>${jms-bridge.data.dir:./data}/paging</paging-directory>
+
+    <security-enabled>false</security-enabled>
+
+    <ha-policy>
+      <shared-store>
+        <master>
+          <failover-on-shutdown>true</failover-on-shutdown>
+        </master>
+      </shared-store>
+    </ha-policy>
+
+    <!-- Connectors -->
+    <connectors>
+      <connector name="live-netty-connector">tcp://live-jms-bridge:61616</connector>
+      <connector name="backup-netty-connector">tcp://backup-jms-bridge:61617</connector>
+    </connectors>
+
+    <!-- Acceptors -->
+    <acceptors>
+      <acceptor name="netty-acceptor">tcp://0.0.0.0:61616</acceptor>
+    </acceptors>
+
+    <cluster-connections>
+      <cluster-connection name="my-cluster">
+        <connector-ref>live-netty-connector</connector-ref>
+        <static-connectors>
+          <connector-ref>backup-netty-connector</connector-ref>
+        </static-connectors>
+      </cluster-connection>
+    </cluster-connections>
+
+  </core>
+</configuration>

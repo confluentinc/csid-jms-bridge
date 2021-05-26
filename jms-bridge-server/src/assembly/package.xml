@@ -20,6 +20,7 @@
       <useTransitiveFiltering>true</useTransitiveFiltering>
     </dependencySet>
   </dependencySets>
+
   <fileSets>
     <fileSet>
       <directory>${project.build.directory}/docs</directory>
@@ -29,33 +30,23 @@
       <outputDirectory>share/doc/jms-bridge/</outputDirectory>
     </fileSet>
     <fileSet>
-      <directory>${project.basedir}</directory>
+      <directory>${project.parent.basedir}/bin</directory>
       <includes>
-        <include>README*</include>
-        <include>COPYRIGHT*</include>
+        <include>*</include>
       </includes>
-      <outputDirectory>share/doc/jms-bridge/</outputDirectory>
+      <outputDirectory>bin/</outputDirectory>
+      <fileMode>0755</fileMode>
     </fileSet>
     <fileSet>
-      <directory>${project.basedir}</directory>
-      <includes>
-        <include>bin/*</include>
-      </includes>
-      <outputDirectory></outputDirectory>
-    </fileSet>
-    <fileSet>
-      <directory>${project.basedir}/config</directory>
+      <directory>${project.parent.basedir}/config</directory>
       <includes>
         <include>*</include>
       </includes>
       <outputDirectory>etc/jms-bridge</outputDirectory>
     </fileSet>
     <fileSet>
-      <directory>${project.build.directory}/client-libs</directory>
-      <includes>
-        <include>*.jar</include>
-      </includes>
-      <outputDirectory>lib/jms-bridge/client</outputDirectory>
+      <directory>${project.build.directory}/package/lib</directory>
+      <outputDirectory>lib/jms-bridge</outputDirectory>
     </fileSet>
   </fileSets>
   <formats>

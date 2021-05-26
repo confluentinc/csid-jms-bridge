@@ -1,0 +1,9 @@
+---
+- name: Create / Update The Controller for the JMS Bridge performance tests
+  hosts: gcp_controller
+  become: yes
+  vars:
+    controller_zone: "{{ zone }}"
+    controller_project: "{{ project }}"
+  roles:
+    - controller

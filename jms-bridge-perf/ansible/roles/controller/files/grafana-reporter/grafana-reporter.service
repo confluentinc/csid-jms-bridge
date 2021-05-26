@@ -1,0 +1,16 @@
+[Unit]
+Description=Grafana Reporter
+After=grafana-server.service
+
+[Service]
+Type=simple
+ExecStart=/opt/grafana-reporter/grafana-reporter \
+            -ip=localhost:3000 \
+            -grid-layout=1 \
+            -templates=/etc/grafana-reporter/templates/
+
+Restart=on-failure
+User=grafana
+
+[Install]
+WantedBy=multi-user.target
