@@ -9,7 +9,7 @@ Type=simple
 Environment="JAVA_OPTS={{ perf_java_opts }}"
 ExecStart={{ perf_install_dir }}/bin/jms-bridge-perf \
     --pr-port={{ pcfg.prometheus_port }} \
-    --jms-url={{ pcfg.jms_url }} \
+    --jms-url={{ pcfg.jms_url }}?{{ pcfg.jms_url_query_params | urlencode }} \
     --message-size={{ pcfg.message_size_bytes }} \
     --message-rate={{ pcfg.messages_per_second }} \
     --test-duration={{ pcfg.test_duration_seconds }} \

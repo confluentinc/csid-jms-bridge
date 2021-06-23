@@ -1,6 +1,6 @@
 target
 .idea
-/.java-version
+.java-version
 /confluent-amq-poc.iml
 *.iml
 node_modules

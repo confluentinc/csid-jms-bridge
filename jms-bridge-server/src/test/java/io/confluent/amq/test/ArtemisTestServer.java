@@ -4,13 +4,31 @@
 
 package io.confluent.amq.test;
 
-import static com.google.common.io.Resources.getResource;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
 import com.google.common.collect.Maps;
 import com.google.common.io.MoreFiles;
 import com.google.common.io.RecursiveDeleteOption;
 import com.google.common.io.Resources;
+import javax.jms.Connection;
+import javax.jms.ConnectionMetaData;
+import org.apache.activemq.artemis.api.core.management.ActiveMQServerControl;
+import org.apache.activemq.artemis.api.jms.ActiveMQJMSClient;
+import org.apache.activemq.artemis.core.config.FileDeploymentManager;
+import org.apache.activemq.artemis.core.config.impl.FileConfiguration;
+import org.apache.activemq.artemis.core.config.impl.LegacyJMSConfiguration;
+import org.apache.activemq.artemis.core.server.embedded.EmbeddedActiveMQ;
+import org.apache.activemq.artemis.core.server.metrics.MetricsManager;
+import org.apache.activemq.artemis.core.server.metrics.plugins.SimpleMetricsPlugin;
+import org.apache.activemq.artemis.core.settings.impl.AddressFullMessagePolicy;
+import org.apache.activemq.artemis.core.settings.impl.AddressSettings;
+import org.apache.activemq.artemis.jms.client.ActiveMQConnection;
+import org.apache.activemq.artemis.jms.client.ActiveMQConnectionFactory;
+import org.apache.kafka.streams.StreamsConfig;
+import org.junit.jupiter.api.extension.AfterAllCallback;
+import org.junit.jupiter.api.extension.AfterEachCallback;
+import org.junit.jupiter.api.extension.BeforeAllCallback;
+import org.junit.jupiter.api.extension.BeforeEachCallback;
+import org.junit.jupiter.api.extension.ExtensionContext;
+
 import io.confluent.amq.ConfluentAmqServer;
 import io.confluent.amq.ConfluentEmbeddedAmq;
 import io.confluent.amq.ConfluentEmbeddedAmqImpl;
@@ -22,30 +40,20 @@ import io.confluent.amq.persistence.kafka.KafkaIntegration;
 import io.confluent.amq.persistence.kafka.KafkaJournalStorageManager;
 import io.confluent.amq.persistence.kafka.journal.impl.KafkaJournal;
 import io.confluent.amq.test.ServerSpec.Builder;
+
 import java.io.Closeable;
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import javax.jms.Connection;
-import javax.jms.ConnectionFactory;
-import javax.jms.ConnectionMetaData;
-import org.apache.activemq.artemis.api.core.management.ActiveMQServerControl;
-import org.apache.activemq.artemis.api.jms.ActiveMQJMSClient;
-import org.apache.activemq.artemis.core.config.FileDeploymentManager;
-import org.apache.activemq.artemis.core.config.impl.FileConfiguration;
-import org.apache.activemq.artemis.core.config.impl.LegacyJMSConfiguration;
-import org.apache.activemq.artemis.core.server.embedded.EmbeddedActiveMQ;
-import org.apache.kafka.streams.StreamsConfig;
-import org.junit.jupiter.api.extension.AfterAllCallback;
-import org.junit.jupiter.api.extension.AfterEachCallback;
-import org.junit.jupiter.api.extension.BeforeAllCallback;
-import org.junit.jupiter.api.extension.BeforeEachCallback;
-import org.junit.jupiter.api.extension.ExtensionContext;
+
+import static com.google.common.io.Resources.getResource;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SuppressWarnings("checkstyle:ClassDataAbstractionCoupling")
 public class ArtemisTestServer implements
@@ -103,6 +111,10 @@ public class ArtemisTestServer implements
 
   public ActiveMQServerControl serverControl() {
     return this.embeddedAmq.getAmq().getActiveMQServerControl();
+  }
+
+  public MetricsManager metricsManager() {
+    return this.embeddedAmq.getAmq().getMetricsManager();
   }
 
   public String safeId(String prefix) {
@@ -182,6 +194,17 @@ public class ArtemisTestServer implements
         embeddedAmq = createEmbeddedAmq(this.serverSpec);
       }
 
+      // 1GB
+      embeddedAmq.getAmq().getConfiguration().setGlobalMaxSize(1024L * 1024L * 128);
+      //embeddedAmq.getAmq().getConfiguration().setThreadPoolMaxSize(-1);
+      embeddedAmq.getAmq().getConfiguration().addAddressesSetting(
+          "/test/perf/jms2jmsVolume-0-1", new AddressSettings()
+              .setAutoCreateAddresses(true)
+              .setAutoCreateQueues(true)
+              .setMaxSizeBytes(1024 * 1024 * 64));
+      SimpleMetricsPlugin metricsPlugin = new SimpleMetricsPlugin();
+      metricsPlugin.init(Collections.emptyMap());
+      embeddedAmq.getAmq().getConfiguration().setMetricsPlugin(metricsPlugin);
       embeddedAmq.start();
 
     } else {
@@ -381,9 +404,15 @@ public class ArtemisTestServer implements
    */
   private Connection createJmsConnection(JmsCnxnSpec spec) {
     try {
-      ConnectionFactory cf = ActiveMQJMSClient
+      ActiveMQConnectionFactory cf = ActiveMQJMSClient
           .createConnectionFactory(spec.url(), spec.name().orElse("junit"));
-      Connection amqConnection = cf.createConnection();
+
+      int size = 1024 * 1024 * 10;
+      cf.setConsumerMaxRate(size * 2);
+      cf.setConsumerWindowSize(size * 2);
+      cf.setProducerMaxRate(size);
+      cf.setProducerWindowSize(size);
+      ActiveMQConnection amqConnection = (ActiveMQConnection) cf.createConnection();
       amqConnection.setClientID(spec.clientId().orElse("junit"));
 
       return amqConnection;

@@ -13,7 +13,7 @@
   <Loggers>
 
     <!-- Loggers useful for debugging tests -->
-    <Logger name="io.confluent.amq" level="TRACE" additivity="false">
+    <Logger name="io.confluent.amq" level="WARN" additivity="false">
       <AppenderRef ref="stdout"/>
     </Logger>
 
@@ -109,7 +109,7 @@
       <AppenderRef ref="stdout"/>
     </Logger>
 
-    <Root level="WARN">
+    <Root level="ERROR">
       <AppenderRef ref="stdout"/>
     </Root>
   </Loggers>

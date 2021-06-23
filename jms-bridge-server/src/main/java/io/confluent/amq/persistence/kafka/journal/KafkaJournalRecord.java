@@ -17,6 +17,7 @@ public class KafkaJournalRecord {
   private final JournalRecord record;
   private IOCompletion ioCompletion;
   private boolean sync;
+  private boolean storeLineUp = true;
   private String destTopic;
 
   public KafkaJournalRecord(JournalRecord record) {
@@ -46,6 +47,15 @@ public class KafkaJournalRecord {
 
   public KafkaJournalRecord setSync(boolean sync) {
     this.sync = sync;
+    return this;
+  }
+
+  public boolean isStoreLineUp() {
+    return storeLineUp;
+  }
+
+  public KafkaJournalRecord setStoreLineUp(boolean storeLineUp) {
+    this.storeLineUp = storeLineUp;
     return this;
   }
 

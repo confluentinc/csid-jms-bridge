@@ -5,20 +5,6 @@
 package io.confluent.amq.persistence.kafka.journal.impl;
 
 import com.google.protobuf.ByteString;
-import io.confluent.amq.logging.StructuredLogger;
-import io.confluent.amq.persistence.domain.proto.JournalEntry;
-import io.confluent.amq.persistence.domain.proto.JournalEntryKey;
-import io.confluent.amq.persistence.domain.proto.JournalRecord;
-import io.confluent.amq.persistence.domain.proto.JournalRecordType;
-import io.confluent.amq.persistence.kafka.KafkaIO;
-import io.confluent.amq.persistence.kafka.KafkaRecordUtils;
-import io.confluent.amq.persistence.kafka.journal.KJournal;
-import io.confluent.amq.persistence.kafka.journal.KafkaJournalRecord;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.activemq.artemis.api.core.ActiveMQBuffer;
 import org.apache.activemq.artemis.api.core.ActiveMQBuffers;
 import org.apache.activemq.artemis.api.core.ActiveMQException;
@@ -40,8 +26,25 @@ import org.apache.activemq.artemis.core.persistence.Persister;
 import org.apache.activemq.artemis.utils.ExecutorFactory;
 import org.apache.activemq.artemis.utils.collections.SparseArrayLinkedList;
 import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.clients.producer.RecordMetadata;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import io.confluent.amq.logging.StructuredLogger;
+import io.confluent.amq.persistence.domain.proto.JournalEntry;
+import io.confluent.amq.persistence.domain.proto.JournalEntryKey;
+import io.confluent.amq.persistence.domain.proto.JournalRecord;
+import io.confluent.amq.persistence.domain.proto.JournalRecordType;
+import io.confluent.amq.persistence.kafka.KafkaIO;
+import io.confluent.amq.persistence.kafka.KafkaRecordUtils;
+import io.confluent.amq.persistence.kafka.journal.KJournal;
+import io.confluent.amq.persistence.kafka.journal.KafkaJournalRecord;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 
 /**
@@ -60,6 +63,7 @@ import org.slf4j.LoggerFactory;
 @SuppressWarnings({"unchecked", "rawtypes", "checkstyle:ClassDataAbstractionCoupling",
     "checkstyle:OverloadMethodsDeclarationOrder"})
 public class KafkaJournal implements Journal {
+
   private static final String TOPIC_FORMAT = "_jms.bridge_%s_%s_%s";
 
   public static String journalWalTopic(String bridgeId, String journalName) {
@@ -161,9 +165,13 @@ public class KafkaJournal implements Journal {
 
 
   private void appendRecord(KafkaJournalRecord kjr) throws Exception {
-    checkStatus(kjr.getIoCompletion());
 
     SLOG.trace(b -> b.event("AppendRecord").name(journalName).addJournalRecord(kjr.getRecord()));
+
+    if (kjr.isStoreLineUp() && kjr.getIoCompletion() != null) {
+      kjr.getIoCompletion().storeLineUp();
+    }
+    checkStatus(kjr.getIoCompletion());
 
     SimpleWaitIOCallback callback = null;
     if (kjr.isSync() && kjr.getIoCompletion() == null) {
@@ -179,43 +187,45 @@ public class KafkaJournal implements Journal {
   }
 
   protected void publishJournalRecord(KafkaJournalRecord record) {
-    kafkaIO.<JournalEntryKey, JournalEntry>withProducer((kafkaProducer) -> {
-
+    executor.getExecutor().execute(() -> {
       ProducerRecord<JournalEntryKey, JournalEntry> producerRecord = new ProducerRecord<>(
           record.getDestTopic(),
           record.getKafkaMessageKey(),
           JournalEntry.newBuilder().setAppendedRecord(record.getRecord()).build());
       KafkaRecordUtils.addEpochHeader(producerRecord.headers());
 
-      kafkaProducer.send(producerRecord, (meta, err) -> {
-        if (err != null) {
-          if (record.getIoCompletion() != null) {
-            handleException(err);
-            record.getIoCompletion()
-                .onError(ActiveMQExceptionType.IO_ERROR.getCode(), err.getMessage());
-          }
+      try {
+        RecordMetadata meta = kafkaIO
+            .<JournalEntryKey, JournalEntry>getInternalProducer().send(producerRecord).get();
 
-          SLOG.error(b -> b
-              .event("PublishJournalRecord")
-              .markFailure()
-              .addProducerRecord(producerRecord)
-              .addJournalEntryKey(producerRecord.key())
-              .addJournalEntry(producerRecord.value()), err);
-
-        } else {
-
-          SLOG.trace(b -> b
-              .event("PublishJournalRecord")
-              .markSuccess()
-              .addRecordMetadata(meta)
-              .addJournalEntryKey(producerRecord.key())
-              .addJournalEntry(producerRecord.value()));
-        }
+        SLOG.trace(b -> b
+            .event("PublishJournalRecord")
+            .markSuccess()
+            .addRecordMetadata(meta)
+            .addJournalEntryKey(producerRecord.key())
+            .addJournalEntry(producerRecord.value()));
 
         if (record.getIoCompletion() != null) {
           record.getIoCompletion().done();
         }
-      });
+
+      } catch (Exception e) {
+        if (record.getIoCompletion() != null) {
+          handleException(e);
+          record.getIoCompletion()
+              .onError(ActiveMQExceptionType.IO_ERROR.getCode(), e.getMessage());
+        }
+
+        SLOG.error(b -> b
+            .event("PublishJournalRecord")
+            .markFailure()
+            .addProducerRecord(producerRecord)
+            .addJournalEntryKey(producerRecord.key())
+            .addJournalEntry(producerRecord.value()), e);
+
+        criticalIOErrorListener.onIOException(e, "Failed to write to Kafka", null);
+      }
+
     });
   }
 
@@ -234,17 +244,25 @@ public class KafkaJournal implements Journal {
     appendRecord(kjr);
   }
 
-  private void appendRecord(JournalRecord record, boolean sync, IOCompletion ioCompletion)
+  private void appendRecord(
+      JournalRecord record, boolean sync, IOCompletion ioCompletion)
+      throws Exception {
+
+    appendRecord(record, sync, ioCompletion, true);
+  }
+
+  private void appendRecord(
+      JournalRecord record, boolean sync, IOCompletion ioCompletion, boolean lineUpContext)
       throws Exception {
 
     KafkaJournalRecord kjr = new KafkaJournalRecord(record)
         .setDestTopic(this.destTopic)
         .setIoCompletion(ioCompletion)
+        .setStoreLineUp(lineUpContext)
         .setSync(sync);
 
     appendRecord(kjr);
   }
-
 
   @Override
   public void start() throws Exception {
@@ -345,7 +363,6 @@ public class KafkaJournal implements Journal {
 
   }
 
-
   @Override
   public void appendAddRecord(long id, byte protocolRecordType, Persister persister, Object record,
       boolean sync) throws Exception {
@@ -360,7 +377,6 @@ public class KafkaJournal implements Journal {
     appendRecord(r, sync);
 
   }
-
 
   @Override
   public void appendAddRecord(long id, byte protocolRecordType, Persister persister, Object record,
@@ -377,7 +393,6 @@ public class KafkaJournal implements Journal {
 
   }
 
-
   @Override
   public void appendUpdateRecord(long id, byte protocolRecordType, byte[] record, boolean sync)
       throws Exception {
@@ -392,7 +407,6 @@ public class KafkaJournal implements Journal {
     appendRecord(r, sync);
 
   }
-
 
   @Override
   public void appendUpdateRecord(long id, byte protocolRecordType, Persister persister,
@@ -409,7 +423,6 @@ public class KafkaJournal implements Journal {
     appendRecord(r, sync);
 
   }
-
 
   @Override
   public void appendUpdateRecord(long id, byte protocolRecordType, Persister persister,
@@ -427,7 +440,6 @@ public class KafkaJournal implements Journal {
 
   }
 
-
   @Override
   public void appendDeleteRecord(long id, boolean sync) throws Exception {
 
@@ -435,7 +447,6 @@ public class KafkaJournal implements Journal {
     appendDeleteRecord(id, sync, null);
 
   }
-
 
   @Override
   public void appendDeleteRecord(long id, boolean sync, IOCompletion completionCallback)
@@ -449,7 +460,6 @@ public class KafkaJournal implements Journal {
     appendRecord(r, sync, completionCallback);
   }
 
-
   @Override
   public void appendAddRecordTransactional(long txID, long id, byte protocolRecordType,
       Persister persister,
@@ -457,7 +467,6 @@ public class KafkaJournal implements Journal {
 
     appendAddRecordTransactional(txID, id, protocolRecordType, decode(persister, record));
   }
-
 
   @Override
   public void appendAddRecordTransactional(long txID, long id, byte protocolRecordType,
@@ -476,7 +485,6 @@ public class KafkaJournal implements Journal {
     appendRecord(r);
   }
 
-
   @Override
   public void appendUpdateRecordTransactional(long txID, long id, byte protocolRecordType,
       Persister persister, Object record) throws Exception {
@@ -484,7 +492,6 @@ public class KafkaJournal implements Journal {
     byte[] recordBytes = decode(persister, record);
     appendUpdateRecordTransactional(txID, id, protocolRecordType, recordBytes);
   }
-
 
   @Override
   public void appendUpdateRecordTransactional(long txID, long id, byte protocolRecordType,
@@ -505,14 +512,12 @@ public class KafkaJournal implements Journal {
     appendRecord(r);
   }
 
-
   @Override
   public void appendDeleteRecordTransactional(long txID, long id, EncodingSupport record)
       throws Exception {
 
     appendDeleteRecordTransactional(txID, id, decode(record));
   }
-
 
   @Override
   public void appendDeleteRecordTransactional(long txID, long id) throws Exception {
@@ -524,7 +529,6 @@ public class KafkaJournal implements Journal {
 
     appendRecord(r);
   }
-
 
   @Override
   public void appendDeleteRecordTransactional(long txID, long id, byte[] record) throws Exception {
@@ -538,20 +542,17 @@ public class KafkaJournal implements Journal {
     appendRecord(r);
   }
 
-
   @Override
   public void appendCommitRecord(long txID, boolean sync) throws Exception {
 
-    appendCommitRecord(txID, sync, null, false);
+    appendCommitRecord(txID, sync, null, true);
   }
-
 
   @Override
   public void appendCommitRecord(long txID, boolean sync, IOCompletion callback) throws Exception {
 
-    appendCommitRecord(txID, sync, callback, false);
+    appendCommitRecord(txID, sync, callback, true);
   }
-
 
   @Override
   public void appendCommitRecord(long txID, boolean sync, IOCompletion callback,
@@ -562,9 +563,8 @@ public class KafkaJournal implements Journal {
         .setTxId(txID)
         .build();
 
-    appendRecord(r, sync, callback);
+    appendRecord(r, sync, callback, lineUpContext);
   }
-
 
   @Override
   public void appendPrepareRecord(long txID, EncodingSupport transactionData, boolean sync)
@@ -572,7 +572,6 @@ public class KafkaJournal implements Journal {
 
     appendPrepareRecord(txID, transactionData, sync, null);
   }
-
 
   @Override
   public void appendPrepareRecord(long txID, EncodingSupport transactionData, boolean sync,
@@ -587,7 +586,6 @@ public class KafkaJournal implements Journal {
     appendRecord(r, sync, callback);
   }
 
-
   @Override
   public void appendPrepareRecord(long txID, byte[] transactionData, boolean sync)
       throws Exception {
@@ -601,13 +599,11 @@ public class KafkaJournal implements Journal {
     appendRecord(r, sync);
   }
 
-
   @Override
   public void appendRollbackRecord(long txID, boolean sync) throws Exception {
 
     appendRollbackRecord(txID, sync, null);
   }
-
 
   @Override
   public void appendRollbackRecord(long txID, boolean sync, IOCompletion callback)
@@ -645,14 +641,12 @@ public class KafkaJournal implements Journal {
     callback.storeLineUp();
   }
 
-
   @Override
   public boolean tryAppendDeleteRecord(long id, boolean sync) throws Exception {
 
     appendDeleteRecord(id, sync);
     return true;
   }
-
 
   @Override
   public boolean tryAppendUpdateRecord(long id, byte recordType, Persister persister, Object record,
@@ -662,7 +656,6 @@ public class KafkaJournal implements Journal {
     return true;
   }
 
-
   @Override
   public boolean tryAppendUpdateRecord(long id, byte recordType, byte[] record, boolean sync)
       throws Exception {
@@ -671,7 +664,6 @@ public class KafkaJournal implements Journal {
     return true;
   }
 
-
   @Override
   public boolean tryAppendUpdateRecord(long id, byte recordType, Persister persister, Object record,
       boolean sync, IOCompletion callback) throws Exception {
@@ -679,7 +671,6 @@ public class KafkaJournal implements Journal {
     appendUpdateRecord(id, recordType, persister, record, sync, callback);
     return true;
   }
-
 
   @Override
   public int getAlignment() throws Exception {
@@ -809,6 +800,5 @@ public class KafkaJournal implements Journal {
         .message("flush"));
     //do nothing
   }
-
 
 }

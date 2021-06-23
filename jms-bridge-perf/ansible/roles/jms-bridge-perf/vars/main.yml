@@ -26,7 +26,8 @@ perf_defaults_cfg:
   message_size_bytes: 1000
   messages_per_second: 100
   test_duration_seconds: 300
-  jms_url: tcp://{{ jms_broker_ip }}:61616?minLargeMessageSize=1000001
+  jms_url_query_params: {}
+  jms_url: tcp://{{ jms_broker_ip }}:61616
 
 # REQUIRED
 #perf_scenario: name-of-scenario

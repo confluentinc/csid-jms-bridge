@@ -21,6 +21,12 @@
     state: absent
   tags: [never, clean]
 
+- name: Ensure {{ perf_user }} is stopped
+  ansible.builtin.systemd:
+    state: stopped
+    name: "{{ perf_user }}"
+  ignore_errors: yes
+
 - name: Force Copy over perf app installation
   ansible.builtin.unarchive:
     src: "{{ perf_archive }}"

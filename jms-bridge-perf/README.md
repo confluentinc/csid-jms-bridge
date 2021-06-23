@@ -1,6 +1,9 @@
 # Performance Testing
 
 This module is dedicated to the performance testing of the JMS Bridge.
+In order to do the performance testing the csid-jms-bridge repository must be cloned to your workstation.
+
+`git@github.com:confluentinc/csid-jms-bridge.git`
 
 ## Workstation
 The following software is required to be installed on your workstation to execute the tests:
@@ -19,10 +22,15 @@ For MacOs users these can be installed via `brew`.
     * Minimal version of v0.15.1 
     
 * ansible: `brew install ansible`   
-    * Minimal version of 2.10.8
+    * Minimal version of 2.10.8, *maybe 2.11 due to changes in GCP inventory module*
     
 * jq: `brew install jq`
 
+## Execution
+
+The script `execute-test.sh` found in the `${REPO_ROOT}/jms-bridge-perf/bin` is designed to make starting the tests easy.
+
+It does several things
 ## Resources
 The following resources will also need to be made available
 
@@ -52,15 +60,32 @@ Once applied several instances will be running in GCP.
 Create an ansible variable file, as shown below, it contains information for connecting to Kafka.
 ```json
 {
-    "jms_bridge_zip_path": "/<path-to-csid-jms-bridge-repo>/jms-bridge-server/target",
-    "jms_bridge_version": "3.0.1-SNAPSHOT",
-    "jms_bridge_kafka_username": "<username>",
-    "jms_bridge_kafka_password": "<secret>",
-    "jms_bridge_kafka_bootstrap": "<my-bootstrap.confluent.cloud:9092>",
-    "jms_bridge_id": "load-test-1"
+    "jms_bridge_cfg": {
+        "id": "load-test-1"
+    },
+
+    "jms_bridge_cfg_journals": {
+       "ready.timeout": "5m"
+    },
+
+    "jms_bridge_cfg_kafka": {
+        "bootstrap.servers": "<bootstrap-urls>",
+        "linger.ms": 100,
+        "sasl.jaas.config": "org.apache.kafka.common.security.plain.PlainLoginModule required username=\"<username>\" password=\"<password/token>\";",
+        "security.protocol": "SASL_SSL",
+        "sasl.mechanism": "PLAIN",
+        "client.dns.lookup": "use_all_dns_ips"
+    },
+
+    "perf_kafka_consumer_cfg": {
+        "bootstrap.servers": "<bootstrap-urls>",
+        "sasl.jaas.config": "org.apache.kafka.common.security.plain.PlainLoginModule required username=\"<username>\" password=\"<password/token>\";",
+        "security.protocol": "SASL_SSL",
+        "sasl.mechanism": "PLAIN",
+        "client.dns.lookup": "use_all_dns_ips"
+    }
 }
 ```
-
 
 From the `ansible/` directory provision the instances via the ansible playbook `bridge-playbook`
 

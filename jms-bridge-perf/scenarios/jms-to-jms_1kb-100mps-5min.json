@@ -1,7 +1,7 @@
 {
   "perf_cfg": {
-    "message_size_bytes": 10000,
-    "messages_per_second": 500,
+    "message_size_bytes": 1000,
+    "messages_per_second": 100,
     "test_duration_seconds": 300
     },
 

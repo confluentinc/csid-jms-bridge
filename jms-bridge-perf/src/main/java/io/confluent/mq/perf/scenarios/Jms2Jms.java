@@ -4,7 +4,6 @@
 
 package io.confluent.mq.perf.scenarios;
 
-import com.google.common.base.Stopwatch;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import picocli.CommandLine.Command;
@@ -13,13 +12,15 @@ import picocli.CommandLine.ParentCommand;
 
 import io.confluent.mq.perf.JmsBridgeParentCommand;
 import io.confluent.mq.perf.TestTime;
+import io.confluent.mq.perf.clients.ClientThroughputSync;
+import io.confluent.mq.perf.clients.JmsFactory;
+import io.confluent.mq.perf.clients.JmsFactory.Connection;
 import io.confluent.mq.perf.clients.JmsTestConsumer;
 import io.confluent.mq.perf.clients.JmsTestProducer;
-import io.confluent.mq.perf.clients.Starter;
 import io.confluent.mq.perf.data.DataGenerator;
 
 import java.time.Duration;
-import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ForkJoinPool;
 
 @Command(name = "jms2jms")
 public class Jms2Jms implements Runnable {
@@ -47,60 +48,62 @@ public class Jms2Jms implements Runnable {
   public void run() {
     TestTime ttime = new TestTime();
 
-    DataGenerator dataGenerator = new DataGenerator(parent.getMessageSize());
+    JmsFactory jmsFactory = new JmsFactory();
+    try (Connection connection = jmsFactory.openConnection(parent.getJmsUrl())) {
 
-    Duration executionTime = Duration.ofSeconds(parent.getTestDuration());
-    LOGGER.info("Starting test, execution time: {}", executionTime);
-    JmsTestProducer jmsProducer = new JmsTestProducer(
-        parent.getJmsUrl(),
-        "jms2jms-producer",
-        jmsTopic,
-        dataGenerator,
-        executionTime,
-        parent.getMessageRate(),
-        ttime);
+      DataGenerator dataGenerator = new DataGenerator(parent.getMessageSize());
+      ClientThroughputSync sync = new ClientThroughputSync(2);
 
-    JmsTestConsumer jmsConsumer = new JmsTestConsumer(
-        parent.getJmsUrl(),
-        "jms2jms-consumer",
-        jmsTopic,
-        executionTime,
-        ttime
-    );
+      Duration executionTime = Duration.ofSeconds(parent.getTestDuration());
+      LOGGER.info("Starting test, execution time: {}", executionTime);
 
-    Starter starter = jmsConsumer.createStarter();
-    CompletableFuture<?> consumerTask = CompletableFuture.runAsync(starter);
-    LOGGER.info("Waiting for consumer to become ready");
-    starter.getReadySignal().join();
+      JmsTestProducer jmsProducer = new JmsTestProducer(
+          connection,
+          "jms2jms-producer",
+          jmsTopic,
+          dataGenerator,
+          executionTime,
+          parent.getMessageRate(),
+          ttime,
+          sync);
+      sync.signalReady();
 
-    LOGGER.info("Consumer ready, starting producer");
-    CompletableFuture<?> producerTask = CompletableFuture.runAsync(jmsProducer::start);
-    producerTask.join();
+      JmsTestConsumer jmsConsumer = new JmsTestConsumer(
+          connection,
+          "jms2jms-consumer",
+          jmsTopic,
+          executionTime,
+          ttime,
+          sync
+      );
 
-    Stopwatch drainTimer = Stopwatch.createStarted();
-    Duration timeout = Duration.ofSeconds(drainTimeout);
-    long messagesPublishedCount = jmsProducer.getMessagesPublishedCount();
-
-    while (messagesPublishedCount > jmsConsumer.getMessagesConsumedCount()) {
-
-      LOGGER.info("Waiting for the Consumer to drain. Remaining: {}",
-          messagesPublishedCount - jmsConsumer.getMessagesConsumedCount());
-
+      ForkJoinPool.commonPool().execute(jmsConsumer::start);
+      LOGGER.info("Waiting for consumer to become ready");
       try {
-        Thread.sleep(1000);
+        sync.awaitReady(Duration.ofSeconds(30));
       } catch (Exception e) {
-        throw new RuntimeException(e);
+        throw new RuntimeException("Consumer failed to signal it's ready within the timeout.", e);
       }
 
-      if (timeout.minus(drainTimer.elapsed()).isNegative()) {
-        LOGGER.info("Stopping consumer even with messages left in the queue due to drain timeout.");
-        break;
+      LOGGER.info("Consumer ready, starting producer");
+      ForkJoinPool.commonPool().execute(jmsProducer::start);
+
+      LOGGER.info("Awaiting completion");
+      boolean completed = false;
+      try {
+        completed = sync.awaitComplete(executionTime.plus(Duration.ofSeconds(drainTimeout)));
+      } catch (Exception e) {
+        LOGGER.warn("Error encountered while waiting for test completion.", e);
       }
+
+      if (completed) {
+        LOGGER.info("Completed");
+      } else {
+        LOGGER.warn("Completed without all clients finishing.");
+      }
+    } catch (Exception e) {
+      throw new RuntimeException("Failed to establish connection to JMS broker", e);
     }
-    LOGGER.info("Stopping the Consumer");
-    jmsConsumer.stop();
-    consumerTask.join();
 
-    LOGGER.info("Complete");
   }
 }

@@ -211,8 +211,8 @@ public class KafkaIO {
    * @return the internal producer, may be null if this instance has not been started.
    */
   @Nullable
-  public KafkaProducer<? extends Message, ? extends Message> getInternalProducer() {
-    return internalProducer;
+  public <K extends Message, V extends Message> KafkaProducer<K, V> getInternalProducer() {
+    return (KafkaProducer<K, V>) internalProducer;
   }
 
   /**

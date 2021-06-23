@@ -4,7 +4,7 @@ jms_bridge_version: "REQUIRED"
 jms_bridge_user: jms-bridge
 
 jms_bridge_version_name: jms-bridge-server-{{ jms_bridge_version }}
-jms_bridge_home: /opt/jms-bridge
+jms_bridge_home: /opt/{{ jms_bridge_version_name }}
 
 jms_bridge_cfg: {}
 jms_bridge_defaults_cfg:

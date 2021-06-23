@@ -4,7 +4,6 @@
 
 package io.confluent.mq.perf.clients;
 
-import com.google.common.base.Stopwatch;
 import io.prometheus.client.Gauge;
 import io.prometheus.client.Histogram;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -21,7 +20,6 @@ import io.confluent.mq.perf.TestTime;
 import java.time.Duration;
 import java.util.List;
 import java.util.Properties;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
@@ -46,37 +44,27 @@ public class KafkaTestConsumer {
       .register();
 
   private final TestTime ttime;
-  private final Duration stopDelay;
-  private final Duration executionTime;
   private final Properties kafkaProps;
   private final Duration pollDuration;
   private final String topic;
   private final Executor executor = Executors.newSingleThreadExecutor();
+  private final ClientThroughputSync sync;
 
   public KafkaTestConsumer(
       Properties kafkaProps,
       String topic,
       Duration pollDuration,
-      Duration stopDelay,
-      Duration executiontime,
-      TestTime ttime) {
+      TestTime ttime,
+      ClientThroughputSync sync) {
 
     this.ttime = ttime;
-    this.stopDelay = stopDelay;
-    this.executionTime = executiontime;
     this.kafkaProps = kafkaProps;
     this.pollDuration = pollDuration;
     this.topic = topic;
+    this.sync = sync;
   }
 
-  public Starter createStarter() {
-    Starter starter = new Starter(new CompletableFuture<>(), this::start);
-    return starter;
-  }
-
-  protected void start(CompletableFuture<Void> readySignal) {
-    Duration totalDuration = this.executionTime.plus(stopDelay);
-
+  public void start() {
     try (KafkaConsumer<byte[], byte[]> consumer = new KafkaConsumer<>(
         kafkaProps, new ByteArrayDeserializer(), new ByteArrayDeserializer())) {
 
@@ -86,24 +74,24 @@ public class KafkaTestConsumer {
       consumer.assign(assignment);
       consumer.seekToEnd(consumer.assignment());
 
-      Stopwatch testTimer = Stopwatch.createStarted();
-      boolean timeRemains = true;
-      while (timeRemains) {
+      boolean dataRemains = true;
+      sync.signalReady();
+      while (dataRemains) {
         ConsumerRecords<byte[], byte[]> records = consumer.poll(pollDuration);
         long msTs = System.currentTimeMillis();
-        if (readySignal != null && !readySignal.isDone()) {
-          readySignal.complete(null);
+        if (records.count() > 0) {
+          executor.execute(() -> recordSample(msTs, records));
         }
-        executor.execute(() -> recordSample(msTs, records));
 
-        timeRemains = testTimer.elapsed().minus(totalDuration).isNegative();
+        dataRemains = sync.awaitNext(records.count() + 1, Duration.ofSeconds(30));
       }
-
-      LOGGER.info("Kafka consumer finished.");
 
     } catch (Exception e) {
       LOGGER.error("Kafka consumer has encountered problems and is stopping.", e);
     }
+
+    executor.execute(sync::signalComplete);
+    LOGGER.info("Kafka consumer finished.");
   }
 
   protected void recordSample(

@@ -22,7 +22,7 @@
 
 - name: Delete current installation
   ansible.builtin.file:
-    path: /opt/{{ jms_bridge_version_name }}
+    path: "{{ jms_bridge_home }}"
     state: absent
   tags: [never, clean]
 
@@ -30,39 +30,26 @@
   ansible.builtin.unarchive:
     src: "{{ jms_bridge_archive }}"
     dest: /opt/
-    creates: /opt/{{ jms_bridge_version_name }}
+    creates: "{{ jms_bridge_home }}"
     mode: 0755
-
-- name: Make data directory writable
-  ansible.builtin.file:
-    path: /opt/{{ jms_bridge_version_name }}/data"
-    state: directory
-    owner: "{{ jms_bridge_user }}"
-    mode: 644
-
-- name: Link jms bridge install to jms_bridge_home
-  ansible.builtin.file:
-    path: "{{ jms_bridge_home }}"
-    src: /opt/{{ jms_bridge_version_name }}
-    state: link
 
 - name: Copy over bridge broker.xml
   ansible.builtin.template:
-    src: templates/broker.xml
+    src: broker.xml
     dest: "{{ jms_bridge_home }}/etc/jms-bridge/broker.xml"
     mode: 0644
     owner: "{{ jms_bridge_user }}"
 
 - name: Copy over bridge configuration
   ansible.builtin.template:
-    src: templates/jms-bridge.conf
+    src: jms-bridge.conf
     dest: "{{ jms_bridge_home }}/etc/jms-bridge/jms-bridge.conf"
     mode: 0644
     owner: "{{ jms_bridge_user }}"
 
 - name: Copy over log4j2 configuration
   ansible.builtin.template:
-    src: templates/log4j2.xml
+    src: log4j2.xml
     dest: "{{ jms_bridge_home }}/etc/jms-bridge/log4j2.xml"
     mode: 0644
     owner: "{{ jms_bridge_user }}"

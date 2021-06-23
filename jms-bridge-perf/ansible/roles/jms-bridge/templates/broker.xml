@@ -34,13 +34,13 @@ under the License.
      -->
     <journal-type>ASYNCIO</journal-type>
 
-    <paging-directory>data/paging</paging-directory>
+    <paging-directory>${jms-bridge.data.dir:./data}/paging</paging-directory>
 
-    <bindings-directory>data/bindings</bindings-directory>
+    <bindings-directory>${jms-bridge.data.dir:./data}/bindings</bindings-directory>
 
-    <journal-directory>data/journal</journal-directory>
+    <journal-directory>${jms-bridge.data.dir:./data}/journal</journal-directory>
 
-    <large-messages-directory>data/large-messages</large-messages-directory>
+    <large-messages-directory>${jms-bridge.data.dir:./data}/large-messages</large-messages-directory>
 
     <journal-datasync>true</journal-datasync>
 

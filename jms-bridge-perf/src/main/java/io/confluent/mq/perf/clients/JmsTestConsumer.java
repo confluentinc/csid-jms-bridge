@@ -13,9 +13,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.confluent.mq.perf.TestTime;
+import io.confluent.mq.perf.clients.JmsFactory.Connection;
 
 import java.time.Duration;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.LinkedTransferQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
@@ -29,29 +29,30 @@ public class JmsTestConsumer {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(JmsTestConsumer.class);
 
-  private final String url;
+  private final Connection jmsCnxn;
   private final String clientName;
   private final String topic;
   private final Duration executionTime;
   private final TestTime ttime;
-  private final JmsFactory jmsFactory;
   private final LinkedTransferQueue<Message> messageQueue = new LinkedTransferQueue<>();
   private final AtomicLong messagesConsumedCount = new AtomicLong(0);
+  private final ClientThroughputSync sync;
   private volatile boolean run = true;
 
   public JmsTestConsumer(
-      String url,
+      Connection jmsCnxn,
       String clientName,
       String topic,
       Duration executionTime,
-      TestTime ttime) {
+      TestTime ttime,
+      ClientThroughputSync sync) {
 
-    this.url = url;
+    this.jmsCnxn = jmsCnxn;
     this.clientName = clientName;
     this.topic = topic;
     this.executionTime = executionTime;
     this.ttime = ttime;
-    this.jmsFactory = new JmsFactory();
+    this.sync = sync;
   }
 
   private void messageListener(Message message) {
@@ -59,6 +60,7 @@ public class JmsTestConsumer {
       MSG_CONSUMED_COUNT.inc();
       if (messagesConsumedCount.incrementAndGet() % 100 == 0) {
         try {
+          LOGGER.info("Acking message");
           message.acknowledge();
         } catch (Exception e) {
           LOGGER.error("Failed to ACK messages", e);
@@ -69,39 +71,26 @@ public class JmsTestConsumer {
     }
   }
 
-  public Starter createStarter() {
-    return new Starter(new CompletableFuture<>(), this::start);
-  }
-
-  public void stop() {
-    this.run = false;
-  }
-
-  private void start(CompletableFuture<Void> readySignal) {
+  public void start() {
     messagesConsumedCount.set(0);
     LOGGER.info("Starting JMS Consumer");
-    try (
-        JmsFactory.Connection jmsCnxn = jmsFactory.openConnection(url, "jms2jms");
-        Session session = jmsCnxn.openSession()) {
+    try (Session session = jmsCnxn.openSession()) {
 
       Topic jmsTopic = session.createTopic(this.topic);
 
       LOGGER.info("JMS Consumer consuming from topic: {}", jmsTopic);
-      try (MessageConsumer consumer = session.createDurableConsumer(jmsTopic, "jms2jms")) {
+      try (MessageConsumer consumer = session
+          .createSharedDurableConsumer(jmsTopic, "jms2jms-consumer")) {
         consumer.setMessageListener(this::messageListener);
-        jmsCnxn.start();
-        readySignal.complete(null);
+        sync.signalReady();
 
         Message lastMessage = null;
-        boolean drain = true;
-        while (run || drain) {
+        while (sync.awaitNext(Duration.ofSeconds(30))) {
           try {
             Message message = messageQueue.poll(30, TimeUnit.SECONDS);
             if (message != null) {
               lastMessage = message;
               recordSample(System.currentTimeMillis(), message);
-            } else if (!run) {
-              drain = false;
             }
           } catch (InterruptedException e) {
             //ignore
@@ -113,9 +102,11 @@ public class JmsTestConsumer {
       }
     } catch (Exception e) {
       LOGGER.error("JMS Consumer has encountered problems and is shutting down", e);
+      sync.signalComplete();
       throw new RuntimeException(e);
     }
     LOGGER.info("JMS Consumer has completed.");
+    sync.signalComplete();
   }
 
   protected void recordSample(

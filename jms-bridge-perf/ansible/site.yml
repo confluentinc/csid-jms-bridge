@@ -1,4 +1,4 @@
 ---
-- import_playbook: jms-bridge-playbook.yml
-- import_playbook: controller-playbook.yml
-- import_playbook: jms-bridge-perf-playbook.yml
+                     - import_playbook: jms-bridge-playbook.yml
+                     - import_playbook: controller-playbook.yml
+                     - import_playbook: jms-bridge-perf-playbook.yml

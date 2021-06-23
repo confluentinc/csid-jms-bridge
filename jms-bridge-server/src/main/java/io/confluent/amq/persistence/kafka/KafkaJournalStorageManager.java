@@ -4,27 +4,30 @@
 
 package io.confluent.amq.persistence.kafka;
 
-import io.confluent.amq.JmsBridgeConfiguration;
-import io.confluent.amq.logging.StructuredLogger;
-import io.confluent.amq.persistence.kafka.journal.impl.KafkaJournal;
-import java.nio.ByteBuffer;
-import java.util.concurrent.ScheduledExecutorService;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import org.apache.activemq.artemis.api.core.ActiveMQBuffer;
 import org.apache.activemq.artemis.api.core.ActiveMQException;
 import org.apache.activemq.artemis.api.core.ActiveMQIOErrorException;
 import org.apache.activemq.artemis.api.core.Message;
 import org.apache.activemq.artemis.core.config.Configuration;
-import org.apache.activemq.artemis.core.io.IOCallback;
 import org.apache.activemq.artemis.core.io.IOCriticalErrorListener;
 import org.apache.activemq.artemis.core.io.SequentialFile;
 import org.apache.activemq.artemis.core.io.nio.NIOSequentialFileFactory;
-import org.apache.activemq.artemis.core.persistence.OperationContext;
 import org.apache.activemq.artemis.core.persistence.impl.journal.JournalStorageManager;
 import org.apache.activemq.artemis.core.postoffice.Binding;
 import org.apache.activemq.artemis.core.server.LargeServerMessage;
 import org.apache.activemq.artemis.core.server.impl.AddressInfo;
 import org.apache.activemq.artemis.utils.ExecutorFactory;
 import org.apache.activemq.artemis.utils.critical.CriticalAnalyzer;
+
+import io.confluent.amq.JmsBridgeConfiguration;
+import io.confluent.amq.logging.StructuredLogger;
+import io.confluent.amq.persistence.kafka.journal.impl.KafkaJournal;
+
+import java.nio.ByteBuffer;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 public class KafkaJournalStorageManager extends JournalStorageManager {
 
@@ -90,9 +93,35 @@ public class KafkaJournalStorageManager extends JournalStorageManager {
     SLOG.info(b -> b.event("Init").markSuccess());
   }
 
+  @SuppressFBWarnings("RV_RETURN_VALUE_IGNORED")
   @Override
   public void stop(boolean ioCriticalError, boolean sendFailover) throws Exception {
-    super.stop(ioCriticalError, sendFailover);
+    if (!started) {
+      return;
+    }
+
+    if (!ioCriticalError) {
+      //performCachedLargeMessageDeletes();
+      // Must call close to make sure last id is persisted
+      if (journalLoaded && idGenerator != null) {
+        idGenerator.persistCurrentID();
+      }
+    }
+
+    final CountDownLatch latch = new CountDownLatch(1);
+    executorFactory.getExecutor().execute(latch::countDown);
+
+    latch.await(30, TimeUnit.SECONDS);
+
+    beforeStop();
+
+    bindingsJournal.stop();
+    messageJournal.stop();
+    //largeMessagesFactory.stop();
+
+    journalLoaded = false;
+
+    started = false;
     SLOG.info(b -> b.event("Stop"));
   }
 
@@ -111,77 +140,9 @@ public class KafkaJournalStorageManager extends JournalStorageManager {
     //nop
   }
 
-  @Override
-  public OperationContext getContext() {
-    return DummyOperationContext.getInstance();
-  }
-
-  private static final class DummyOperationContext implements OperationContext {
-
-    private static DummyOperationContext instance = new DummyOperationContext();
-
-    public static OperationContext getInstance() {
-      return DummyOperationContext.instance;
-    }
-
-    @Override
-    public void executeOnCompletion(final IOCallback runnable) {
-      // There are no executeOnCompletion calls while using the DummyOperationContext
-      // However we keep the code here for correctness
-      runnable.done();
-    }
-
-    @Override
-    public void executeOnCompletion(IOCallback runnable, boolean storeOnly) {
-      executeOnCompletion(runnable);
-    }
-
-    @Override
-    public void replicationDone() {
-    }
-
-    @Override
-    public void replicationLineUp() {
-    }
-
-    @Override
-    public void storeLineUp() {
-    }
-
-    @Override
-    public void done() {
-    }
-
-    @Override
-    public void onError(final int errorCode, final String errorMessage) {
-    }
-
-    @Override
-    public void waitCompletion() {
-    }
-
-    @Override
-    public boolean waitCompletion(final long timeout) {
-      return true;
-    }
-
-    @Override
-    public void pageSyncLineUp() {
-    }
-
-    @Override
-    public void pageSyncDone() {
-    }
-  }
-
   //////////////////
   // BELOW ARE NOT REQUIRED TO BE IMPLEMENTED
   //////////////////
-
-  @Override
-  protected void beforeStart() throws Exception {
-
-  }
 
   /*
    * Methods Below may not need to be implemented
