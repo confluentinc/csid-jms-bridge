@@ -1,5 +1,23 @@
 # Developer Setup
 
+## Building
+
+To build the project you must have the Confluent Artifactory repository setup as a maven repo on your system.
+
+See https://confluentinc.atlassian.net/wiki/spaces/Engineering/pages/1085800875/Setting+up+Developer+Environment#SettingupDeveloperEnvironment-Maven%2CArtifactory%2CandGradle
+
+Once the maven repo is setup you can build it using maven the usual way from the root of this git
+repo run:
+```
+mvn clean package
+```
+
+Optionally to skip tests:
+```
+mvn clean Package -DskipTests
+```
+
+
 ## Releasing
 
 Use the maven release plugin to perform releases
