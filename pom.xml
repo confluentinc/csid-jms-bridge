@@ -19,7 +19,7 @@
     <connection>scm:git:git://github.com:confluentinc/csid-jms-bridge.git</connection>
     <developerConnection>scm:git:git@github.com:confluentinc/csid-jms-bridge.git</developerConnection>
     <url>https://github.com/confluentinc/csid-jms-bridge</url>
-    <tag>v3.1.0</tag>
+    <tag>v3.1.2</tag>
   </scm>
 
 
