@@ -67,16 +67,15 @@
     <!-- Security settings can be added here if security is enabled -->
     <!--
     <security-settings>
-      <security-setting match="#">
+      <security-setting match="queue.#">
+        <permission type="send" roles="admins,users"/>
+        <permission type="consume" roles="admins,users"/>
+
         <permission type="createDurableQueue" roles="admins"/>
         <permission type="deleteDurableQueue" roles="admins"/>
         <permission type="createNonDurableQueue" roles="admins"/>
         <permission type="deleteNonDurableQueue" roles="admins"/>
-      </security-setting>
-      <security-setting match="queue#">
-        <permission type="send" roles="admins,users"/>
-        <permission type="consume" roles="admins,users"/>
-      </security-setting>
+       </security-setting>
     </security-settings>
     -->
 

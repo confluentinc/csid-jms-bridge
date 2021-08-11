@@ -36,9 +36,9 @@ fi
 
 : "${JMS_BRIDGE_JAAS:=""}"
 if [ -z "$JMS_BRIDGE_JAAS" ]; then
-  JMS_BRIDGE_OPTS="${JMS_BRIDGE_OPTS} -Djava.security.login.config=$JMS_BRIDGE_CONFIG_DIR/login.config"
+  JMS_BRIDGE_OPTS="${JMS_BRIDGE_OPTS} -Djava.security.auth.login.config=$JMS_BRIDGE_CONFIG_DIR/login.config"
 else
-  JMS_BRIDGE_OPTS="${JMS_BRIDGE_OPTS} -Djava.security.login.config=$JMS_BRIDGE_JAAS"
+  JMS_BRIDGE_OPTS="${JMS_BRIDGE_OPTS} -Djava.security.auth.login.config=$JMS_BRIDGE_JAAS"
 fi
 
 export JMS_BRIDGE_OPTS
