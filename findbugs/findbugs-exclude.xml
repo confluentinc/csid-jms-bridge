@@ -12,6 +12,11 @@ For a detailed description of findbugs bug categories, see http://findbugs.sourc
     DO NOT USE THIS EXCLUSION FILE FOR NON-GENERATED CODE
     If you really MUST suppress an error warning, do so using the @SuppressFBWarnings annotation.
 -->
+  <!-- This bug is persistently reported for Java 11 try-with-resource blocks -->
+  <Match>
+    <Bug code="RCN" />
+  </Match>
+
   <Match>
   <!-- Avro generates redundant "implements" interface declarations -->
   <Or>

@@ -109,7 +109,7 @@ public class DelegatingConfluentAmqServer implements ActiveMQServer {
 
   public DelegatingConfluentAmqServer(final JmsBridgeConfiguration configuration,
       final ActiveMQSecurityManager securityManager) {
-    confluentAmqServer = new ConfluentAmqServerImpl(configuration);
+    confluentAmqServer = new ConfluentAmqServerImpl(configuration, securityManager);
   }
 
   public DelegatingConfluentAmqServer(final JmsBridgeConfiguration configuration,

@@ -27,6 +27,13 @@ public class JmsClientOptions {
   @Once
   protected String clientId;
 
+  @Option(
+      name = "--user-pass",
+      description = "Colon separated username and password to use. "
+  )
+  @Once
+  protected String userPass;
+
   public Connection openConnection() throws Exception {
     if (clientId == null) {
       String uuid = UUID.randomUUID().toString();
@@ -41,7 +48,19 @@ public class JmsClientOptions {
 
     ConnectionFactory cf = ActiveMQJMSClient
         .createConnectionFactory(brokerUrl, "jms-client-cli");
-    Connection amqConnection = cf.createConnection();
+
+    Connection amqConnection = null;
+    if (userPass != null) {
+      String[] parts = userPass.split(":", 2);
+      if (parts.length == 2) {
+        amqConnection = cf.createConnection(parts[0], parts[1]);
+      }
+    }
+
+    if (amqConnection == null) {
+      amqConnection = cf.createConnection();
+    }
+
     amqConnection.setClientID(clientId);
     amqConnection.start();
     return amqConnection;

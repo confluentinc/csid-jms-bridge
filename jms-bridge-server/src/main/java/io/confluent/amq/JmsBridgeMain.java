@@ -9,19 +9,23 @@ import com.github.rvesse.airline.SingleCommand;
 import com.github.rvesse.airline.annotations.Arguments;
 import com.github.rvesse.airline.annotations.Command;
 import com.github.rvesse.airline.annotations.Option;
+import javax.inject.Inject;
+import org.apache.activemq.artemis.spi.core.security.ActiveMQJAASSecurityManager;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import io.confluent.amq.cli.BaseCommand;
 import io.confluent.amq.cli.CommandIo;
 import io.confluent.amq.config.BridgeConfig;
 import io.confluent.amq.config.BridgeConfigFactory;
+import io.confluent.amq.config.SecurityConfig;
+
 import java.io.File;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
-import javax.inject.Inject;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 @Command(name = "jms-bridge-server-start", description = "Start the JMS Bridge server.")
-public class JmsBridgeMain implements BaseCommand  {
+public class JmsBridgeMain implements BaseCommand {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(JmsBridgeMain.class);
 
@@ -72,8 +76,22 @@ public class JmsBridgeMain implements BaseCommand  {
   protected ConfluentEmbeddedAmq loadServer(final BridgeConfig bridgeConfig,
       final String brokerXmlPath) {
 
-    return new ConfluentEmbeddedAmqImpl
-        .Builder(brokerXmlPath, bridgeConfig).build();
+    ConfluentEmbeddedAmqImpl.Builder bldr = new ConfluentEmbeddedAmqImpl
+        .Builder(brokerXmlPath, bridgeConfig);
+
+    // Check for any configured security manager
+    if (bridgeConfig.security().isPresent()) {
+      SecurityConfig securityConfig = bridgeConfig.security().get();
+      ActiveMQJAASSecurityManager securityManager = securityConfig.certificatDomain().isPresent()
+          ? new ActiveMQJAASSecurityManager(
+          securityConfig.domain(), securityConfig.certificatDomain().get())
+          : new ActiveMQJAASSecurityManager(
+              securityConfig.domain());
+
+      bldr.setSecurityManager(securityManager);
+    }
+
+    return bldr.build();
   }
 
   public void run() {

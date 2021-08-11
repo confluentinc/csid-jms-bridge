@@ -26,6 +26,8 @@ public interface BridgeConfig {
 
   Optional<RoutingConfig> routing();
 
+  Optional<SecurityConfig> security();
+
   class Builder extends BridgeConfig_Builder {
 
     public Builder() {
@@ -43,6 +45,10 @@ public interface BridgeConfig {
 
       if (bridgeConfig.hasPath("routing")) {
         this.routing(new RoutingConfig.Builder(bridgeConfig.getConfig("routing")).build());
+      }
+
+      if (bridgeConfig.hasPath("security")) {
+        this.security(new SecurityConfig.Builder(bridgeConfig.getConfig("security")).build());
       }
     }
 
