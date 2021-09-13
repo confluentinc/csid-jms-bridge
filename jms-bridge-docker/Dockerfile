@@ -16,8 +16,21 @@ ADD --chown=appuser:appuser target/${ARTIFACT_ID}-${PROJECT_VERSION}-package/etc
 ADD --chown=appuser:appuser target/${ARTIFACT_ID}-${PROJECT_VERSION}-package/docker/etc/* /etc/jms-bridge/
 ADD --chown=appuser:appuser target/${ARTIFACT_ID}-${PROJECT_VERSION}-package/docker/bin/* /usr/bin/docker/
 
-RUN chmod +x /usr/bin/docker/run /usr/bin/jms-bridge*
+RUN chmod +x /usr/bin/docker/run /usr/bin/jms-bridge* \
+    && mkdir -p /var/cache/jms-bridge/streams \
+    && chown -R appuser:appuser /var/cache/jms-bridge \
+    && chmod -R 755 /var/cache/jms-bridge \
+    && mkdir -p /var/log/jms-bridge \
+    && chown appuser:appuser /var/log/jms-bridge \
+    && chmod -R 755 /var/log/jms-bridge
+
 
 USER appuser
+
+ENV LOG_DIR=/var/log/jms-bridge
+ENV JMS_BRIDGE_LIB_DIR=/user/share/java/jms-bridge
+ENV JMS_BRIDGE_CONFIG_DIR=/etc/jms-bridge
+ENV JMS_BRIDGE_DATA_DIR=/var/cache/jms-bridge
+ENV JMSBRIDGE_KAFKA_STATE_DIR=/var/cache/jms-bridge/streams/
 
 CMD ["/usr/bin/docker/run"]

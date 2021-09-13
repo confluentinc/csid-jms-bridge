@@ -1,0 +1,47 @@
+<!--
+  ~ Copyright 2020 Confluent Inc.
+  -->
+
+<configuration xmlns="urn:activemq">
+  <core xmlns="urn:activemq:core">
+    <acceptors>
+      <!-- Default ActiveMQ Artemis Acceptor.  Multi-protocol adapter.  Currently supports Core, OpenWire, Stomp and AMQP. -->
+      <acceptor name="artemis">
+        tcp://0.0.0.0:61616?tcpSendBufferSize=1048576;tcpReceiveBufferSize=1048576;amqpMinLargeMessageSize=102400;protocols=CORE,AMQP,STOMP,HORNETQ,MQTT,OPENWIRE;useEpoll=true;amqpCredits=1000;amqpLowCredits=300;amqpDuplicateDetection=true
+      </acceptor>
+    </acceptors>
+    <journal-directory>/var/cache/jms-bridge/journal</journal-directory>
+
+    <journal-min-files>2</journal-min-files>
+
+    <large-messages-directory>/var/cache/jms-bridge/large-messages
+    </large-messages-directory>
+
+    <paging-directory>/var/cache/jms-bridge/paging</paging-directory>
+
+    <security-enabled>true</security-enabled>
+
+    <addresses>
+      <address name="my-topic.1">
+        <multicast>
+          <queue name="my-queue.1" max-consumers="10">
+            <durable>true</durable>
+          </queue>
+        </multicast>
+      </address>
+    </addresses>
+
+    <!-- Security settings can be added here if security is enabled -->
+    <security-settings>
+
+      <security-setting match="my-topic.1">
+        <permission type="send" roles="publishers,processors"/>
+        <permission type="consume" roles="consumers,processors"/>
+
+        <permission type="createAddress" roles="admins,consumers" />
+        <permission type="createDurableQueue" roles="admins,consumers"/>
+        <permission type="deleteDurableQueue" roles="admins"/>
+      </security-setting>
+    </security-settings>
+  </core>
+</configuration>

@@ -30,7 +30,41 @@ To build a new image with local changes:
    
 ## Configuration
 
+Several environment variables can be used to modify the configuration of the container.
+
+**BROKER_XML**
+
+*Default*: `/etc/jms-bridge/broker.xml`
+
+Set this to a valid path within the container that resolves to the `broker.xml` that Artemis should use.
+
+**PROMETHEUS_ENABLED**
+
+*Unset By Default*
+
+Set this to y/Y/t/T/1 to enable the JMX prometheus agent for exposing JMX metrics as a prometheus endpoint.
+
+When enabled the following variables can be used to configure the prometheus agent
+
+ * **PROMETHEUS_PORT**: *Default `8080`*, Set the port the prometheus endpoint should bind to.
+ * **PROMETHEUS_CONF**: *Default `/etc/jms-bridge/jmx-prometheus-config.yml`*, The path to the configuration to be used for the agent.
+
+### jms-bridge.conf
+
+All elements of the `jms-bridge.conf` file can be modified via environment variables using the `JMSBRIDGE_` prefix.
+
+**Prefix JMSBRIDGE_**
+
+Use the prefix `JMSBRIDGE_` combined with the config path (capitilized with dots replaced by underscores) to make modifications to arbitrary parts of the configuration.
+ 
+Examples:
+
+ * Add/Modify the `bridge.id`: `JMSBRIDGE_ID=my-bridge-id`
+ * Add/Modify the first routing entries match `bridge.routing.topics.0.match`: `JMSBRIDGE_ROUTING_TOPICS_0_MATCH=quick-start-.*`
+
 ### Logging
+
+Logging can be adjusted via environmental variables.
 
 #### Changing Specific Logger Levels
 
@@ -39,7 +73,7 @@ Logging can be configured via environmental variables in the following way.
 To set the logging level for a paticular logger (say `io.confluent`) set the corresponding environment variable.
 ```LOG4J2_IO_CONFLUENT=INFO```
 
-The prefix `LOG4J2_` combined with the logger name (capatilized with dots replaced by underscores).
+The prefix `LOG4J2_` combined with the logger name (capitilized with dots replaced by underscores).
 
 #### Root Logger Level
 

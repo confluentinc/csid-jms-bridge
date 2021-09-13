@@ -1,4 +1,6 @@
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
   <groupId>io.confluent</groupId>
   <artifactId>jms-bridge-pom</artifactId>
   <packaging>pom</packaging>
@@ -17,17 +19,19 @@
 
   <scm>
     <connection>scm:git:git://github.com:confluentinc/csid-jms-bridge.git</connection>
-    <developerConnection>scm:git:git@github.com:confluentinc/csid-jms-bridge.git</developerConnection>
+    <developerConnection>scm:git:git@github.com:confluentinc/csid-jms-bridge.git
+    </developerConnection>
     <url>https://github.com/confluentinc/csid-jms-bridge</url>
     <tag>v3.1.2</tag>
   </scm>
 
 
   <modules>
-      <module>jms-bridge-docker</module>
-      <module>jms-bridge-perf</module>
-      <module>jms-bridge-server</module>
-      <module>jms-bridge-tests</module>
+    <module>jms-bridge-docker</module>
+    <module>jms-bridge-perf</module>
+    <module>jms-bridge-server</module>
+    <module>jms-bridge-tests</module>
+    <module>jms-bridge-integration-tests</module>
   </modules>
 
   <build>
@@ -150,154 +154,160 @@
   </build>
 
   <dependencyManagement>
-  <dependencies>
+    <dependencies>
 
 
-    <dependency>
-      <artifactId>airline</artifactId>
-      <groupId>com.github.rvesse</groupId>
-      <version>${airline.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>org.inferred</groupId>
-      <artifactId>freebuilder</artifactId>
-      <version>2.6.0</version>
-      <optional>true</optional>
-    </dependency>
-    <dependency>
-      <groupId>com.google.guava</groupId>
-      <artifactId>guava</artifactId>
-      <version>29.0-jre</version>
-    </dependency>
-    <dependency>
-      <groupId>com.github.spotbugs</groupId>
-      <artifactId>spotbugs-annotations</artifactId>
-      <version>${spotbugs.version}</version>
-      <optional>true</optional>
-    </dependency>
+      <dependency>
+        <artifactId>airline</artifactId>
+        <groupId>com.github.rvesse</groupId>
+        <version>${airline.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.inferred</groupId>
+        <artifactId>freebuilder</artifactId>
+        <version>2.6.0</version>
+        <optional>true</optional>
+      </dependency>
+      <dependency>
+        <groupId>com.google.guava</groupId>
+        <artifactId>guava</artifactId>
+        <version>29.0-jre</version>
+      </dependency>
+      <dependency>
+        <groupId>com.github.spotbugs</groupId>
+        <artifactId>spotbugs-annotations</artifactId>
+        <version>${spotbugs.version}</version>
+        <optional>true</optional>
+      </dependency>
 
-    <!-- Logging -->
-    <dependency>
-      <artifactId>slf4j-api</artifactId>
-      <groupId>org.slf4j</groupId>
-      <version>${slf4j-api.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.logging.log4j</groupId>
-      <artifactId>log4j-core</artifactId>
-      <version>${log4j.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.logging.log4j</groupId>
-      <artifactId>log4j-slf4j-impl</artifactId>
-      <version>${log4j.version}</version>
-    </dependency>
-
-
-    <!-- Core Artemis dependencies -->
-    <dependency>
-      <artifactId>artemis-commons</artifactId>
-      <groupId>org.apache.activemq</groupId>
-      <version>${activemq.version}</version>
-    </dependency>
-    <dependency>
-      <artifactId>artemis-journal</artifactId>
-      <groupId>org.apache.activemq</groupId>
-      <version>${activemq.version}</version>
-    </dependency>
-    <dependency>
-      <artifactId>artemis-core-client</artifactId>
-      <groupId>org.apache.activemq</groupId>
-      <version>${activemq.version}</version>
-    </dependency>
-    <dependency>
-      <artifactId>artemis-jms-server</artifactId>
-      <groupId>org.apache.activemq</groupId>
-      <version>${activemq.version}</version>
-    </dependency>
-    <dependency>
-      <artifactId>artemis-server</artifactId>
-      <groupId>org.apache.activemq</groupId>
-      <version>${activemq.version}</version>
-    </dependency>
+      <!-- Logging -->
+      <dependency>
+        <artifactId>slf4j-api</artifactId>
+        <groupId>org.slf4j</groupId>
+        <version>${slf4j-api.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.logging.log4j</groupId>
+        <artifactId>log4j-core</artifactId>
+        <version>${log4j.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.logging.log4j</groupId>
+        <artifactId>log4j-slf4j-impl</artifactId>
+        <version>${log4j.version}</version>
+      </dependency>
 
 
-    <!-- Kafka Support -->
-    <dependency>
-      <artifactId>kafka-clients</artifactId>
-      <groupId>org.apache.kafka</groupId>
-      <version>${kafka.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.kafka</groupId>
-      <artifactId>kafka-streams</artifactId>
-      <version>${kafka.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>com.google.protobuf</groupId>
-      <artifactId>protobuf-java</artifactId>
-      <version>${protobuf.version}</version>
-    </dependency>
+      <!-- Core Artemis dependencies -->
+      <dependency>
+        <artifactId>artemis-commons</artifactId>
+        <groupId>org.apache.activemq</groupId>
+        <version>${activemq.version}</version>
+      </dependency>
+      <dependency>
+        <artifactId>artemis-journal</artifactId>
+        <groupId>org.apache.activemq</groupId>
+        <version>${activemq.version}</version>
+      </dependency>
+      <dependency>
+        <artifactId>artemis-core-client</artifactId>
+        <groupId>org.apache.activemq</groupId>
+        <version>${activemq.version}</version>
+      </dependency>
+      <dependency>
+        <artifactId>artemis-jms-server</artifactId>
+        <groupId>org.apache.activemq</groupId>
+        <version>${activemq.version}</version>
+      </dependency>
+      <dependency>
+        <artifactId>artemis-server</artifactId>
+        <groupId>org.apache.activemq</groupId>
+        <version>${activemq.version}</version>
+      </dependency>
 
 
-    <!-- Test dependencies -->
-    <dependency>
-      <groupId>org.junit.jupiter</groupId>
-      <artifactId>junit-jupiter-api</artifactId>
-      <version>${myjunit.version}</version>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.junit.jupiter</groupId>
-      <artifactId>junit-jupiter-engine</artifactId>
-      <version>${myjunit.version}</version>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.junit.jupiter</groupId>
-      <artifactId>junit-jupiter-params</artifactId>
-      <version>${myjunit.version}</version>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.mockito</groupId>
-      <artifactId>mockito-core</artifactId>
-      <version>${mockito.version}</version>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.mockito</groupId>
-      <artifactId>mockito-junit-jupiter</artifactId>
-      <version>${mockito.version}</version>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <artifactId>artemis-commons</artifactId>
-      <groupId>org.apache.activemq</groupId>
-      <scope>test</scope>
-      <type>test-jar</type>
-      <version>${activemq.version}</version>
-    </dependency>
-    <dependency>
-      <artifactId>artemis-server</artifactId>
-      <groupId>org.apache.activemq</groupId>
-      <scope>test</scope>
-      <type>test-jar</type>
-      <version>${activemq.version}</version>
-    </dependency>
-    <dependency>
-      <artifactId>kafka</artifactId>
-      <groupId>org.testcontainers</groupId>
-      <scope>test</scope>
-      <version>1.15.2</version>
-    </dependency>
-   <dependency>
-      <groupId>org.apache.kafka</groupId>
-      <artifactId>kafka-streams-test-utils</artifactId>
-      <version>${kafka.version}</version>
-      <scope>test</scope>
-    </dependency>
-  </dependencies>
+      <!-- Kafka Support -->
+      <dependency>
+        <artifactId>kafka-clients</artifactId>
+        <groupId>org.apache.kafka</groupId>
+        <version>${kafka.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.kafka</groupId>
+        <artifactId>kafka-streams</artifactId>
+        <version>${kafka.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.google.protobuf</groupId>
+        <artifactId>protobuf-java</artifactId>
+        <version>${protobuf.version}</version>
+      </dependency>
+
+
+      <!-- Test dependencies -->
+      <dependency>
+        <groupId>org.junit.jupiter</groupId>
+        <artifactId>junit-jupiter-api</artifactId>
+        <version>${myjunit.version}</version>
+        <scope>test</scope>
+      </dependency>
+      <dependency>
+        <groupId>org.junit.jupiter</groupId>
+        <artifactId>junit-jupiter-engine</artifactId>
+        <version>${myjunit.version}</version>
+        <scope>test</scope>
+      </dependency>
+      <dependency>
+        <groupId>org.junit.jupiter</groupId>
+        <artifactId>junit-jupiter-params</artifactId>
+        <version>${myjunit.version}</version>
+        <scope>test</scope>
+      </dependency>
+      <dependency>
+        <groupId>org.mockito</groupId>
+        <artifactId>mockito-core</artifactId>
+        <version>${mockito.version}</version>
+        <scope>test</scope>
+      </dependency>
+      <dependency>
+        <groupId>org.mockito</groupId>
+        <artifactId>mockito-junit-jupiter</artifactId>
+        <version>${mockito.version}</version>
+        <scope>test</scope>
+      </dependency>
+      <dependency>
+        <artifactId>artemis-commons</artifactId>
+        <groupId>org.apache.activemq</groupId>
+        <scope>test</scope>
+        <type>test-jar</type>
+        <version>${activemq.version}</version>
+      </dependency>
+      <dependency>
+        <artifactId>artemis-server</artifactId>
+        <groupId>org.apache.activemq</groupId>
+        <scope>test</scope>
+        <type>test-jar</type>
+        <version>${activemq.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.testcontainers</groupId>
+        <artifactId>junit-jupiter</artifactId>
+        <scope>test</scope>
+        <version>${testcontainers.version}</version>
+      </dependency>
+      <dependency>
+        <artifactId>kafka</artifactId>
+        <groupId>org.testcontainers</groupId>
+        <scope>test</scope>
+        <version>${testcontainers.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.kafka</groupId>
+        <artifactId>kafka-streams-test-utils</artifactId>
+        <version>${kafka.version}</version>
+        <scope>test</scope>
+      </dependency>
+    </dependencies>
   </dependencyManagement>
 
 
@@ -312,7 +322,10 @@
     <mockito.version>3.3.3</mockito.version>
     <myjunit.version>5.6.2</myjunit.version>
     <protobuf.version>3.12.2</protobuf.version>
-    <release.artifact>${project.build.directory}/${project.artifactId}-${project.version}-package.zip</release.artifact>
+    <testcontainers.version>1.16.0</testcontainers.version>
+    <release.artifact>
+      ${project.build.directory}/${project.artifactId}-${project.version}-package.zip
+    </release.artifact>
     <release.repositoryId>confluentinc/csid-jms-bridge</release.repositoryId>
     <skip.docker.build>true</skip.docker.build>
     <skip.docker.test>true</skip.docker.test>

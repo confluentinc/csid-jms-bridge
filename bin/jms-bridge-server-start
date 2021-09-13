@@ -21,11 +21,11 @@ fi
 
 EXTRA_ARGS="-name jms-bridge -loggc"
 
-if [ -z "$JMS_BRIDGE_OPTS" ]; then
-  JMS_BRIDGE_OPTS=-Djms-bridge.server.install.dir=$base_dir
-else
-  JMS_BRIDGE_OPTS="${JMS_BRIDGE_OPTS} -Djms-bridge.server.install.dir=$base_dir"
-fi
+#if [ -z "$JMS_BRIDGE_OPTS" ]; then
+#  JMS_BRIDGE_OPTS=-Djms-bridge.server.install.dir=$base_dir
+#else
+#  JMS_BRIDGE_OPTS="${JMS_BRIDGE_OPTS} -Djms-bridge.server.install.dir=$base_dir"
+#fi
 
 : "${JMS_BRIDGE_DATA_DIR:=""}"
 if [ -z "$JMS_BRIDGE_DATA_DIR" ]; then
@@ -36,7 +36,9 @@ fi
 
 : "${JMS_BRIDGE_JAAS:=""}"
 if [ -z "$JMS_BRIDGE_JAAS" ]; then
-  JMS_BRIDGE_OPTS="${JMS_BRIDGE_OPTS} -Djava.security.auth.login.config=$JMS_BRIDGE_CONFIG_DIR/login.config"
+  if [ -e "${JMS_BRIDGE_CONFIG_DIR}/login.config" ]; then
+    JMS_BRIDGE_OPTS="${JMS_BRIDGE_OPTS} -Djava.security.auth.login.config=$JMS_BRIDGE_CONFIG_DIR/login.config"
+  fi
 else
   JMS_BRIDGE_OPTS="${JMS_BRIDGE_OPTS} -Djava.security.auth.login.config=$JMS_BRIDGE_JAAS"
 fi

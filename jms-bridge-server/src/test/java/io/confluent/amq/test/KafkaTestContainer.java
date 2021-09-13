@@ -43,6 +43,7 @@ import org.junit.jupiter.api.extension.ExtensionContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testcontainers.containers.KafkaContainer;
+import org.testcontainers.utility.DockerImageName;
 
 @SuppressWarnings("checkstyle:ClassDataAbstractionCoupling")
 public class KafkaTestContainer implements
@@ -50,7 +51,8 @@ public class KafkaTestContainer implements
 
 
   public static KafkaTestContainer usingDefaults() {
-    KafkaContainer container = new KafkaContainer("5.5.2")
+    //KafkaContainer container = new KafkaContainer("5.5.2")
+    KafkaContainer container = new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:5.5.5-2-ubi8"))
         .withEnv("KAFKA_DELETE_TOPIC_ENABLE", "true")
         .withEnv("KAFKA_AUTO_CREATE_TOPICS_ENABLE", "false");
 

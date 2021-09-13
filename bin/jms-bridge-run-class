@@ -69,12 +69,15 @@ for project in "jms-bridge"; do
 done
 
 # Production jars - each one is prepended so they will appear in reverse order.  JMS_BRIDGE jars take precedence over other stuff passed in via CLASSPATH env var
-for library in "jms-bridge"; do
-  DIR="$base_dir/share/java/$library"
+: "${JMS_BRIDGE_LIB_DIR:="/usr/share/java/jms-bridge"}"
+if [ -d "$JMS_BRIDGE_LIB_DIR" ]; then
+  JMS_BRIDGE_CLASSPATH="$JMS_BRIDGE_LIB_DIR/*:$JMS_BRIDGE_CLASSPATH"
+else
+  DIR="$base_dir/share/java/jms-bridge"
   if [ -d "$DIR" ]; then
     JMS_BRIDGE_CLASSPATH="$DIR/*:$JMS_BRIDGE_CLASSPATH"
   fi
-done
+fi
 
 # logj4 settings
 if [ -z "$JMS_BRIDGE_LOG4J_OPTS" ]; then
