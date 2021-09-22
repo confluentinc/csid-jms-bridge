@@ -17,8 +17,6 @@ import javax.jms.Topic;
 import javax.naming.Context;
 import javax.naming.InitialContext;
 import javax.naming.NamingException;
-import org.apache.activemq.artemis.jms.client.ActiveMQConnection;
-import org.apache.activemq.artemis.jms.client.ActiveMQSession;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.MethodOrderer.OrderAnnotation;
 import org.junit.jupiter.api.Nested;
@@ -44,9 +42,9 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @Testcontainers
-public class JaasTest {
+public class JaasIT {
 
-  private static final Logger LOGGER = LoggerFactory.getLogger(JaasTest.class);
+  private static final Logger LOGGER = LoggerFactory.getLogger(JaasIT.class);
 
   private static final DockerImageName KAFKA_IMAGE = DockerImageName
       .parse("confluentinc/cp-kafka:6.2.0-3-ubi8");
@@ -75,7 +73,7 @@ public class JaasTest {
       .withEnv("JMSBRIDGE_SECURITY_DOMAIN", "TestDomain")
       .withEnv("JMSBRIDGE_JOURNALS_TOPIC_REPLICATION", "1")
       .withStartupAttempts(1)
-      .withLogConsumer(new Slf4jLogConsumer(LoggerFactory.getLogger(JaasTest.class)))
+      .withLogConsumer(new Slf4jLogConsumer(LoggerFactory.getLogger(JaasIT.class)))
       .withCopyFileToContainer(
           MountableFile.forClasspathResource("security/jaas/broker.xml"),
           "/etc/jms-bridge/broker.xml")

@@ -194,7 +194,7 @@ public class RequestResponseTest {
           ConsumerRecords<byte[], String> pollRecords = kconsumer.poll(Duration.ofMillis(100L));
           if (pollRecords != null) {
             pollRecords.forEach(krecord -> {
-              Header replyTo = krecord.headers().lastHeader("jms.JMSReplyTo");
+              Header replyTo = krecord.headers().lastHeader("jms.string.JMSReplyTo");
               final byte[] destination = replyTo != null
                   ? replyTo.value()
                   : null;
@@ -208,7 +208,7 @@ public class RequestResponseTest {
               ProducerRecord<byte[], String> responseRecord = new ProducerRecord<>(
                   responseTopic, krecord.key(), response);
               if (destination != null) {
-                responseRecord.headers().add("jms.JMSDestination", destination);
+                responseRecord.headers().add("jms.string.JMSDestination", destination);
               }
               try {
                 kafkaProducer.send(responseRecord).get();

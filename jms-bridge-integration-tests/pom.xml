@@ -63,6 +63,13 @@
       <groupId>org.testcontainers</groupId>
       <scope>test</scope>
     </dependency>
+
+    <dependency>
+      <artifactId>kafka-clients</artifactId>
+      <groupId>org.apache.kafka</groupId>
+      <scope>test</scope>
+    </dependency>
+
   </dependencies>
 
 </project>

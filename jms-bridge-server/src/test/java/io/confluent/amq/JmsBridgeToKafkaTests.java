@@ -98,17 +98,17 @@ public class JmsBridgeToKafkaTests {
 
           String topicString = "topic://" + topic.getTopicName();
           assertEquals(topicString,
-              strDeser.deserialize("", record.headers().lastHeader("jms.JMSReplyTo").value()));
+              strDeser.deserialize("", record.headers().lastHeader("jms.string.JMSReplyTo").value()));
           assertNotNull(longDeser.deserialize("",
-              record.headers().lastHeader("jms.JMSMessageID").value()));
+              record.headers().lastHeader("jms.long.JMSMessageID").value()));
           assertNotNull(
-              longDeser.deserialize("", record.headers().lastHeader("jms.JMSTimestamp").value()));
+              longDeser.deserialize("", record.headers().lastHeader("jms.long.JMSTimestamp").value()));
           assertEquals("bar",
-              strDeser.deserialize("", record.headers().lastHeader("jms.foo").value()));
+              strDeser.deserialize("", record.headers().lastHeader("jms.string.foo").value()));
           assertEquals(topic.getTopicName(),
-              strDeser.deserialize("", record.headers().lastHeader("jms.JMSDestination").value()));
+              strDeser.deserialize("", record.headers().lastHeader("jms.string.JMSDestination").value()));
           assertEquals("TEXT",
-              strDeser.deserialize("", record.headers().lastHeader("jms.JMSType").value()));
+              strDeser.deserialize("", record.headers().lastHeader("jms.string.JMSType").value()));
         });
       }
     }
@@ -143,14 +143,14 @@ public class JmsBridgeToKafkaTests {
 
       try (MessageProducer producer = session.createProducer(topic)) {
 
+        StringDeserializer stringDeserializer = new StringDeserializer();
         TestSupport.retry(10, 500, () -> {
           TextMessage message = session.createTextMessage("Message 1");
           message.setJMSCorrelationID("FooCorrelationId");
           producer.send(message);
           List<ConsumerRecord<String, String>> kafkaRecords =
-              kafkaContainer.consumeStringsUntil(kafkaCustomerTopic, 1);
+              kafkaContainer.consumeAll(kafkaCustomerTopic, stringDeserializer, stringDeserializer);
 
-          assertEquals(1, kafkaRecords.size());
           assertTrue(kafkaRecords.stream().anyMatch(r -> "FooCorrelationId".equals(r.key())));
         });
 

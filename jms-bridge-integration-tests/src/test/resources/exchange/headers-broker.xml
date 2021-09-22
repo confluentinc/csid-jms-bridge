@@ -1,0 +1,35 @@
+<!--
+  ~ Copyright 2020 Confluent Inc.
+  -->
+
+<configuration xmlns="urn:activemq">
+  <core xmlns="urn:activemq:core">
+    <acceptors>
+      <!-- Default ActiveMQ Artemis Acceptor.  Multi-protocol adapter.  Currently supports Core, OpenWire, Stomp and AMQP. -->
+      <acceptor name="artemis">
+        tcp://0.0.0.0:61616?tcpSendBufferSize=1048576;tcpReceiveBufferSize=1048576;amqpMinLargeMessageSize=102400;protocols=CORE,AMQP,STOMP,HORNETQ,MQTT,OPENWIRE;useEpoll=true;amqpCredits=1000;amqpLowCredits=300;amqpDuplicateDetection=true
+      </acceptor>
+    </acceptors>
+    <journal-directory>/var/cache/jms-bridge/journal</journal-directory>
+
+    <journal-min-files>2</journal-min-files>
+
+    <large-messages-directory>/var/cache/jms-bridge/large-messages
+    </large-messages-directory>
+
+    <paging-directory>/var/cache/jms-bridge/paging</paging-directory>
+
+    <security-enabled>false</security-enabled>
+
+    <addresses>
+      <address name="my-topic">
+        <multicast>
+          <queue name="my-queue" max-consumers="10">
+            <durable>true</durable>
+          </queue>
+        </multicast>
+      </address>
+    </addresses>
+
+  </core>
+</configuration>
