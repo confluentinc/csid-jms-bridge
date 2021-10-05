@@ -72,7 +72,7 @@ resource "google_compute_instance" "bridge" {
 
 // JMeter instances
 resource "google_compute_instance" "tester" {
-  count = 4
+  count = var.tester_count
   name = "bridge-perf-tester-${count.index}"
   machine_type = "e2-standard-4"
   zone = "us-central1-a"

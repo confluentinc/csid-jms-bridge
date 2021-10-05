@@ -4,21 +4,19 @@
 
 package io.confluent.mq.perf.clients;
 
+import com.google.common.base.Stopwatch;
 import javax.jms.BytesMessage;
+import javax.jms.JMSConsumer;
+import javax.jms.JMSContext;
+import javax.jms.JMSException;
 import javax.jms.Message;
-import javax.jms.MessageConsumer;
-import javax.jms.Session;
+import javax.jms.MessageListener;
 import javax.jms.Topic;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.confluent.mq.perf.TestTime;
-import io.confluent.mq.perf.clients.JmsFactory.Connection;
-
 import java.time.Duration;
-import java.util.concurrent.LinkedTransferQueue;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.CompletableFuture;
 
 import static io.confluent.mq.perf.clients.CommonMetrics.MESSAGE_LATENCY_HIST;
 import static io.confluent.mq.perf.clients.CommonMetrics.MSG_CONSUMED_COUNT;
@@ -29,110 +27,220 @@ public class JmsTestConsumer {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(JmsTestConsumer.class);
 
-  private final Connection jmsCnxn;
-  private final String clientName;
+  private final JmsFactory jmsFactory;
   private final String topic;
+  private final String queue;
   private final Duration executionTime;
-  private final TestTime ttime;
-  private final LinkedTransferQueue<Message> messageQueue = new LinkedTransferQueue<>();
-  private final AtomicLong messagesConsumedCount = new AtomicLong(0);
-  private final ClientThroughputSync sync;
+  private final String testId;
+  private final CompletableFuture<Void> initCompleted = new CompletableFuture<>();
   private volatile boolean run = true;
 
   public JmsTestConsumer(
-      Connection jmsCnxn,
-      String clientName,
+      JmsFactory jmsFactory,
       String topic,
+      String queue,
       Duration executionTime,
-      TestTime ttime,
-      ClientThroughputSync sync) {
+      String testId) {
 
-    this.jmsCnxn = jmsCnxn;
-    this.clientName = clientName;
+    this.jmsFactory = jmsFactory;
     this.topic = topic;
+    this.queue = queue;
     this.executionTime = executionTime;
-    this.ttime = ttime;
-    this.sync = sync;
+    this.testId = testId;
   }
 
-  private void messageListener(Message message) {
-    if (messageQueue.offer(message)) {
-      MSG_CONSUMED_COUNT.inc();
-      if (messagesConsumedCount.incrementAndGet() % 100 == 0) {
-        try {
-          LOGGER.info("Acking message");
-          message.acknowledge();
-        } catch (Exception e) {
-          LOGGER.error("Failed to ACK messages", e);
-        }
-      }
-    } else {
-      LOGGER.warn("Consumer onMessage queue refuses message offer!");
-    }
+  public CompletableFuture<Void> getInitCompleted() {
+    return initCompleted;
   }
 
-  public void start() {
-    messagesConsumedCount.set(0);
+  @SuppressWarnings({"checkstyle:CyclomaticComplexity", "checkstyle:JavaNCSS"})
+  public Long start(int ackIntervalMs, int ackBatchSize) {
+    boolean useAsync = false;
     LOGGER.info("Starting JMS Consumer");
-    try (Session session = jmsCnxn.openSession()) {
 
-      Topic jmsTopic = session.createTopic(this.topic);
+    long msgCount = 0;
+    Acker acker = new Acker(ackBatchSize, ackIntervalMs);
+    try (JMSContext jmsContext = jmsFactory.createContext()) {
 
-      LOGGER.info("JMS Consumer consuming from topic: {}", jmsTopic);
-      try (MessageConsumer consumer = session
-          .createSharedDurableConsumer(jmsTopic, "jms2jms-consumer")) {
-        consumer.setMessageListener(this::messageListener);
-        sync.signalReady();
-
-        Message lastMessage = null;
-        while (sync.awaitNext(Duration.ofSeconds(30))) {
-          try {
-            Message message = messageQueue.poll(30, TimeUnit.SECONDS);
-            if (message != null) {
-              lastMessage = message;
-              recordSample(System.currentTimeMillis(), message);
-            }
-          } catch (InterruptedException e) {
-            //ignore
+      Topic jmsTopic = jmsContext.createTopic(this.topic);
+      JMSConsumer jmsConsumer = jmsContext.createSharedDurableConsumer(jmsTopic, queue);
+      LOGGER.info("JMS Consumer consuming from queue: {}", queue);
+      LOGGER.info("JMS Consumer draining old queue data");
+      acker.start();
+      Message lastMessage = null;
+      while (true) {
+        Message message = jmsConsumer.receive(100);
+        if (message != null) {
+          int ackedCount = acker.maybeAck(message);
+          msgCount += ackedCount;
+          MSG_CONSUMED_COUNT.inc(ackedCount);
+        } else {
+          if (lastMessage != null) {
+            lastMessage.acknowledge();
           }
+          break;
         }
-        if (lastMessage != null) {
-          lastMessage.acknowledge();
+        lastMessage = message;
+      }
+
+      LOGGER.info("JMS Consumer drained {} old messages", msgCount);
+
+      initCompleted.complete(null);
+      acker.stop();
+
+      SampleListener sampleListener = new SampleListener(testId, ackIntervalMs, ackBatchSize);
+
+      if (useAsync) {
+        jmsConsumer.setMessageListener(sampleListener);
+        while (run) {
+          Thread.sleep(1000);
+        }
+      } else {
+        while (run) {
+          Message message = jmsConsumer.receive(100);
+          sampleListener.onMessage(message);
         }
       }
+      if (sampleListener.lastMessage != null) {
+        try {
+          sampleListener.lastMessage.acknowledge();
+        } catch (Exception e) {
+          //swallow
+        }
+      }
+      msgCount = sampleListener.msgCount;
+
     } catch (Exception e) {
       LOGGER.error("JMS Consumer has encountered problems and is shutting down", e);
-      sync.signalComplete();
       throw new RuntimeException(e);
     }
     LOGGER.info("JMS Consumer has completed.");
-    sync.signalComplete();
+    return msgCount;
   }
 
-  protected void recordSample(
-      long consumeTs,
-      Message message) {
+  public void stop() {
+    this.run = false;
+  }
 
+  protected static boolean isMessageFromCurrentTest(String testId, Message message)
+      throws JMSException {
+
+    String msgTestId = message.getStringProperty("test_id");
+    return testId.equals(msgTestId);
+  }
+
+  protected static void recordSample(Message message) {
+
+    long consumeTs = System.currentTimeMillis();
     try {
-      long testStartMs = message.getLongProperty("test_start_ms");
       BytesMessage byteMessage = (BytesMessage) message;
 
-      if (testStartMs == ttime.startTime()) {
-        long produceTs = message.getLongProperty("test_msg_ms");
+      long produceTs = message.getLongProperty("test_msg_ms");
 
-        MESSAGE_LATENCY_HIST.observe(consumeTs - produceTs);
+      MESSAGE_LATENCY_HIST.observe(consumeTs - produceTs);
 
-        MSG_CONSUMED_SIZE_GAUGE.set(byteMessage.getBodyLength());
-
-      }
-
+      MSG_CONSUMED_SIZE_GAUGE.set(byteMessage.getBodyLength());
     } catch (Exception e) {
       LOGGER.error("Failed to parse message details.", e);
       MSG_CONSUMED_ERROR_COUNT.inc();
     }
   }
 
-  public long getMessagesConsumedCount() {
-    return messagesConsumedCount.get();
+  public static class SampleListener implements MessageListener {
+
+    private final Acker acker;
+    private final String testId;
+    private int msgCount;
+    private Message lastMessage = null;
+
+    private SampleListener(String testdId, int ackIntervalMs, int ackBatchSize) {
+
+      this.acker = new Acker(ackBatchSize, ackIntervalMs);
+      this.acker.start();
+      this.testId = testdId;
+    }
+
+    @Override
+    public void onMessage(Message message) {
+      try {
+        if (message == null) {
+          return;
+        }
+
+        lastMessage = message;
+        int ackCount = acker.maybeAck(message);
+        if (ackCount > 0) {
+          MSG_CONSUMED_COUNT.inc(ackCount);
+          msgCount += ackCount;
+          if (isMessageFromCurrentTest(testId, message)) {
+            recordSample(message);
+          } else {
+            LOGGER.error("JMS Consumer received message from another test.");
+          }
+        }
+      } catch (Exception e) {
+        LOGGER.error("JMS Consumer, onMessage Listener encountered error, continuing", e);
+      }
+    }
+
+    public Message getLastMessage() {
+      return lastMessage;
+    }
+  }
+
+  public static class Acker {
+
+    final int ackBatchSize;
+    final Duration ackIntervalDuration;
+    long logCount;
+    int batchCount;
+    Stopwatch stopwatch = Stopwatch.createUnstarted();
+    Stopwatch logwatch = Stopwatch.createUnstarted();
+
+    public Acker(int ackBatchSize, int ackIntervalMs) {
+      this.ackBatchSize = ackBatchSize;
+      this.ackIntervalDuration = Duration.ofMillis(ackIntervalMs);
+    }
+
+    public Acker start() {
+      batchCount = 0;
+      logCount = 0;
+      logwatch.start();
+      stopwatch.start();
+      return this;
+    }
+
+    public Acker stop() {
+      batchCount = 0;
+      logCount = 0;
+      logwatch.reset();
+      stopwatch.reset();
+      return this;
+    }
+
+    public int maybeAck(Message message) throws JMSException {
+      if (message == null) {
+        return 0;
+      }
+
+      batchCount++;
+      logCount++;
+      if (ackIntervalDuration.minus(stopwatch.elapsed()).isNegative()
+          || ackBatchSize <= batchCount) {
+
+        message.acknowledge();
+        if (Duration.ofSeconds(5).minus(logwatch.elapsed()).isNegative()) {
+          LOGGER.info("JMS Consumer Acked {} messages in {} ms", logCount,
+              logwatch.elapsed().toMillis());
+          logCount = 0;
+          logwatch.reset().start();
+        }
+        int ackedCount = batchCount;
+        batchCount = 0;
+        stopwatch.reset().start();
+        return ackedCount;
+      }
+      return 0;
+    }
   }
 }

@@ -11,16 +11,15 @@ import picocli.CommandLine.Option;
 import picocli.CommandLine.ParentCommand;
 
 import io.confluent.mq.perf.JmsBridgeParentCommand;
-import io.confluent.mq.perf.TestTime;
-import io.confluent.mq.perf.clients.ClientThroughputSync;
 import io.confluent.mq.perf.clients.JmsFactory;
-import io.confluent.mq.perf.clients.JmsFactory.Connection;
 import io.confluent.mq.perf.clients.JmsTestConsumer;
 import io.confluent.mq.perf.clients.JmsTestProducer;
 import io.confluent.mq.perf.data.DataGenerator;
 
 import java.time.Duration;
-import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 
 @Command(name = "jms2jms")
 public class Jms2Jms implements Runnable {
@@ -37,73 +36,131 @@ public class Jms2Jms implements Runnable {
   private String jmsTopic;
 
   @Option(
+      names = {"--queue"},
+      description = "The name of the queue to consume from.",
+      required = true)
+  private String queue;
+
+  @Option(
+      names = {"--ack-interval-ms"},
+      description = "The number of milliseconds to wait before acking",
+      defaultValue = "5000")
+  private int ackIntervalMs = 5000;
+
+  @Option(
+      names = {"--ack-batch-sz"},
+      description = "The number of records to receive before acking",
+      defaultValue = "100")
+  private int ackBatchSize = 100;
+
+  @Option(
       names = {"--drain-timeout"},
       description = "The number of seconds to wait for the consumer to drain the queues",
-      defaultValue = "30")
-  private int drainTimeout = 30;
+      defaultValue = "120")
+  private int drainTimeout = 120;
 
+  @Option(
+      names = {"--activity"},
+      description =
+          "Indicate the scenario activiy to perform, ${COMPLETION-CANDIDATES}, "
+              + "defaults to ${DEFAULT-VALUE}.",
+      type = ActivityOptions.class,
+      defaultValue = "pubsub")
+  private ActivityOptions activity;
 
-  @SuppressWarnings("checkstyle:VariableDeclarationUsageDistance")
+  @Option(
+      names = {"--pub-async"},
+      description = "Whether to publishly messages asynchronously or not.",
+      defaultValue = "false")
+  private boolean pubAsync;
+
+  @SuppressWarnings({
+      "checkstyle:VariableDeclarationUsageDistance",
+      "checkstyle:CyclomaticComplexity",
+      "checkstyle:NPathComplexity"
+  })
   @Override
   public void run() {
-    TestTime ttime = new TestTime();
+    JmsFactory jmsFactory = new JmsFactory(parent.getJmsUrl(), parent.isUseAmqp());
 
-    JmsFactory jmsFactory = new JmsFactory();
-    try (Connection connection = jmsFactory.openConnection(parent.getJmsUrl())) {
+    DataGenerator dataGenerator = new DataGenerator(parent.getMessageSize());
 
-      DataGenerator dataGenerator = new DataGenerator(parent.getMessageSize());
-      ClientThroughputSync sync = new ClientThroughputSync(2);
+    Duration executionTime = Duration.ofSeconds(parent.getTestDuration());
+    LOGGER.info("Starting test, execution time: {}", executionTime);
 
-      Duration executionTime = Duration.ofSeconds(parent.getTestDuration());
-      LOGGER.info("Starting test, execution time: {}", executionTime);
+    JmsTestProducer jmsProducer = new JmsTestProducer(
+        jmsFactory,
+        jmsTopic,
+        dataGenerator,
+        executionTime,
+        parent.getMessageRate(),
+        pubAsync,
+        parent.getTestId()
+    );
 
-      JmsTestProducer jmsProducer = new JmsTestProducer(
-          connection,
-          "jms2jms-producer",
-          jmsTopic,
-          dataGenerator,
-          executionTime,
-          parent.getMessageRate(),
-          ttime,
-          sync);
-      sync.signalReady();
+    JmsTestConsumer jmsConsumer = new JmsTestConsumer(
+        jmsFactory,
+        jmsTopic,
+        queue,
+        executionTime,
+        parent.getTestId()
+    );
 
-      JmsTestConsumer jmsConsumer = new JmsTestConsumer(
-          connection,
-          "jms2jms-consumer",
-          jmsTopic,
-          executionTime,
-          ttime,
-          sync
-      );
+    CompletableFuture<Long> consumerFuture = CompletableFuture.completedFuture(0L);
+    if (activity.subActive()) {
 
-      ForkJoinPool.commonPool().execute(jmsConsumer::start);
+      consumerFuture = CompletableFuture.supplyAsync(
+          () -> jmsConsumer.start(ackIntervalMs, ackBatchSize));
       LOGGER.info("Waiting for consumer to become ready");
       try {
-        sync.awaitReady(Duration.ofSeconds(30));
+        jmsConsumer.getInitCompleted().get(drainTimeout, TimeUnit.SECONDS);
       } catch (Exception e) {
         throw new RuntimeException("Consumer failed to signal it's ready within the timeout.", e);
       }
 
-      LOGGER.info("Consumer ready, starting producer");
-      ForkJoinPool.commonPool().execute(jmsProducer::start);
-
-      LOGGER.info("Awaiting completion");
-      boolean completed = false;
-      try {
-        completed = sync.awaitComplete(executionTime.plus(Duration.ofSeconds(drainTimeout)));
-      } catch (Exception e) {
-        LOGGER.warn("Error encountered while waiting for test completion.", e);
-      }
-
-      if (completed) {
-        LOGGER.info("Completed");
-      } else {
-        LOGGER.warn("Completed without all clients finishing.");
-      }
-    } catch (Exception e) {
-      throw new RuntimeException("Failed to establish connection to JMS broker", e);
+      LOGGER.info("Consumer ready.");
     }
 
+    if (activity.pubActive()) {
+      LOGGER.info("Producer starting.");
+      CompletableFuture<Long> producerFuture = CompletableFuture.supplyAsync(jmsProducer::start);
+
+      LOGGER.info("Waiting for producer to finish");
+
+      try {
+        Long publishCount = producerFuture.get();
+        LOGGER.info("JMS Publisher finished, published count: {}", publishCount);
+      } catch (ExecutionException | InterruptedException e) {
+        LOGGER.warn("Execution interrupted.");
+      }
+    }
+
+    try {
+      if (activity.subActive()) {
+        LOGGER.info("Draining consumer in preparation for completion");
+        Thread.sleep(drainTimeout * 1000);
+        jmsConsumer.stop();
+        Long consumedCount = consumerFuture.get();
+        LOGGER.info("Consumer completed, consumed count: {}", consumedCount);
+      }
+
+    } catch (Exception e) {
+      LOGGER.warn("Error encountered while waiting for test completion.", e);
+      throw new RuntimeException(e);
+    }
+
+    LOGGER.info("Test completed");
+  }
+
+  public enum ActivityOptions {
+    pub, sub, pubsub;
+
+    public boolean pubActive() {
+      return this == pub || this == pubsub;
+    }
+
+    public boolean subActive() {
+      return this == sub || this == pubsub;
+    }
   }
 }

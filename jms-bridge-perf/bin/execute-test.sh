@@ -42,8 +42,8 @@ function errout {
 function list_scenarios {
     errout "Available scenarios:"
     pushd "${REPO_ROOT}/jms-bridge-perf/scenarios" &>/dev/null || exit 1
-    find . -name "*.json" -type f \
-      | sed -e 's#^\./\(.*\)\.json$#  \1#' >&2
+    find .  \( -name "*.yaml" -o -name "*.json" -o -name "*.yml" \) -type f \
+      | sed -e 's#^\./\(.*\)\.[jsonyaml]*$#  \1#' >&2
 
     popd &>/dev/null || exit 1
 }
@@ -63,7 +63,7 @@ function abs_path {
 
 function scenario {
   local s_name=${1:-''}
-  local s_json="${REPO_ROOT}/jms-bridge-perf/scenarios/${s_name}.json"
+  local s_json="$(find ${REPO_ROOT}/jms-bridge-perf/scenarios -name "${s_name}.*" | head -1)"
 
   if [ ! -f "$s_json" ]; then
     errout "Scenario '${s_name}' not found!"

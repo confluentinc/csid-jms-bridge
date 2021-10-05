@@ -4,26 +4,28 @@
 
 package io.confluent.amq.cli;
 
-import static java.lang.String.format;
-import static org.apache.commons.text.StringEscapeUtils.escapeJson;
-
 import com.github.rvesse.airline.Channels;
 import com.github.rvesse.airline.annotations.Command;
 import com.github.rvesse.airline.annotations.Option;
 import com.github.rvesse.airline.annotations.restrictions.NotBlank;
 import com.github.rvesse.airline.annotations.restrictions.Once;
 import com.github.rvesse.airline.annotations.restrictions.Required;
+import javax.inject.Inject;
+import javax.jms.Destination;
+import javax.jms.JMSException;
+import javax.jms.Message;
+import javax.jms.MessageConsumer;
+
 import io.confluent.amq.cli.JmsClientOptions.SessionAction;
+
 import java.nio.charset.StandardCharsets;
 import java.util.Enumeration;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
-import javax.inject.Inject;
-import javax.jms.JMSException;
-import javax.jms.Message;
-import javax.jms.Topic;
-import javax.jms.TopicSubscriber;
+
+import static java.lang.String.format;
+import static org.apache.commons.text.StringEscapeUtils.escapeJson;
 
 @Command(name = "receive", description = "receive text messages from a JMS topic")
 public class ReceiveCommand implements BaseCommand {
@@ -35,6 +37,10 @@ public class ReceiveCommand implements BaseCommand {
   @Required
   @Once
   String topic;
+
+  @Option(name = "--queue", description = "The durable queue to receive the text messages from.")
+  @Once
+  String queue;
 
   @Option(name = "--name", description = "The name of the consumer")
   @Once
@@ -55,10 +61,12 @@ public class ReceiveCommand implements BaseCommand {
 
   private SessionAction receive(CommandIo io) {
     return session -> {
-      Topic jmsTopic = session.createTopic(topic);
+      Destination destination = queue != null
+          ? session.createQueue(format("%s::%s", topic, queue))
+          : session.createTopic(topic);
 
-      try (TopicSubscriber consumer = session.createDurableSubscriber(jmsTopic, name)) {
-        Channels.output().println("Receiving messages from " + jmsTopic.toString());
+      try (MessageConsumer consumer = session.createConsumer(destination, name)) {
+        Channels.output().println("Receiving messages from " + destination.toString());
 
         final String prefix = "  ";
         while (true) {

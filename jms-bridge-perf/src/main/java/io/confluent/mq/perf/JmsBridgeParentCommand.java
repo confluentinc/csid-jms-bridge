@@ -58,16 +58,31 @@ public class JmsBridgeParentCommand implements Runnable {
       description = "The number of seconds the test should be run for")
   int testDuration = 60;
 
+  @Option(
+      names = {"--test-id"},
+      description = "An ID used to isolate this test's data found in the queue.",
+      required = true)
+   String testId;
 
   @Option(
-      names = {"-jurl", "--jms-url"},
+      names = {"--jms-url"},
       defaultValue = "tcp://localhost:61616",
       description = "The connection URL for the JMS broker")
   String jmsUrl = "tcp://localhost:61616";
 
+  @Option(
+      names = {"--use-amqp"},
+      description = "Use the QPid AMQP JMS client instead of artemis core's",
+      defaultValue = "false")
+  boolean useAmqp;
+
   @Override
   public void run() {
 
+  }
+
+  public boolean isUseAmqp() {
+    return useAmqp;
   }
 
   public int getPrometheusPort() {
@@ -98,4 +113,7 @@ public class JmsBridgeParentCommand implements Runnable {
     return jmsUrl;
   }
 
+  public String getTestId() {
+    return testId;
+  }
 }

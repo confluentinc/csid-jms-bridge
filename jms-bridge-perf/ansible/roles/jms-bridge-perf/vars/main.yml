@@ -4,8 +4,8 @@
 perf_user: jms-bridge-perf
 perf_install_dir: /home/jms-bridge-perf/jms-bridge-perf
 perf_java_opts: >-
-  -Xms512M
-  -Xmx4096M
+  -Xms2G
+  -Xmx8G
   -XX:+UseConcMarkSweepGC
   -XX:+CMSClassUnloadingEnabled
   -XX:+CMSScavengeBeforeRemark
@@ -20,14 +20,17 @@ perf_host_idx: "{{ inventory_hostname_short | regex_replace('^.+-(?P<idx>\\d+)$'
 
 # perf_cfg can be used to override parts of the perf_defaults_cfg map without forcing ansible
 # to use the "merge" configuration option for variable maps.
+# The jms_url key supports a single replacement, %IP, which will be replaced with the IP address of
+# the broker.
 perf_cfg: {}
 perf_defaults_cfg:
   prometheus_port: 8888
   message_size_bytes: 1000
   messages_per_second: 100
   test_duration_seconds: 300
+  test_id: "{{ now(fmt='%Y/%m/%d-%H:%M:%S') }}"
   jms_url_query_params: {}
-  jms_url: tcp://{{ jms_broker_ip }}:61616
+  jms_url: tcp://%IP:61616
 
 # REQUIRED
 #perf_scenario: name-of-scenario

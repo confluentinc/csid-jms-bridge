@@ -37,8 +37,10 @@ import io.confluent.amq.test.KafkaTestContainer;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -74,8 +76,8 @@ public class JmsBridgePubSubTests {
               .putStreams(StreamsConfig.COMMIT_INTERVAL_MS_CONFIG, "500"))
           .dataDirectory(tempdir.toAbsolutePath().toString()));
 
-  @Disabled("Manual local load test")
   @Test
+  @Disabled("Manual Only")
   public void jms2jmsVolume() throws Exception {
     String topicName = amqServer.safeId("/test/perf/jms2jmsVolume");
     String subscriberName = amqServer.safeId("jms2jmsVolume-subscriber");
@@ -88,9 +90,8 @@ public class JmsBridgePubSubTests {
     ) {
 
       Topic topic = session1.createTopic(topicName);
-      final Semaphore sync = new Semaphore(0);
-      final String message = Strings.repeat("foobar foo", 11);
-      final int samples = 1_000_000;
+      final String message = Strings.repeat("foobar foo", 100);
+      final int samples = 50000;
       MetricsManager metricsManager = amqServer.metricsManager();
 
       final Timer producerTimer = Timer.builder("test-perf-producer")
@@ -109,52 +110,64 @@ public class JmsBridgePubSubTests {
             LOGGER.info("METRICS");
 
             Stream.of(producerTimer.takeSnapshot().percentileValues()).forEach(p ->
-                LOGGER.info("Producer {} %ile: {} ms, {} mps",
+                LOGGER.warn("Producer {} %ile: {} ms, {} mps",
                     p.percentile(),
                     p.value(TimeUnit.MILLISECONDS),
                     1000 / p.value(TimeUnit.MILLISECONDS)));
             Stream.of(consumerTimer.takeSnapshot().percentileValues()).forEach(p ->
-                LOGGER.info("Consumer {} %ile: {} ms, {} mps",
+                LOGGER.warn("Consumer {} %ile: {} ms, {} mps",
                     p.percentile(),
                     p.value(TimeUnit.MILLISECONDS),
                     1000 / p.value(TimeUnit.MILLISECONDS)));
 
           }, 5, 5, TimeUnit.SECONDS);
 
+      CountDownLatch producerLatch = new CountDownLatch(1);
       CompletableFuture<?> consumerFuture = CompletableFuture.runAsync(() -> {
         try (
             MessageConsumer consumer = session1.createDurableConsumer(topic, subscriberName)
         ) {
-          boolean keepGoing = true;
           int count = 0;
           try {
             consumer.setMessageListener(new MessageListener() {
               final Stopwatch stopwatch = Stopwatch.createStarted();
+              final Duration commitInterval = Duration.ofSeconds(2L);
               int count = 0;
+              int totalCount = 0;
 
               @Override
               public void onMessage(Message message) {
                 if (message != null) {
-                  stopwatch.stop();
-                  consumerTimer.record(stopwatch.elapsed());
+                  totalCount++;
                   count++;
-                  if (count % 100 == 0) {
+                  if (totalCount >= samples) {
+                    try {
+                      message.acknowledge();
+                      LOGGER.warn("Consumed count: " + totalCount);
+                      producerLatch.countDown();
+                    } catch (Exception e) {
+                      producerLatch.countDown();
+                      throw new RuntimeException(e);
+                    }
+                } else if (commitInterval.minus(stopwatch.elapsed()).isNegative()) {
+                    stopwatch.stop();
+                    consumerTimer.record(stopwatch.elapsed().dividedBy(count));
                     try {
                       message.acknowledge();
                     } catch (Exception e) {
                       LOGGER.error("Failed to ack message", e);
                     }
+                    LOGGER.warn("Consumed count: " + totalCount);
+                    count = 0;
+                    stopwatch.reset().start();
                   }
-                  stopwatch.reset().start();
                 }
               }
             });
           } catch (Exception e) {
             throw new RuntimeException(e);
           }
-          while (keepGoing) {
-            keepGoing = !sync.tryAcquire(1, 30, TimeUnit.SECONDS);
-          }
+          producerLatch.await();
           consumer.setMessageListener(null);
           LOGGER.info("Consumer completed");
         } catch (Exception e) {
@@ -172,10 +185,11 @@ public class JmsBridgePubSubTests {
             throw new RuntimeException(e);
           }
 
+          TimedListener listener = new TimedListener(samples);
           for (int count = 0; count < samples; count++) {
-            producer.send(session2.createTextMessage(message), new TimedListener(producerTimer));
+            producer.send(session2.createTextMessage(message), listener);
           }
-          sync.release();
+          listener.expCountLatch.await();
           LOGGER.info("Producer completed");
         } catch (Exception e) {
           LOGGER.error("Producer failed with exception", e);
@@ -183,7 +197,8 @@ public class JmsBridgePubSubTests {
       });
 
       LOGGER.info("Waiting for producer and consumer to finish.");
-      CompletableFuture.allOf(producerFuture, consumerFuture).join();
+      producerFuture.join();
+      consumerFuture.join();
     }
   }
 
@@ -314,22 +329,32 @@ public class JmsBridgePubSubTests {
 
   public static class TimedListener implements CompletionListener {
 
-    final Timer timer;
-    final Stopwatch stopwatch = Stopwatch.createStarted();
+    private final int expCount;
+    private final CountDownLatch expCountLatch = new CountDownLatch(1);
+    private long count = 0;
 
-    public TimedListener(Timer timer) {
-      this.timer = timer;
+    public TimedListener(int expectedCount) {
+      this.expCount = expectedCount;
     }
 
     @Override
     public void onCompletion(Message message) {
-      stopwatch.stop();
-      timer.record(stopwatch.elapsed());
+      count++;
+      if (count % 100 == 0) {
+        LOGGER.warn("published count: " + count);
+      }
+      if (count == expCount) {
+        expCountLatch.countDown();
+      }
     }
 
     @Override
     public void onException(Message message, Exception exception) {
       LOGGER.error("Failed to publish message", exception);
+    }
+
+    public CountDownLatch getExpCountLatch() {
+      return expCountLatch;
     }
   }
 }

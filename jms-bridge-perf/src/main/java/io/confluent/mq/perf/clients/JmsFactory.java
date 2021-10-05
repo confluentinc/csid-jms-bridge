@@ -4,54 +4,58 @@
 
 package io.confluent.mq.perf.clients;
 
+import javax.jms.ConnectionFactory;
+import javax.jms.JMSContext;
 import javax.jms.JMSException;
 import javax.jms.Session;
-import org.apache.activemq.artemis.api.jms.ActiveMQJMSClient;
-import org.apache.activemq.artemis.jms.client.ActiveMQConnectionFactory;
+import javax.naming.InitialContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.net.InetAddress;
+import java.util.Hashtable;
+import java.util.Random;
 
 public class JmsFactory {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(JmsFactory.class);
-  private volatile Connection connection;
 
-  public synchronized Connection getConnection() {
-    if (this.connection == null) {
-      throw new IllegalStateException(
-          "Connection has not been established yet, please call openConnection first");
-    }
-    return connection;
+  private final boolean useAmqp;
+  private final String url;
+  private final Random rand = new Random();
+
+  public JmsFactory(String url, boolean useAmqp) {
+    this.url = url;
+    this.useAmqp = useAmqp;
   }
 
-  public synchronized Connection openConnection(String url) throws Exception {
+  private Hashtable amqpProperties() {
+    Hashtable props = new Hashtable();
+    props.put("java.naming.factory.initial", "org.apache.qpid.jms.jndi.JmsInitialContextFactory");
+    props.put("connectionFactory.myFactoryLookup", this.url);
 
-    if (connection == null) {
+    return props;
+  }
 
-      String hostname;
-      try {
-        InetAddress ip = InetAddress.getLocalHost();
-        hostname = ip.getHostName();
-      } catch (Exception e) {
-        InetAddress ip = InetAddress.getLocalHost();
-        hostname = ip.getHostAddress();
-      }
+  private Hashtable amqCoreProperties() {
+    Hashtable props = new Hashtable();
+    props.put("java.naming.factory.initial",
+        "org.apache.activemq.artemis.jndi.ActiveMQInitialContextFactory");
+    props.put("connectionFactory.myFactoryLookup", this.url);
 
-      ActiveMQConnectionFactory cf = ActiveMQJMSClient
-          .createConnectionFactory(url, hostname + "-cnxn");
-      int size = 1024 * 1024 * 10;
-      cf.setConsumerWindowSize(size * 2);
-      cf.setConsumerMaxRate(size * 2);
-      cf.setProducerWindowSize(size);
-      cf.setProducerMaxRate(size);
-      javax.jms.Connection amqConnection = cf.createConnection();
-      amqConnection.setClientID(hostname + "-id");
-      connection = new Connection(amqConnection);
-    }
+    return props;
+  }
 
-    return connection;
+  private synchronized ConnectionFactory getCnxnFactory()
+      throws Exception {
+
+    Hashtable jndiProps = useAmqp ? amqpProperties() : amqCoreProperties();
+    InitialContext initialContext = new InitialContext(jndiProps);
+    ConnectionFactory cnxnFactory = (ConnectionFactory) initialContext.lookup("myFactoryLookup");
+    return cnxnFactory;
+  }
+
+  public JMSContext createContext() throws Exception {
+    return getCnxnFactory().createContext(JMSContext.CLIENT_ACKNOWLEDGE);
   }
 
   public static class Connection implements AutoCloseable {

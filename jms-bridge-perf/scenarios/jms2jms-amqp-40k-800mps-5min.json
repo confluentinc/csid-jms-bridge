@@ -1,0 +1,22 @@
+{
+  "perf_cfg": {
+    "message_size_bytes": 40000,
+    "messages_per_second": 500,
+    "test_duration_seconds": 300,
+    "jms_url": "amqp://%IP:61616",
+    "use_amqp": "true",
+    "jms_url_query_params": {
+      "jms.prefetchPolicy.all": "10000"
+    }
+  },
+
+    "perf_scenario": "jms2jms",
+    "perf_scenario_cfg": [
+        "--pub-async",
+        "--drain-timeout=60",
+        "--ack-interval-ms=5000",
+        "--ack-batch-sz=1000",
+        "--queue=q1",
+        "--topic=amqp-shared-durable-topic"
+    ]
+}

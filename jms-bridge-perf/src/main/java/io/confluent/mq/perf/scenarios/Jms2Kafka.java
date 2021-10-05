@@ -11,10 +11,7 @@ import picocli.CommandLine.Option;
 import picocli.CommandLine.ParentCommand;
 
 import io.confluent.mq.perf.JmsBridgeParentCommand;
-import io.confluent.mq.perf.TestTime;
-import io.confluent.mq.perf.clients.ClientThroughputSync;
 import io.confluent.mq.perf.clients.JmsFactory;
-import io.confluent.mq.perf.clients.JmsFactory.Connection;
 import io.confluent.mq.perf.clients.JmsTestProducer;
 import io.confluent.mq.perf.clients.KafkaTestConsumer;
 import io.confluent.mq.perf.data.DataGenerator;
@@ -26,6 +23,7 @@ import java.nio.file.Files;
 import java.time.Duration;
 import java.util.Properties;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 
 @Command(name = "jms2kafka")
 public class Jms2Kafka implements Runnable {
@@ -65,75 +63,71 @@ public class Jms2Kafka implements Runnable {
       description = "The number of seconds to delay the stop of the kafka consumer")
   private int consumerStopDelay = 10;
 
+  @Option(
+      names = {"--jms-async"},
+      description = "Whether to publish JMS messages asynchronously or not.",
+      defaultValue = "false")
+  private boolean jmsAsync;
+
+
   @Override
   public void run() {
 
-    JmsFactory jmsFactory = new JmsFactory();
-    try (Connection connection = jmsFactory.openConnection(parent.getJmsUrl())) {
+    JmsFactory jmsFactory = new JmsFactory(parent.getJmsUrl(), parent.isUseAmqp());
 
-      Properties kprops = new Properties();
-      try (InputStream propStream = Files.newInputStream(kafkaPropsFile.toPath())) {
-        kprops.load(propStream);
-      } catch (IOException e) {
-        System.err.println("Unable to load kafka properties file");
-        e.printStackTrace(System.err);
-        throw new RuntimeException(e);
-      }
-
-      TestTime ttime = new TestTime();
-      DataGenerator dataGenerator = new DataGenerator(parent.getMessageSize());
-      ClientThroughputSync sync = new ClientThroughputSync(2);
-
-      final Duration executionTime = Duration.ofSeconds(parent.getTestDuration());
-      LOGGER.info("Starting test, execution time: {}", executionTime);
-      connection.start();
-
-      final JmsTestProducer jmsProducer = new JmsTestProducer(
-          connection,
-          "jms2kafka",
-          jmsTopic,
-          dataGenerator,
-          executionTime,
-          parent.getMessageRate(),
-          ttime,
-          sync);
-      sync.signalReady();
-
-      KafkaTestConsumer kafkaConsumer = new KafkaTestConsumer(
-          kprops,
-          kafkaTopic,
-          Duration.ofMillis(kafkaPollDurationMs),
-          ttime,
-          sync);
-
-      CompletableFuture.runAsync(kafkaConsumer::start);
-      LOGGER.info("Waiting for consumer to become ready");
-      try {
-        sync.awaitReady(Duration.ofSeconds(30));
-      } catch (Exception e) {
-        throw new RuntimeException(e);
-      }
-
-      LOGGER.info("Consumer ready, starting producer");
-      CompletableFuture.runAsync(jmsProducer::start);
-
-      LOGGER.info("Awaiting completion");
-      boolean completed = false;
-      try {
-        completed = sync.awaitComplete(executionTime.plus(Duration.ofSeconds(consumerStopDelay)));
-      } catch (Exception e) {
-        LOGGER.warn("Error encountered while waiting for test completion.", e);
-      }
-
-      if (completed) {
-        LOGGER.info("Completed");
-      } else {
-        LOGGER.warn("Completed without all clients finishing.");
-      }
-    } catch (Exception e) {
-      throw new RuntimeException("Failed to establish connection to JMS broker", e);
+    Properties kprops = new Properties();
+    try (InputStream propStream = Files.newInputStream(kafkaPropsFile.toPath())) {
+      kprops.load(propStream);
+    } catch (IOException e) {
+      System.err.println("Unable to load kafka properties file");
+      e.printStackTrace(System.err);
+      throw new RuntimeException(e);
     }
 
+    DataGenerator dataGenerator = new DataGenerator(parent.getMessageSize());
 
+    final Duration executionTime = Duration.ofSeconds(parent.getTestDuration());
+    LOGGER.info("Starting test, execution time: {}", executionTime);
+
+    final JmsTestProducer jmsProducer = new JmsTestProducer(
+        jmsFactory,
+        jmsTopic,
+        dataGenerator,
+        executionTime,
+        parent.getMessageRate(),
+        jmsAsync,
+        parent.getTestId());
+
+    KafkaTestConsumer kafkaConsumer = new KafkaTestConsumer(
+        kprops,
+        kafkaTopic,
+        Duration.ofMillis(kafkaPollDurationMs),
+        parent.getTestId());
+
+    CompletableFuture<Long> consumerFuture = CompletableFuture.supplyAsync(kafkaConsumer::start);
+    LOGGER.info("Waiting for consumer to become ready");
+    try {
+      kafkaConsumer.getInitCompleted().get(30, TimeUnit.SECONDS);
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
+
+    LOGGER.info("Consumer ready, starting producer");
+    CompletableFuture<Long> producerFuture = CompletableFuture.supplyAsync(jmsProducer::start);
+
+    LOGGER.info("Waiting for producer to complete.");
+    try {
+      Long producedCount = producerFuture.get();
+      LOGGER.info("Producer complete, produced {} records.", producedCount);
+      kafkaConsumer.stopAtCount(producedCount);
+      LOGGER.info("Waiting for consumer to complete.");
+      Long consumedCount = consumerFuture.get();
+      LOGGER.info("Consumer complete, consumed {} records.", consumedCount);
+
+    } catch (Exception e) {
+      LOGGER.warn("Error encountered while waiting for clients to complete.", e);
+    }
+
+    LOGGER.info("Test Completed");
   }
 }

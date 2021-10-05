@@ -18,3 +18,7 @@ variable "project" {
   default = "csid-281116"
 }
 
+variable "tester_count" {
+  type    = number
+  default = 4
+}

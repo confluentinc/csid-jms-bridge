@@ -9,10 +9,12 @@ Type=simple
 Environment="JAVA_OPTS={{ perf_java_opts }}"
 ExecStart={{ perf_install_dir }}/bin/jms-bridge-perf \
     --pr-port={{ pcfg.prometheus_port }} \
-    --jms-url={{ pcfg.jms_url }}?{{ pcfg.jms_url_query_params | urlencode }} \
+    --jms-url={{ pcfg.jms_url | replace('%IP', jms_broker_ip) }}?{{ pcfg.jms_url_query_params | urlencode }} \
+    --use-amqp={{ pcfg.use_amqp }} \
     --message-size={{ pcfg.message_size_bytes }} \
     --message-rate={{ pcfg.messages_per_second }} \
     --test-duration={{ pcfg.test_duration_seconds }} \
+    --test-id='{{ pcfg.test_id }}' \
     {{ perf_scenario }} \
 {% for c in perf_scenario_cfg %}
     {{ c | replace('%IDX', perf_host_idx) }} {% if not loop.last %}\{% endif %}

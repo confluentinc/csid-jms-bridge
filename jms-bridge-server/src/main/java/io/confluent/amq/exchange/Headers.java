@@ -155,6 +155,10 @@ public final class Headers {
       org.apache.kafka.common.header.Headers headers,
       Deserializer<T> deserializer) {
 
+    if (headers == null) {
+      return Optional.empty();
+    }
+
     Header hdr = headers.lastHeader(hdrName);
     if (hdr == null) {
       return Optional.empty();
@@ -240,12 +244,14 @@ public final class Headers {
    * @param incrementHops whether to increment a hops header, will create one if not present
    * @return a map of headers suitable for adding to an AMQ message
    */
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   public static Map<String, Object> convertHeaders(
       org.apache.kafka.common.header.Headers headers,
       String bridgeId,
       boolean incrementHops) {
 
     final Map<String, Object> headerMap = new HashMap<>();
+
     if (incrementHops) {
       String hopsKey = createHopsKey(bridgeId);
       int hopsVal = getIntHeader(hopsKey, headers)
@@ -254,12 +260,21 @@ public final class Headers {
       headerMap.put(hopsKey, hopsVal);
     }
 
+    if (headers == null) {
+      return headerMap;
+    }
+
     headers.forEach(hdr -> {
       String hdrKey = hdr.key();
       if (hdrKey.startsWith(JMS_KEY_PREFIX)) {
-        String[] keyParts = hdrKey.split("\\.", 3);
-        HeaderType hdrType = HeaderType.fromCode(keyParts[1]);
-        String jmsKey = keyParts[2];
+        String remaining = hdrKey.substring(JMS_KEY_PREFIX.length());
+
+        final HeaderType hdrType = extractHeaderType(remaining);
+        if (HeaderType.UNKNOWN != hdrType) {
+          remaining = remaining.substring(hdrType.code.length() + 1);
+        }
+
+        String jmsKey = remaining;
         switch (jmsKey) {
           case HDR_CORRELATION_ID_KEY:
           case HDR_REPLY_TO_KEY:
@@ -276,7 +291,15 @@ public final class Headers {
               case INT:
                 headerMap.put(jmsKey, INT_SERDES.deserializer().deserialize("", hdr.value()));
                 break;
+              case BYTES:
+                headerMap.put(jmsKey, hdr.value());
+                break;
               default:
+                SLOG.debug(b -> b
+                    .event("ConvertHeaders")
+                    .message("Unsupported/Unknown header type found, defaulting to 'bytes'.")
+                    .putTokens("headerKey", hdrKey)
+                    .putTokens("headerType", hdrType.toString()));
                 headerMap.put(jmsKey, hdr.value());
                 break;
             }
@@ -333,6 +356,16 @@ public final class Headers {
     }
 
     return headerMap;
+  }
+
+  private static HeaderType extractHeaderType(String hdrWithoutJmsPrefix) {
+    int dotIdx = hdrWithoutJmsPrefix.indexOf('.');
+
+    HeaderType hdrType = HeaderType.UNKNOWN;
+    if (dotIdx != -1) {
+      hdrType = HeaderType.fromCode(hdrWithoutJmsPrefix.substring(0, dotIdx));
+    }
+    return hdrType;
   }
 
   /**
