@@ -9,15 +9,13 @@ import com.google.common.util.concurrent.RateLimiter;
 import javax.jms.BytesMessage;
 import javax.jms.CompletionListener;
 import javax.jms.DeliveryMode;
+import javax.jms.JMSContext;
+import javax.jms.JMSProducer;
 import javax.jms.Message;
-import javax.jms.MessageProducer;
-import javax.jms.Session;
 import javax.jms.Topic;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.confluent.mq.perf.TestTime;
-import io.confluent.mq.perf.clients.JmsFactory.Connection;
 import io.confluent.mq.perf.data.DataGenerator;
 
 import java.time.Duration;
@@ -31,34 +29,31 @@ public class JmsTestProducer implements CompletionListener {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(JmsTestProducer.class);
 
-  private final Connection jmsCnxn;
-  private final String clientName;
+  private final JmsFactory jmsFactory;
   private final String topic;
   private final DataGenerator dataGenerator;
   private final Duration executionTime;
   private final int messageRate;
-  private final TestTime ttime;
-  private final ClientThroughputSync sync;
+  private final String testId;
   private final AtomicLong messagesPublishedCount = new AtomicLong(0);
+  private final boolean useAsync;
 
   public JmsTestProducer(
-      Connection jmsCnxn,
-      String clientName,
+      JmsFactory jmsFactory,
       String topic,
       DataGenerator dataGenerator,
       Duration executionTime,
       int messageRate,
-      TestTime ttime,
-      ClientThroughputSync sync) {
+      boolean async,
+      String testId) {
 
-    this.jmsCnxn = jmsCnxn;
-    this.clientName = clientName;
+    this.jmsFactory = jmsFactory;
     this.topic = topic;
     this.dataGenerator = dataGenerator;
     this.executionTime = executionTime;
     this.messageRate = messageRate;
-    this.ttime = ttime;
-    this.sync = sync;
+    this.testId = testId;
+    this.useAsync = async;
   }
 
   @Override
@@ -73,43 +68,44 @@ public class JmsTestProducer implements CompletionListener {
     LOGGER.error("Published message failed.", exception);
   }
 
-  public void start() {
+  public Long start() {
     messagesPublishedCount.set(0);
     LOGGER.info("Starting JMS Publisher");
     Supplier<byte[]> messageSupplier = dataGenerator.createMessageSupplier();
-    try (
-        Session session = jmsCnxn.openSession()) {
 
-      Topic jmsTopic = session.createTopic(this.topic);
+    try (JMSContext jmsContext = jmsFactory.createContext()) {
+      Topic jmsTopic = jmsContext.createTopic(this.topic);
+      JMSProducer producer = jmsContext.createProducer();
+      producer.setDeliveryMode(DeliveryMode.PERSISTENT);
+
+      if (useAsync) {
+        producer.setAsync(this);
+      }
 
       LOGGER.info("JMS publisher producing to topic: {}", jmsTopic);
-      try (MessageProducer producer = session.createProducer(jmsTopic)) {
-        producer.setDeliveryMode(DeliveryMode.PERSISTENT);
-        producer.setDisableMessageID(true);
 
-        Stopwatch testTimer = Stopwatch.createStarted();
-        RateLimiter rateLimiter = RateLimiter.create(messageRate);
+      Stopwatch testTimer = Stopwatch.createStarted();
+      RateLimiter rateLimiter = RateLimiter.create(messageRate);
 
-        boolean timeRemains = true;
-        long startTime = ttime.startTime();
-        int batchSize = 10;
-        double msgCount = 0;
+      boolean timeRemains = true;
+      int batchSize = 10;
+      double msgCount = 0;
 
-        sync.signalReady();
-        while (timeRemains) {
-          rateLimiter.acquire();
-          BytesMessage message = session.createBytesMessage();
-          message.writeBytes(messageSupplier.get());
-          message.setLongProperty("test_start_ms", startTime);
-          message.setLongProperty("test_msg_ms", System.currentTimeMillis());
-          //synchronous send for now
-          //producer.send(message);
-          //MSG_PRODUCER_COUNT.inc();
-          producer.send(message, this);
-          sync.increment();
-          timeRemains = testTimer.elapsed().minus(executionTime).isNegative();
+      while (timeRemains) {
+        rateLimiter.acquire();
+        BytesMessage message = jmsContext.createBytesMessage();
+        message.writeBytes(messageSupplier.get());
+        message.setStringProperty("test_id", testId);
+        message.setLongProperty("test_msg_ms", System.currentTimeMillis());
+        producer.send(jmsTopic, message);
+        if (!useAsync) {
+          onCompletion(message);
         }
+        timeRemains = testTimer.elapsed().minus(executionTime).isNegative();
+      }
 
+      if (useAsync) {
+        //wait for async responses from server to finish up
         while (messagesPublishedCount.get() < msgCount) {
           try {
             Thread.sleep(100);
@@ -120,11 +116,10 @@ public class JmsTestProducer implements CompletionListener {
       }
     } catch (Exception e) {
       LOGGER.error("JMS Publisher has encountered problems and is shutting down", e);
-      sync.signalComplete();
       throw new RuntimeException(e);
     }
     LOGGER.info("JMS Publisher has completed.");
-    sync.signalComplete();
+    return messagesPublishedCount.get();
   }
 
   public long getMessagesPublishedCount() {

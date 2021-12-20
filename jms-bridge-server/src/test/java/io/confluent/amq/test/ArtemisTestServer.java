@@ -407,12 +407,10 @@ public class ArtemisTestServer implements
       ActiveMQConnectionFactory cf = ActiveMQJMSClient
           .createConnectionFactory(spec.url(), spec.name().orElse("junit"));
 
-      int size = 1024 * 1024 * 10;
-      cf.setConsumerMaxRate(size * 2);
-      cf.setConsumerWindowSize(size * 2);
-      cf.setProducerMaxRate(size);
-      cf.setProducerWindowSize(size);
-      ActiveMQConnection amqConnection = (ActiveMQConnection) cf.createConnection();
+      cf.setConfirmationWindowSize(1024000);
+      cf.setProducerWindowSize(-1);
+      cf.setConsumerWindowSize(-1);
+     ActiveMQConnection amqConnection = (ActiveMQConnection) cf.createConnection();
       amqConnection.setClientID(spec.clientId().orElse("junit"));
 
       return amqConnection;

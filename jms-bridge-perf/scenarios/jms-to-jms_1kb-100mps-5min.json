@@ -2,8 +2,10 @@
   "perf_cfg": {
     "message_size_bytes": 1000,
     "messages_per_second": 100,
-    "test_duration_seconds": 300
-    },
+    "test_duration_seconds": 300,
+    "jms_url_query_params": {
+    }
+  },
 
     "perf_scenario": "jms2jms",
     "perf_scenario_cfg": [

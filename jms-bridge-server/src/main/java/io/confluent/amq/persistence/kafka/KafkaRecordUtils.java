@@ -6,20 +6,25 @@ package io.confluent.amq.persistence.kafka;
 
 import com.google.common.hash.HashCode;
 import com.google.common.hash.Hashing;
-import io.confluent.amq.persistence.domain.proto.JournalEntry;
-import io.confluent.amq.persistence.domain.proto.JournalEntryKey;
-import io.confluent.amq.persistence.domain.proto.JournalRecord;
-import io.confluent.amq.persistence.domain.proto.JournalRecordType;
-import io.confluent.amq.persistence.domain.proto.MessageAnnotation;
-import io.confluent.amq.persistence.kafka.journal.impl.EpochCoordinator;
-import java.util.EnumSet;
 import org.apache.activemq.artemis.core.journal.RecordInfo;
 import org.apache.kafka.common.header.Header;
 import org.apache.kafka.common.header.Headers;
 import org.apache.kafka.common.serialization.IntegerDeserializer;
 import org.apache.kafka.common.serialization.IntegerSerializer;
 
+import io.confluent.amq.logging.StructuredLogger;
+import io.confluent.amq.persistence.domain.proto.JournalEntry;
+import io.confluent.amq.persistence.domain.proto.JournalEntryKey;
+import io.confluent.amq.persistence.domain.proto.JournalRecord;
+import io.confluent.amq.persistence.domain.proto.JournalRecordType;
+import io.confluent.amq.persistence.domain.proto.MessageAnnotation;
+import io.confluent.amq.persistence.kafka.journal.impl.EpochCoordinator;
+
+import java.util.EnumSet;
+
 public final class KafkaRecordUtils {
+  private static final StructuredLogger SLOG = StructuredLogger
+      .with(b -> b.loggerClass(KafkaRecordUtils.class));
 
   public static final String EPOCH_RECORD_HEADER = "_epoch";
   public static final int MESSAGE_ANNOTATIONS_EXTENDED_ID_CONSTANT = -1;
@@ -87,11 +92,13 @@ public final class KafkaRecordUtils {
   }
 
   public static boolean isTxRecord(JournalRecord record) {
-    return record != null && TX_TYPES.contains(record.getRecordType());
+    return record != null
+        && (TX_TYPES.contains(record.getRecordType()) || record.getTxId() > 0);
   }
 
   public static boolean isMessageRecord(JournalRecord record) {
-    return record != null && MSG_TYPES.contains(record.getRecordType());
+    return record != null
+        && (MSG_TYPES.contains(record.getRecordType()) || record.getMessageId() > 0);
   }
 
   public static boolean isAnnotationRecord(JournalRecord record) {
@@ -115,7 +122,14 @@ public final class KafkaRecordUtils {
       keyBuilder.setExtendedId(hash.asInt());
     }
 
-    return keyBuilder.build();
+    JournalEntryKey key =  keyBuilder.build();
+    if (key.getSerializedSize() < 1) {
+      SLOG.warn(b -> b
+          .event("keyFromRecord")
+          .message("Empty/null key for record!")
+          .addJournalRecord(record));
+    }
+    return key;
   }
 
   public static JournalEntryKey addDeleteKeyFromMessageId(long messageId) {

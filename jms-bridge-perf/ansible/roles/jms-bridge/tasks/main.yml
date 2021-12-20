@@ -39,6 +39,8 @@
     dest: "{{ jms_bridge_home }}/etc/jms-bridge/broker.xml"
     mode: 0644
     owner: "{{ jms_bridge_user }}"
+  vars:
+    broker_xml_vars: "{{  broker_xml_defaults_cfg | combine(broker_xml_cfg, recursive=True) }}"
 
 - name: Copy over bridge configuration
   ansible.builtin.template:

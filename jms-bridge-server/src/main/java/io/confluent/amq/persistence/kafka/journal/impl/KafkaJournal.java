@@ -26,7 +26,6 @@ import org.apache.activemq.artemis.core.persistence.Persister;
 import org.apache.activemq.artemis.utils.ExecutorFactory;
 import org.apache.activemq.artemis.utils.collections.SparseArrayLinkedList;
 import org.apache.kafka.clients.producer.ProducerRecord;
-import org.apache.kafka.clients.producer.RecordMetadata;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -187,46 +186,44 @@ public class KafkaJournal implements Journal {
   }
 
   protected void publishJournalRecord(KafkaJournalRecord record) {
-    executor.getExecutor().execute(() -> {
-      ProducerRecord<JournalEntryKey, JournalEntry> producerRecord = new ProducerRecord<>(
-          record.getDestTopic(),
-          record.getKafkaMessageKey(),
-          JournalEntry.newBuilder().setAppendedRecord(record.getRecord()).build());
-      KafkaRecordUtils.addEpochHeader(producerRecord.headers());
+    ProducerRecord<JournalEntryKey, JournalEntry> producerRecord = new ProducerRecord<>(
+        record.getDestTopic(),
+        record.getKafkaMessageKey(),
+        JournalEntry.newBuilder().setAppendedRecord(record.getRecord()).build());
+    KafkaRecordUtils.addEpochHeader(producerRecord.headers());
 
-      try {
-        RecordMetadata meta = kafkaIO
-            .<JournalEntryKey, JournalEntry>getInternalProducer().send(producerRecord).get();
+    kafkaIO.<JournalEntryKey, JournalEntry>getInternalProducer()
+        .send(producerRecord, (meta, err) -> {
 
-        SLOG.trace(b -> b
-            .event("PublishJournalRecord")
-            .markSuccess()
-            .addRecordMetadata(meta)
-            .addJournalEntryKey(producerRecord.key())
-            .addJournalEntry(producerRecord.value()));
+          SLOG.trace(b -> b
+              .event("PublishJournalRecord")
+              .markSuccess()
+              .addRecordMetadata(meta)
+              .addJournalEntryKey(producerRecord.key())
+              .addJournalEntry(producerRecord.value()));
 
-        if (record.getIoCompletion() != null) {
-          record.getIoCompletion().done();
-        }
+          if (err == null) {
+            if (record.getIoCompletion() != null) {
+              record.getIoCompletion().done();
+            }
+          } else {
 
-      } catch (Exception e) {
-        if (record.getIoCompletion() != null) {
-          handleException(e);
-          record.getIoCompletion()
-              .onError(ActiveMQExceptionType.IO_ERROR.getCode(), e.getMessage());
-        }
+            if (record.getIoCompletion() != null) {
+              handleException(err);
+              record.getIoCompletion()
+                  .onError(ActiveMQExceptionType.IO_ERROR.getCode(), err.getMessage());
+            }
 
-        SLOG.error(b -> b
-            .event("PublishJournalRecord")
-            .markFailure()
-            .addProducerRecord(producerRecord)
-            .addJournalEntryKey(producerRecord.key())
-            .addJournalEntry(producerRecord.value()), e);
+            SLOG.error(b -> b
+                .event("PublishJournalRecord")
+                .markFailure()
+                .addProducerRecord(producerRecord)
+                .addJournalEntryKey(producerRecord.key())
+                .addJournalEntry(producerRecord.value()), err);
 
-        criticalIOErrorListener.onIOException(e, "Failed to write to Kafka", null);
-      }
-
-    });
+            criticalIOErrorListener.onIOException(err, "Failed to write to Kafka", null);
+          }
+        });
   }
 
   private void appendRecord(JournalRecord record) throws Exception {

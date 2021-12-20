@@ -15,5 +15,5 @@ JMS_BRIDGE_OPTS="${JMS_BRIDGE_OPTS} -javaagent:${_pr_jar}=${_pr_port}:${_pr_conf
 export JMS_BRIDGE_OPTS
 export JMS_BRIDGE_DATA_DIR=${STATE_DIRECTORY}/jms-data
 export JMX_PORT=9010
-export JMS_BRIDGE_HEAP_OPTS="-Xmx8g"
+export JMS_BRIDGE_HEAP_OPTS="-Xmx16g"
 bin/jms-bridge-server-start etc/jms-bridge/jms-bridge.conf

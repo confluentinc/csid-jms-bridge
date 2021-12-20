@@ -125,7 +125,9 @@ public abstract class ConsumerThread<K, V> implements Runnable, ConsumerRebalanc
             for (ConsumerRecord<K, V> r: records) {
               receiver().onRecieve(r);
             }
-
+          } else {
+            //prevent busywait consuming 100% CPU
+            Thread.sleep(pollMs());
           }
 
           Collection<String> updatedTopicList = topicUpdateRef.getAndSet(null);

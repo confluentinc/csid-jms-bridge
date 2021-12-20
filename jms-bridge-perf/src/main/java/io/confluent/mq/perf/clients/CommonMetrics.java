@@ -10,17 +10,15 @@ import io.prometheus.client.Histogram;
 
 public final class CommonMetrics {
 
-  private static double[] BUCKETS = {
+  static final double[] LATENCY_BUCKETS = {
       1, 5, 10, 25, 50, 100, 250, 500, 750, 1000, 1500, 2000, 3000, 4000, 5000
   };
 
   public static final Histogram MESSAGE_LATENCY_HIST = Histogram.build()
-      .buckets(BUCKETS)
+      .buckets(LATENCY_BUCKETS)
       .name("perf_test_producer_to_consumer_latency_ms")
       .help("Time it takes for message to be consumed from the producer")
       .register();
-
-
 
   public static final Gauge MSG_CONSUMED_SIZE_GAUGE = Gauge.build()
       .name("perf_test_message_size")

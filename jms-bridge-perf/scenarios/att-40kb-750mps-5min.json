@@ -1,0 +1,24 @@
+{
+  "perf_cfg": {
+    "message_size_bytes": 40000,
+    "messages_per_second": 500,
+    "test_duration_seconds": 180,
+    "jms_url": "amqp://%IP:61616",
+    "use_amqp": "false",
+    "jms_url_query_params": {
+      "confirmationWindowSize": "1024000",
+      "producerWindowSize": "-1",
+      "consumerWindowSize": "-1"
+    }
+  },
+
+    "perf_scenario": "jms2jms",
+    "perf_scenario_cfg": [
+        "--pub-async",
+        "--drain-timeout=60",
+        "--ack-interval-ms=2000",
+        "--ack-batch-sz=1000",
+        "--queue=q1",
+        "--topic=shared-durable-topic"
+    ]
+}

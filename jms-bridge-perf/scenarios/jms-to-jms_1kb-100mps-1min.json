@@ -1,0 +1,16 @@
+{
+  "perf_cfg": {
+    "message_size_bytes": 100,
+    "messages_per_second": 100,
+    "test_duration_seconds": 60,
+    "jms_url_query_params": {
+      "confirmationWindowSize": "128000"
+    }
+  },
+
+    "perf_scenario": "jms2jms",
+    "perf_scenario_cfg": [
+      "--queue=shared-durable-topic::q1",
+      "--topic=shared-durable-topic"
+    ]
+}
