@@ -28,7 +28,7 @@ perf_defaults_cfg:
   message_size_bytes: 1000
   messages_per_second: 100
   test_duration_seconds: 300
-  test_id: "{{ now(fmt='%Y/%m/%d-%H:%M:%S') }}"
+  test_id: "{{ now(fmt='%Y/%m/%d-%H:%M:%S') }}-{{perf_host_idx}}"
   jms_url_query_params: {}
   jms_url: tcp://%IP:61616
 

@@ -1,0 +1,59 @@
+bridge {
+
+  id = """load-test-101"""
+  
+
+  kafka {
+        compression.type = """zstd"""
+        batch.size = """1048576"""
+        acks = """all"""
+        bootstrap.servers = """pkc-43n10.us-central1.gcp.confluent.cloud:9092"""
+        max.request.size = """2097152"""
+        buffer.memory = """67108860"""
+        linger.ms = """100"""
+        sasl.jaas.config = """org.apache.kafka.common.security.plain.PlainLoginModule required username="7NBXC7EZWPBTU2PM" password="a3tE1jVYsAKIhDhj0ZWkSUGRMOrF/8Cb3S9BWILPIPSSJMybbOC6ZxTsROS6YwI0";"""
+        security.protocol = """SASL_SSL"""
+        sasl.mechanism = """PLAIN"""
+        client.dns.lookup = """use_all_dns_ips"""
+        max.poll.records = """5000"""
+     }
+
+  journals {
+	ready.timeout = """5m"""
+	readyTimeout = """5m"""
+	messages {
+		wal.topic {
+			replication = """3"""
+			partitions = """6"""
+		}
+
+		table.topic {
+			replication = """3"""
+			partitions = """6"""
+		}
+	}
+  }
+
+  streams {
+        replication.factor = """3"""
+        acks = """all"""
+	cache.max.bytes.buffering = """0"""
+	num.standby.replicas = """0"""
+        num.stream.threads = """7"""
+        commit.interval.ms = """5000"""
+        state.dir = ${?BRIDGE_STREAMS_STATE_DIR}
+
+        producer.compression.type = """zstd"""
+        producer.batch.size = """1048576"""
+        producer.linger.ms = """100"""
+        producer.max.request.size = """2097152"""
+        #consumer.max.poll.records = """500"""
+  }
+
+  routing {
+    metadata.refresh.ms = 60000
+    topics = [{
+      match = "^jms-load-test.*"
+    }]
+  }
+}

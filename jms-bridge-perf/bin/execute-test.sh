@@ -32,6 +32,7 @@ function usage {
         echo ""
         echo "    -e execute-playbook )"
         echo "        The specific playbook to execute, jms-bridge, jms-bridge-perf or controller."
+        echo "        This option may be specified multiple times."
         echo ""
 }
 
@@ -103,7 +104,7 @@ _scenario=''
 _props=''
 _gcpkey="$HOME/.ssh/google_compute_engine"
 _gcpuser=''
-_playbook='site.yml'
+_playbooks='site.yml'
 
 while getopts ${optstring} arg; do
   case ${arg} in
@@ -151,6 +152,11 @@ while getopts ${optstring} arg; do
         errout "Invalid playbook given: ${OPTARG}"
         list_playbooks
         exit 1
+      fi
+      if [ "$_playbooks" == "site.yml" ]; then
+        _playbooks="$_playbook"
+      else
+        _playbooks="$_playbooks $_playbook"
       fi
      ;;
     :)
@@ -209,7 +215,7 @@ ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook \
   -e "jms_bridge_version=${_version}" \
   -e "perf_archive=${_perf_archive}" \
   --tags "$_tags" \
-  "$_playbook" >&2
+  "$_playbooks" >&2
 
 errout "To see results execute:"
 errout "  gcloud compute ssh bridge-perf-controller -- -L 3000:localhost:3000 -L 8686:localhost:8686"

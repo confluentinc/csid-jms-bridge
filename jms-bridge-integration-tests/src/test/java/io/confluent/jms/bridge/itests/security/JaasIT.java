@@ -17,6 +17,8 @@ import javax.jms.Topic;
 import javax.naming.Context;
 import javax.naming.InitialContext;
 import javax.naming.NamingException;
+
+import io.confluent.jms.bridge.itests.TestResources;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.MethodOrderer.OrderAnnotation;
 import org.junit.jupiter.api.Nested;
@@ -46,12 +48,9 @@ public class JaasIT {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(JaasIT.class);
 
-  private static final DockerImageName KAFKA_IMAGE = DockerImageName
-      .parse("confluentinc/cp-kafka:6.2.0-3-ubi8");
+  private static final DockerImageName KAFKA_IMAGE = TestResources.kafkaDocker();
 
-  private static final DockerImageName JMS_BRIDGE_IMAGE = DockerImageName
-      .parse("local.build/confluentinc/jms-bridge-docker:latest");
-
+  private static final DockerImageName JMS_BRIDGE_IMAGE = TestResources.jmsBridgeDocker();
 
   @Container
   private static final KafkaContainer kafkaContainer = new KafkaContainer(KAFKA_IMAGE)

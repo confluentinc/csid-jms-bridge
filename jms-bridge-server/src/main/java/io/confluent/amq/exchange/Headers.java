@@ -22,6 +22,14 @@ import java.util.Optional;
 
 public final class Headers {
 
+  public static final String BRIDGE_PREFIX = "_jmsbr_";
+
+  //headers used for exchanging messages between JMS and Kafka
+  public static final String EX_HDR_TS = BRIDGE_PREFIX + "ex.ts__";
+  public static final String EX_HDR_KAFKA_TOPIC = BRIDGE_PREFIX + "ex.kafka.topic__";
+  public static final String EX_HDR_KAFKA_RECORD_KEY = BRIDGE_PREFIX + "ex.kafka.record.key__";
+
+  //Headers used for JMS/Kafka records
   public static final String HDR_CORRELATION_ID_KEY = "JMSCorrelationID";
   public static final String HDR_REPLY_TO_KEY = "JMSReplyTo";
   public static final TypedHeader HDR_MESSAGE_ID =
@@ -41,7 +49,7 @@ public final class Headers {
   public static final String HDR_KAFKA_OFFSET = "kafka.offset";
   public static final String HDR_KAFKA_KEY = "kafka.key";
 
-
+  private static final String INTERNAL_PREFIX = "_";
   private static final StructuredLogger SLOG = StructuredLogger
       .with(b -> b.loggerClass(Headers.class));
 
@@ -51,9 +59,12 @@ public final class Headers {
   private static final Serde<byte[]> BYTES_SERDES = Serdes.ByteArray();
   private static final Serde<Long> LONG_SERDES = Serdes.Long();
   private static final Serde<Integer> INT_SERDES = Serdes.Integer();
+  private static final Serde<Short> SHORT_SERDES = Serdes.Short();
+  private static final Serde<Float> FLOAT_SERDES = Serdes.Float();
+  private static final Serde<Double> DOUBLE_SERDES = Serdes.Double();
   private static final Serde<String> STR_SERDES = Serdes.String();
 
-  private static final String HOPS_MSG_KEY_FORMAT = "jmsbridge_%s_hops";
+  private static final String HOPS_MSG_KEY_FORMAT = BRIDGE_PREFIX + "%s_hops";
   private static final String JMS_KEY_PREFIX = "jms.";
   private static final String JMS_KEY_FORMAT = JMS_KEY_PREFIX + "%s";
   private static final String JMS_KEY_TYPED_FORMAT = JMS_KEY_PREFIX + "%s.%s";
@@ -87,7 +98,8 @@ public final class Headers {
    * @return the hops header key for both Kafka and AMQ records
    */
   public static String createHopsKey(String bridgeId) {
-    return String.format(HOPS_MSG_KEY_FORMAT, bridgeId).replace(".", "_").replace("-", "_");
+    return String.format(HOPS_MSG_KEY_FORMAT, bridgeId)
+        .replaceAll("[.-]", "_");
   }
 
   /**
@@ -153,7 +165,7 @@ public final class Headers {
   private static <T> Optional<T> getHeader(
       String hdrName,
       org.apache.kafka.common.header.Headers headers,
-      Deserializer<T> deserializer) {
+      Deserializer<? extends T> deserializer) {
 
     if (headers == null) {
       return Optional.empty();
@@ -222,11 +234,11 @@ public final class Headers {
       String hdrname = hdrnamess.toString();
 
       //properties prefixed with '_' are internal properties
-      if (!hdrname.startsWith("_")) {
+      if (!hdrname.startsWith(INTERNAL_PREFIX)) {
 
         Object propVal = MessageUtil.getObjectProperty(message, hdrname);
         if (propVal != null) {
-          propMap.put(hdrname, MessageUtil.getObjectProperty(message, hdrname));
+          propMap.put(hdrname, propVal);
         }
       }
     }
@@ -244,14 +256,12 @@ public final class Headers {
    * @param incrementHops whether to increment a hops header, will create one if not present
    * @return a map of headers suitable for adding to an AMQ message
    */
-  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   public static Map<String, Object> convertHeaders(
       org.apache.kafka.common.header.Headers headers,
       String bridgeId,
       boolean incrementHops) {
 
-    final Map<String, Object> headerMap = new HashMap<>();
-
+    Map<String, Object> headerMap = new HashMap<>();
     if (incrementHops) {
       String hopsKey = createHopsKey(bridgeId);
       int hopsVal = getIntHeader(hopsKey, headers)
@@ -271,7 +281,7 @@ public final class Headers {
 
         final HeaderType hdrType = extractHeaderType(remaining);
         if (HeaderType.UNKNOWN != hdrType) {
-          remaining = remaining.substring(hdrType.code.length() + 1);
+          remaining = remaining.substring(hdrType.getCode().length() + 1);
         }
 
         String jmsKey = remaining;
@@ -281,28 +291,7 @@ public final class Headers {
             headerMap.put(jmsKey, STR_SERDES.deserializer().deserialize("", hdr.value()));
             break;
           default:
-            switch (hdrType) {
-              case STRING:
-                headerMap.put(jmsKey, STR_SERDES.deserializer().deserialize("", hdr.value()));
-                break;
-              case LONG:
-                headerMap.put(jmsKey, LONG_SERDES.deserializer().deserialize("", hdr.value()));
-                break;
-              case INT:
-                headerMap.put(jmsKey, INT_SERDES.deserializer().deserialize("", hdr.value()));
-                break;
-              case BYTES:
-                headerMap.put(jmsKey, hdr.value());
-                break;
-              default:
-                SLOG.debug(b -> b
-                    .event("ConvertHeaders")
-                    .message("Unsupported/Unknown header type found, defaulting to 'bytes'.")
-                    .putTokens("headerKey", hdrKey)
-                    .putTokens("headerType", hdrType.toString()));
-                headerMap.put(jmsKey, hdr.value());
-                break;
-            }
+            putGenericHeader(jmsKey, hdr, hdrType, headerMap);
             break;
         }
       }
@@ -325,16 +314,25 @@ public final class Headers {
   public static Map<String, byte[]> convertHeaders(
       ICoreMessage message, String bridgeId, boolean incrementHops) {
 
-    final Map<String, byte[]> headerMap = new HashMap<>();
+    Map<String, byte[]> headerMap = new HashMap<>();
 
-    getMessageProperties(message).forEach((k, v) ->
-        objectToBytes(v).ifPresent(vb -> {
-          if (k.startsWith(JMS_KEY_PREFIX)) {
-            headerMap.put(k, vb.getValue());
-          } else {
-            headerMap.put(createKafkaJmsPropKey(k, vb.getType()), vb.getValue());
-          }
-        }));
+    getMessageProperties(message).forEach((k, v) -> {
+      Optional<TypedHeaderValue> optHdrBytes = objectToBytes(v);
+      if (optHdrBytes.isPresent()) {
+        if (k.startsWith(JMS_KEY_PREFIX)) {
+          headerMap.put(k, optHdrBytes.get().getValue());
+        } else {
+          headerMap.put(createKafkaJmsPropKey(
+              k, optHdrBytes.get().getType()), optHdrBytes.get().getValue());
+        }
+      } else {
+        SLOG.trace(b -> b
+            .name("SerializeJMSHeaders")
+            .event("FailedToSerializeHeader")
+            .addAmqMessage(message)
+            .putTokens("headerKey", k), new Exception("TRACE"));
+      }
+    });
 
     if (incrementHops) {
       String hopsKey = createHopsKey(bridgeId);
@@ -349,13 +347,32 @@ public final class Headers {
               .markFailure()
               .message("Failed to deserialize hops header, will reset to 1."), e);
         }
-        hops = hops + 1;
+        hops += 1;
       }
 
       headerMap.put(hopsKey, toBytes(hops));
     }
 
     return headerMap;
+  }
+
+  public static int getHopsValue(org.apache.kafka.common.header.Headers kheaders, String bridgeId) {
+    String hopsKey = createHopsKey(bridgeId);
+    Header hdr = kheaders.lastHeader(hopsKey);
+    if (hdr != null && hdr.value() != null) {
+      return INT_SERDES.deserializer().deserialize(null, hdr.value());
+    }
+
+    return 0;
+  }
+
+  public static int getHopsValue(Message message, String bridgeId) {
+    String hopsKey = createHopsKey(bridgeId);
+    if (message.containsProperty(hopsKey)) {
+      return message.getIntProperty(hopsKey);
+    }
+
+    return 0;
   }
 
   private static HeaderType extractHeaderType(String hdrWithoutJmsPrefix) {
@@ -368,6 +385,38 @@ public final class Headers {
     return hdrType;
   }
 
+  private static void putGenericHeader(
+      String jmsKey, Header hdr, HeaderType hdrType, Map<? super String, Object> headerMap) {
+
+    switch (hdrType.getJmsType()) {
+      case STRING:
+        headerMap.put(jmsKey, STR_SERDES.deserializer().deserialize("", hdr.value()));
+        break;
+      case INT:
+        headerMap.put(jmsKey, INT_SERDES.deserializer().deserialize("", hdr.value()));
+        break;
+      case LONG:
+        headerMap.put(jmsKey, LONG_SERDES.deserializer().deserialize("", hdr.value()));
+        break;
+      case BOOLEAN:
+        headerMap.put(jmsKey,
+            Boolean.valueOf(STR_SERDES.deserializer().deserialize("", hdr.value())));
+        break;
+      case DOUBLE:
+        headerMap.put(jmsKey, DOUBLE_SERDES.deserializer().deserialize("", hdr.value()));
+        break;
+      case SHORT:
+        headerMap.put(jmsKey, SHORT_SERDES.deserializer().deserialize("", hdr.value()));
+        break;
+      case FLOAT:
+        headerMap.put(jmsKey, FLOAT_SERDES.deserializer().deserialize("", hdr.value()));
+        break;
+      default:
+        headerMap.put(jmsKey, hdr.value());
+        break;
+    }
+  }
+
   /**
    * Interrogates the given subject Object and attempts to serialize it into a byte[]. If it cannot
    * be serialized then empty is returned.
@@ -378,22 +427,44 @@ public final class Headers {
    * @param subject the object to serialize
    * @return the serialized object or empty if it cannot be serialized.
    */
+  @SuppressWarnings({"OverlyComplexMethod", "OverlyLongMethod", "checkstyle:CyclomaticComplexity",
+      "IfStatementWithTooManyBranches", "ChainOfInstanceofChecks"})
   public static Optional<TypedHeaderValue> objectToBytes(Object subject) {
     byte[] result = null;
     HeaderType type = HeaderType.UNKNOWN;
     if (subject != null) {
-      if (subject instanceof byte[]) {
+      if (subject instanceof SimpleString) {
+        result = STR_SERDES.serializer().serialize("", ((SimpleString) subject).toString());
+        type = HeaderType.STRING;
+      } else if (subject instanceof String) {
+        result = STR_SERDES.serializer().serialize("", (String) subject);
+        type = HeaderType.STRING;
+      } else if (subject instanceof Integer) {
+        result = INT_SERDES.serializer().serialize("", (Integer) subject);
+        type = HeaderType.INT;
+      } else if (subject instanceof byte[]) {
         result = (byte[]) subject;
         type = HeaderType.BYTES;
       } else if (subject instanceof Long) {
         result = LONG_SERDES.serializer().serialize("", (Long) subject);
         type = HeaderType.LONG;
-      } else if (subject instanceof Integer) {
-        result = INT_SERDES.serializer().serialize("", (Integer) subject);
-        type = HeaderType.INT;
-      } else if (subject instanceof String) {
-        result = STR_SERDES.serializer().serialize("", (String) subject);
-        type = HeaderType.STRING;
+      } else if (subject instanceof Boolean) {
+        result = STR_SERDES.serializer().serialize("", subject.toString());
+        type = HeaderType.BOOLEAN;
+      } else if (subject instanceof Double) {
+        result = DOUBLE_SERDES.serializer().serialize("", (Double) subject);
+        type = HeaderType.DOUBLE;
+      } else if (subject instanceof Float) {
+        result = FLOAT_SERDES.serializer().serialize("", (Float) subject);
+        type = HeaderType.FLOAT;
+      } else if (subject instanceof Short) {
+        result = SHORT_SERDES.serializer().serialize("", (Short) subject);
+        type = HeaderType.SHORT;
+      } else {
+        SLOG.info(b -> b
+            .event("Header class cannot be serialized")
+            .putTokens("headerClass", subject.getClass().getName())
+            .message("Skipping unserializable header."));
       }
     }
     if (result != null) {
@@ -411,37 +482,6 @@ public final class Headers {
    */
   public static String messageType(byte type) {
     return KExMessageType.fromId(type).name();
-  }
-
-  public enum HeaderType {
-    STRING("string"),
-    INT("int"),
-    LONG("long"),
-    BYTES("bytes"),
-    BOOLEAN("boolean"),
-    CHAR("char"),
-    FLOAT("float"),
-    SHORT("short"),
-    OBJECT("object"),
-    UNKNOWN("unknown");
-
-    public static HeaderType fromCode(String code) {
-      try {
-        return valueOf(code.toUpperCase());
-      } catch (IllegalArgumentException e) {
-        return UNKNOWN;
-      }
-    }
-
-    private final String code;
-
-    HeaderType(String code) {
-      this.code = code;
-    }
-
-    public String getCode() {
-      return code;
-    }
   }
 
   public static class TypedHeader {

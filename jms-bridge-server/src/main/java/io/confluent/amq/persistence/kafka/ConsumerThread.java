@@ -5,6 +5,17 @@
 package io.confluent.amq.persistence.kafka;
 
 import io.confluent.amq.logging.StructuredLogger;
+import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.apache.kafka.clients.consumer.ConsumerRebalanceListener;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.clients.consumer.ConsumerRecords;
+import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.apache.kafka.clients.consumer.RetriableCommitFailedException;
+import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.serialization.ByteArrayDeserializer;
+import org.apache.kafka.common.serialization.Deserializer;
+import org.inferred.freebuilder.FreeBuilder;
+
 import java.lang.Thread.UncaughtExceptionHandler;
 import java.time.Duration;
 import java.util.Collection;
@@ -16,15 +27,6 @@ import java.util.Set;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
-import org.apache.kafka.clients.consumer.ConsumerConfig;
-import org.apache.kafka.clients.consumer.ConsumerRebalanceListener;
-import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.apache.kafka.clients.consumer.ConsumerRecords;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
-import org.apache.kafka.common.TopicPartition;
-import org.apache.kafka.common.serialization.ByteArrayDeserializer;
-import org.apache.kafka.common.serialization.Deserializer;
-import org.inferred.freebuilder.FreeBuilder;
 
 @FreeBuilder
 public abstract class ConsumerThread<K, V> implements Runnable, ConsumerRebalanceListener {
@@ -43,7 +45,7 @@ public abstract class ConsumerThread<K, V> implements Runnable, ConsumerRebalanc
   }
 
   public static <K, V> Builder<K, V> newBuilder(Deserializer<K> keyDeser,
-      Deserializer<V> valDeser) {
+                                                Deserializer<V> valDeser) {
     return new Builder<K, V>()
         .keyDeser(keyDeser)
         .valueDeser(valDeser);
@@ -114,6 +116,8 @@ public abstract class ConsumerThread<K, V> implements Runnable, ConsumerRebalanc
 
   @Override
   public void run() {
+    SLOG.debug(b -> b.event("Run")
+        .name(groupId()));
     try {
       runFlag.acquire();
       running = true;
@@ -121,10 +125,25 @@ public abstract class ConsumerThread<K, V> implements Runnable, ConsumerRebalanc
       try (KafkaConsumer<K, V> consumer = createConsumer()) {
         while (running) {
           if (!consumer.subscription().isEmpty()) {
-            ConsumerRecords<K, V>  records = consumer.poll(Duration.ofMillis(pollMs()));
-            for (ConsumerRecord<K, V> r: records) {
+            ConsumerRecords<K, V> records = consumer.poll(Duration.ofMillis(pollMs()));
+            for (ConsumerRecord<K, V> r : records) {
               receiver().onRecieve(r);
             }
+            consumer.commitAsync((metadataMap, error) -> {
+              if (error != null) {
+                if (error instanceof RetriableCommitFailedException) {
+                  SLOG.info(b -> b
+                      .event("OffsetCommit")
+                      .message("Will retry commit after next poll")
+                      .markFailure(), error);
+                } else {
+                  SLOG.error(b -> b
+                      .event("OffsetCommit")
+                      .message("Unrecoverable error, will allow client to handle it")
+                      .markFailure(), error);
+                }
+              }
+            });
           } else {
             //prevent busywait consuming 100% CPU
             Thread.sleep(pollMs());
@@ -152,6 +171,8 @@ public abstract class ConsumerThread<K, V> implements Runnable, ConsumerRebalanc
   private KafkaConsumer<K, V> createConsumer() {
     Map<String, Object> props = new HashMap<>();
     props.putAll(consumerProps());
+    //in order to capture commit exceptions, such as UNKNOWN TOPIC
+    props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false");
     return new KafkaConsumer<>(props, keyDeser(), valueDeser());
   }
 

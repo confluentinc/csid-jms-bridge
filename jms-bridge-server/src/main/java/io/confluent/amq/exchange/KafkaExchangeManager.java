@@ -6,22 +6,6 @@ package io.confluent.amq.exchange;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Sets;
-import org.apache.activemq.artemis.api.core.ActiveMQException;
-import org.apache.activemq.artemis.api.core.QueueConfiguration;
-import org.apache.activemq.artemis.api.core.RoutingType;
-import org.apache.activemq.artemis.api.core.SimpleString;
-import org.apache.activemq.artemis.api.core.management.AddressControl;
-import org.apache.activemq.artemis.api.core.management.DivertControl;
-import org.apache.activemq.artemis.api.core.management.ResourceNames;
-import org.apache.activemq.artemis.core.config.DivertConfiguration;
-import org.apache.activemq.artemis.core.postoffice.Binding;
-import org.apache.activemq.artemis.core.server.ActivateCallback;
-import org.apache.activemq.artemis.core.server.ActiveMQServer;
-import org.apache.activemq.artemis.core.server.Queue;
-import org.apache.activemq.artemis.core.server.impl.AddressInfo;
-import org.apache.activemq.artemis.core.server.plugin.ActiveMQServerPlugin;
-import org.apache.activemq.artemis.core.transaction.Transaction;
-
 import io.confluent.amq.ComponentLifeCycle;
 import io.confluent.amq.ComponentLifeCycle.State;
 import io.confluent.amq.ConfluentAmqServer;
@@ -31,13 +15,25 @@ import io.confluent.amq.config.RoutingConfig.RoutedTopic;
 import io.confluent.amq.exchange.KafkaTopicExchange.Builder;
 import io.confluent.amq.logging.StructuredLogger;
 import io.confluent.amq.persistence.kafka.KafkaIO;
+import org.apache.activemq.artemis.api.core.ActiveMQException;
+import org.apache.activemq.artemis.api.core.Message;
+import org.apache.activemq.artemis.api.core.SimpleString;
+import org.apache.activemq.artemis.core.postoffice.Binding;
+import org.apache.activemq.artemis.core.server.ActivateCallback;
+import org.apache.activemq.artemis.core.server.ActiveMQServer;
+import org.apache.activemq.artemis.core.server.Queue;
+import org.apache.activemq.artemis.core.server.RoutingContext;
+import org.apache.activemq.artemis.core.server.plugin.ActiveMQServerPlugin;
+import org.apache.activemq.artemis.core.transaction.Transaction;
 
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
@@ -80,17 +76,28 @@ public class KafkaExchangeManager implements ActiveMQServerPlugin, ActivateCallb
 
   private KafkaExchange exchange;
   private Map<KafkaTopicExchange, KafkaExchangeIngress> ingressMap = new ConcurrentHashMap<>();
+  private Map<String, KafkaTopicExchange> ingressQueueMap = new ConcurrentHashMap<>();
   private KafkaExchangeEgress egress;
+  private KafkaExchangeInterpreter exchangeInterpreter;
 
+  public KafkaExchangeManager(
+      BridgeConfig bridgeConfig,
+      KafkaIO kafkaIO,
+      KafkaExchangeInterpreter interpreter) {
+
+    this.bridgeConfig = bridgeConfig;
+    this.routingConfig = bridgeConfig.routing().orElse(null);
+    this.kafkaIO = kafkaIO;
+    this.exchangeInterpreter = interpreter;
+  }
 
   public KafkaExchangeManager(
       BridgeConfig bridgeConfig,
       KafkaIO kafkaIO) {
 
-    this.bridgeConfig = bridgeConfig;
-    this.routingConfig = bridgeConfig.routing().orElse(null);
-    this.kafkaIO = kafkaIO;
+    this(bridgeConfig, kafkaIO, new KafkaExchangeInterpreter(bridgeConfig));
   }
+
 
   @Override
   public void registered(ActiveMQServer server) {
@@ -243,12 +250,16 @@ public class KafkaExchangeManager implements ActiveMQServerPlugin, ActivateCallb
   @Override
   public void afterAddBinding(Binding binding) throws ActiveMQException {
     this.exchange.addReader(binding.getAddress().toString());
+    this.egress.updateConsumerTopics();
   }
 
   @Override
   public void afterRemoveBinding(Binding binding, Transaction tx, boolean deleteData)
       throws ActiveMQException {
-    this.exchange.removeReader(binding.getAddress().toString());
+    String jmsAddress = binding.getAddress().toString();
+
+    this.exchange.removeReader(jmsAddress);
+    this.egress.updateConsumerTopics();
   }
 
   /**
@@ -292,35 +303,36 @@ public class KafkaExchangeManager implements ActiveMQServerPlugin, ActivateCallb
     final Set<KafkaTopicExchange> removedExchanges = Sets
         .difference(currentExchanges, discoveredExchanges);
 
-    Map<KafkaTopicExchange, IngressEntities> kteEntityMap = null;
+    Map<KafkaTopicExchange, KafkaExchangeInterpreter.IngressEntities> kteEntityMap = null;
     if (forceCreate) {
       kteEntityMap = createExchangeEntities(discoveredExchanges);
     } else {
       kteEntityMap = createExchangeEntities(newExchanges);
     }
 
-    for (Entry<KafkaTopicExchange, IngressEntities> en : kteEntityMap.entrySet()) {
+    Map<KafkaTopicExchange, Integer> kteAccumMap = new HashMap<>();
+    for (Entry<KafkaTopicExchange, KafkaExchangeInterpreter.IngressEntities> en
+        : kteEntityMap.entrySet()) {
       int bindings = (int) getAmqServer().getPostOffice()
           .getBindingsForAddress(SimpleString.toSimpleString(en.getKey().amqAddressName()))
           .getBindings()
           .stream()
           .filter(b ->
-              Objects.equals(Objects.toString(b.getUniqueName()), en.getValue().divertName))
+              Objects.equals(b.getAddress(), en.getValue().getIngressQueue().getAddress()))
           .count();
 
-      exchange.addTopicExchange(en.getKey(), true, bindings);
+      kteAccumMap.put(en.getKey(), bindings);
     }
+    exchange.addTopicExchanges(kteAccumMap, true);
 
-    for (KafkaTopicExchange exchange: discoveredExchanges) {
-      if (!ingressMap.containsKey(exchange)) {
-        Queue queue = getAmqServer().locateQueue(exchange.ingressQueueName());
+    for (KafkaTopicExchange discExchange : discoveredExchanges) {
+      if (!ingressMap.containsKey(discExchange)) {
+        Queue queue = getAmqServer().locateQueue(discExchange.ingressQueueName());
         KafkaExchangeIngress ingress = new KafkaExchangeIngress(
-            bridgeConfig,
-            exchange,
-            kafkaIO,
             queue,
             getAmqServer().getStorageManager().generateID());
-        ingressMap.put(exchange, ingress);
+        ingressMap.put(discExchange, ingress);
+        ingressQueueMap.put(discExchange.amqAddressName(), discExchange);
         ingress.start();
       }
     }
@@ -329,6 +341,7 @@ public class KafkaExchangeManager implements ActiveMQServerPlugin, ActivateCallb
       exchange.removeExchange(kte);
       if (ingressMap.containsKey(kte)) {
         try {
+          ingressQueueMap.remove(kte.amqAddressName());
           ingressMap.remove(kte).stop();
         } catch (Exception e) {
           SLOG.error(b -> b.event("StopRemovedIngressExchange")
@@ -339,44 +352,21 @@ public class KafkaExchangeManager implements ActiveMQServerPlugin, ActivateCallb
       deleteIngressEntities(kte);
     }
 
+    egress.updateConsumerTopics();
 
     SLOG.info(b -> b.event("SynchronizeTopics").markCompleted());
   }
 
   /**
    * Attempts to cleanup AMQ entities associated to a kafka topic exchange (see {@link
-   * #createExchangeEntities(KafkaTopicExchange)}). This may not always be  possible due to existing
+   * KafkaExchangeInterpreter#createExchangeEntities(KafkaTopicExchange, ConfluentAmqServer)}).
+   * This may not always be  possible due to existing
    * bindings and in that case they will be paused to prevent further publishing.
    *
    * @param kte the kafka topic exchange to pause or delete the entities for
    */
   protected void deleteIngressEntities(KafkaTopicExchange kte) throws Exception {
-    int bindings = getAmqServer().getPostOffice()
-        .getBindingsForAddress(SimpleString.toSimpleString(kte.amqAddressName()))
-        .getBindings()
-        .size();
-
-    if (bindings > 1) {
-      //pause the address allowing existing bindings to stay valid.
-      AddressControl topicAddressControl =
-          (AddressControl) getAmqServer().getManagementService().getResource(
-              ResourceNames.ADDRESS + kte.amqAddressName());
-      topicAddressControl.pause(true);
-
-    } else {
-      //only the divert remains bound
-      Queue ingressQueue = getAmqServer().locateQueue(kte.ingressQueueName());
-      if (ingressQueue != null) {
-        ingressQueue.deleteQueue(true);
-      }
-
-      getAmqServer().destroyDivert(SimpleString.toSimpleString(
-          KafkaExchangeUtil.createDivertName(kte.amqAddressName())));
-      getAmqServer()
-          .removeAddressInfo(SimpleString.toSimpleString(kte.ingressQueueName()), null, true);
-      getAmqServer()
-          .removeAddressInfo(SimpleString.toSimpleString(kte.amqAddressName()), null, true);
-    }
+    exchangeInterpreter.deleteIngressEntities(kte, getAmqServer());
   }
 
   /**
@@ -395,7 +385,7 @@ public class KafkaExchangeManager implements ActiveMQServerPlugin, ActivateCallb
    */
   protected Set<KafkaTopicExchange> discoverTopicExchanges(List<RoutedTopic> topicRoutes) {
     //go through the topics and match them against the routed topics creating topic exchanges
-    Set<String> kafkaTopics = getAmqServer().getKafkaIntegration().getKafkaIO().listTopics();
+    Set<String> kafkaTopics = kafkaIO.listTopics();
     Set<KafkaTopicExchange> allExchanges = new HashSet<>();
     for (RoutedTopic routedTopic : topicRoutes) {
       SLOG.info(b -> b
@@ -413,9 +403,7 @@ public class KafkaExchangeManager implements ActiveMQServerPlugin, ActivateCallb
           .map(topic -> new Builder()
               .originConfig(routedTopic)
               .amqAddressName(routedTopic.addressTemplate().replace("${topic}", topic))
-              .kafkaTopicName(topic))
-          .map(b -> b
-              .ingressQueueName(KafkaExchangeUtil.createIngressDestinationName(b.amqAddressName()))
+              .kafkaTopicName(topic)
               .build())
           .collect(Collectors.toSet());
 
@@ -437,105 +425,57 @@ public class KafkaExchangeManager implements ActiveMQServerPlugin, ActivateCallb
   }
 
   /**
-   * See {@link #createExchangeEntities(KafkaTopicExchange)}. This supports doing many at once.
+   * See {
+   * {@link KafkaExchangeInterpreter#createExchangeEntities(KafkaTopicExchange, ConfluentAmqServer)}
+   * .
+   * This supports doing many at once.
    *
    * @return a map of entities created, one for each exchange
    */
-  protected Map<KafkaTopicExchange, IngressEntities> createExchangeEntities(
-      Set<KafkaTopicExchange> allExchanges) throws Exception {
+  protected Map<KafkaTopicExchange, KafkaExchangeInterpreter.IngressEntities>
+      createExchangeEntities(Set<KafkaTopicExchange> allExchanges) throws Exception {
 
     return allExchanges.stream()
-        .collect(Collectors.toMap(Function.identity(), this::createExchangeEntities));
+        .collect(Collectors.toMap(
+            Function.identity(),
+            kte -> exchangeInterpreter.createExchangeEntities(kte, getAmqServer())));
   }
 
-  /**
-   * Creates and registeres the AMQ entities (Address, Queue, Divert) required for a topic exchange
-   * to function fully. If the entities already exist then they will be updated if required and
-   * returned.
-   *
-   * @return the AMQ entities created or found
-   */
-  protected IngressEntities createExchangeEntities(KafkaTopicExchange exchange) {
+  @Override
+  public void beforeMessageRoute(Message message, RoutingContext context, boolean direct,
+                                 boolean rejectDuplicates) throws ActiveMQException {
 
-    try {
-      final AddressInfo topicAddress = createIngressAddress(exchange.amqAddressName());
-      final AddressInfo ingressAddress = createIngressAddress(exchange.ingressQueueName());
-
-      String divertName = KafkaExchangeUtil.createDivertName(topicAddress.getName().toString());
-      DivertConfiguration divertConfig = new DivertConfiguration()
-          .setAddress(topicAddress.getName().toString())
-          .setForwardingAddress(ingressAddress.getName().toString())
-          .setExclusive(true)
-          .setName(divertName)
-          .setFilterString(divertFilter());
-      DivertControl divertControl = (DivertControl) getAmqServer().getManagementService()
-          .getResource(ResourceNames.DIVERT + divertName);
-
-      if (divertControl == null) {
-        getAmqServer().deployDivert(divertConfig);
-      }
-
-      Queue ingressQueue = createIngressQueue(
-          exchange.ingressQueueName(), exchange.ingressQueueName());
-      //ingressQueue.addConsumer(this.ingress);
-
-      return new IngressEntities(
-          divertConfig.getName(), topicAddress, ingressAddress, ingressQueue);
-    } catch (Exception e) {
-      throw new RuntimeException(e);
+    Optional<KafkaTopicExchange> kteOpt = Optional.empty();
+    if (exchangeInterpreter.isRoutable(message.toCore())) {
+      kteOpt = exchange.findByAddress(message.getAddress());
     }
-  }
 
+    if (kteOpt.isPresent()) {
+      message.putLongProperty(
+          Headers.EX_HDR_TS,
+          System.currentTimeMillis());
+      message.putStringProperty(
+          Headers.EX_HDR_KAFKA_TOPIC,
+          kteOpt.get().kafkaTopicName());
+      message.putBytesProperty(
+          Headers.EX_HDR_KAFKA_RECORD_KEY,
+          exchangeInterpreter.extractKey(kteOpt.get(), message));
 
-  private AddressInfo createIngressAddress(String name) throws Exception {
-    AddressInfo ingressAddress = new AddressInfo(
-        SimpleString.toSimpleString(name),
-        RoutingType.MULTICAST);
-
-    return getAmqServer().addOrUpdateAddressInfo(ingressAddress);
-  }
-
-  private Queue createIngressQueue(String addressName, String name) throws Exception {
-    QueueConfiguration ingressQueueConf = new QueueConfiguration(name)
-        .setAddress(addressName)
-        .setRoutingType(RoutingType.MULTICAST)
-        .setDurable(true);
-    Queue queue = getAmqServer().locateQueue(name);
-    if (queue == null) {
-      queue = getAmqServer().createQueue(ingressQueueConf);
+      SLOG.trace(b -> b.name("BeforeMessageRoute")
+          .event("IsMessageRoutable")
+          .markSuccess()
+          .addAmqMessage(message));
     } else {
-      queue = getAmqServer().updateQueue(ingressQueueConf);
+      SLOG.trace(b -> b.name("BeforeMessageRoute")
+          .event("IsMessageRoutable")
+          .markFailure()
+          .message("No KafkaExchangeTopic was mapped to destination address")
+          .addAmqMessage(message));
     }
-    return queue;
-  }
-
-  /**
-   * A JMS/AMQ filter that that is applied to the divert that forwards messages to Kafka. Breaks
-   * potential data cycles by filtering out data that originated from Kafka.
-   */
-  protected String divertFilter() {
-    String hopsHeaderKey = Headers.createHopsKey(bridgeConfig.id());
-    return String.format(" %s is null or %s < 1", hopsHeaderKey, hopsHeaderKey);
   }
 
   private ConfluentAmqServer getAmqServer() {
     return amqServerRef.get();
   }
 
-  private static class IngressEntities {
-
-    final String divertName;
-    final AddressInfo topicAddress;
-    final AddressInfo ingressAddress;
-    final Queue ingressQueue;
-
-    IngressEntities(String divertName,
-        AddressInfo topicAddress,
-        AddressInfo ingressAddress, Queue ingressQueue) {
-      this.divertName = divertName;
-      this.topicAddress = topicAddress;
-      this.ingressAddress = ingressAddress;
-      this.ingressQueue = ingressQueue;
-    }
-  }
 }

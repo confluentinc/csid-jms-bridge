@@ -12,6 +12,8 @@ import io.confluent.amq.persistence.domain.proto.JournalRecord;
 import io.confluent.amq.persistence.kafka.journal.ProtocolRecordType;
 import java.util.Map;
 import java.util.Optional;
+
+import org.apache.activemq.artemis.api.core.Message;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.clients.producer.RecordMetadata;
@@ -96,6 +98,12 @@ public interface LogSpec {
       } else {
         return this.putTokens("journalEntry", "invalid");
       }
+    }
+
+    public Builder addAmqMessage(Message message) {
+      return this
+          .putTokens("entryType", "AMQMessage")
+          .putTokens("message", message);
     }
 
     public Builder addEpochEvent(EpochEvent event) {

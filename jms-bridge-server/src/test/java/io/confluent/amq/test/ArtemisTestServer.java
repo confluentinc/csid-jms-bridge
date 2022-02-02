@@ -8,8 +8,18 @@ import com.google.common.collect.Maps;
 import com.google.common.io.MoreFiles;
 import com.google.common.io.RecursiveDeleteOption;
 import com.google.common.io.Resources;
-import javax.jms.Connection;
-import javax.jms.ConnectionMetaData;
+import io.confluent.amq.ConfluentAmqServer;
+import io.confluent.amq.ConfluentEmbeddedAmq;
+import io.confluent.amq.ConfluentEmbeddedAmqImpl;
+import io.confluent.amq.JmsBridgeConfiguration;
+import io.confluent.amq.config.BridgeConfig;
+import io.confluent.amq.config.BridgeConfigFactory;
+import io.confluent.amq.config.RoutingConfig;
+import io.confluent.amq.logging.StructuredLogger;
+import io.confluent.amq.persistence.kafka.KafkaIntegration;
+import io.confluent.amq.persistence.kafka.KafkaJournalStorageManager;
+import io.confluent.amq.persistence.kafka.journal.impl.KafkaJournal;
+import io.confluent.amq.test.ServerSpec.Builder;
 import org.apache.activemq.artemis.api.core.management.ActiveMQServerControl;
 import org.apache.activemq.artemis.api.jms.ActiveMQJMSClient;
 import org.apache.activemq.artemis.core.config.FileDeploymentManager;
@@ -18,29 +28,14 @@ import org.apache.activemq.artemis.core.config.impl.LegacyJMSConfiguration;
 import org.apache.activemq.artemis.core.server.embedded.EmbeddedActiveMQ;
 import org.apache.activemq.artemis.core.server.metrics.MetricsManager;
 import org.apache.activemq.artemis.core.server.metrics.plugins.SimpleMetricsPlugin;
-import org.apache.activemq.artemis.core.settings.impl.AddressFullMessagePolicy;
 import org.apache.activemq.artemis.core.settings.impl.AddressSettings;
 import org.apache.activemq.artemis.jms.client.ActiveMQConnection;
 import org.apache.activemq.artemis.jms.client.ActiveMQConnectionFactory;
 import org.apache.kafka.streams.StreamsConfig;
-import org.junit.jupiter.api.extension.AfterAllCallback;
-import org.junit.jupiter.api.extension.AfterEachCallback;
-import org.junit.jupiter.api.extension.BeforeAllCallback;
-import org.junit.jupiter.api.extension.BeforeEachCallback;
-import org.junit.jupiter.api.extension.ExtensionContext;
+import org.junit.jupiter.api.extension.*;
 
-import io.confluent.amq.ConfluentAmqServer;
-import io.confluent.amq.ConfluentEmbeddedAmq;
-import io.confluent.amq.ConfluentEmbeddedAmqImpl;
-import io.confluent.amq.JmsBridgeConfiguration;
-import io.confluent.amq.config.BridgeConfig;
-import io.confluent.amq.config.BridgeConfigFactory;
-import io.confluent.amq.logging.StructuredLogger;
-import io.confluent.amq.persistence.kafka.KafkaIntegration;
-import io.confluent.amq.persistence.kafka.KafkaJournalStorageManager;
-import io.confluent.amq.persistence.kafka.journal.impl.KafkaJournal;
-import io.confluent.amq.test.ServerSpec.Builder;
-
+import javax.jms.Connection;
+import javax.jms.ConnectionMetaData;
 import java.io.Closeable;
 import java.io.File;
 import java.nio.file.Files;
@@ -48,6 +43,7 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Objects;
+import java.util.Properties;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -84,9 +80,9 @@ public class ArtemisTestServer implements
   }
 
   public static ArtemisTestServer embedded(
-      KafkaTestContainer kafkaTestContainer, Consumer<Builder> serverSpecBuilder) {
+      Properties kafkaProps, Consumer<Builder> serverSpecBuilder) {
 
-    return new Factory(TEST_SEQ.getAndIncrement()).embedded(kafkaTestContainer, serverSpecBuilder);
+    return new Factory(TEST_SEQ.getAndIncrement()).embedded(kafkaProps, serverSpecBuilder);
   }
 
   protected ArtemisTestServer(
@@ -410,7 +406,7 @@ public class ArtemisTestServer implements
       cf.setConfirmationWindowSize(1024000);
       cf.setProducerWindowSize(-1);
       cf.setConsumerWindowSize(-1);
-     ActiveMQConnection amqConnection = (ActiveMQConnection) cf.createConnection();
+      ActiveMQConnection amqConnection = (ActiveMQConnection) cf.createConnection();
       amqConnection.setClientID(spec.clientId().orElse("junit"));
 
       return amqConnection;
@@ -424,7 +420,7 @@ public class ArtemisTestServer implements
 
     private final int testNumber;
     private final AtomicInteger nameSeq = new AtomicInteger(0);
-    private KafkaTestContainer prepedKafkaTestContainer;
+    private Properties kafkaProperties;
     private Consumer<Builder> preppedServerSpecBuilder;
 
     public Factory(int testNumber) {
@@ -436,18 +432,17 @@ public class ArtemisTestServer implements
     }
 
     public void prepare(
-        KafkaTestContainer kafkaTestContainer, Consumer<Builder> serverSpecBuilder) {
-      this.prepedKafkaTestContainer = kafkaTestContainer;
+        Properties kafkaProps, Consumer<Builder> serverSpecBuilder) {
+      this.kafkaProperties = kafkaProps;
       this.preppedServerSpecBuilder = serverSpecBuilder;
     }
 
     public ArtemisTestServer start() throws Exception {
-      ArtemisTestServer testServer = embedded(prepedKafkaTestContainer, preppedServerSpecBuilder);
+      ArtemisTestServer testServer = embedded(kafkaProperties, preppedServerSpecBuilder);
       return testServer.start();
     }
 
-    public ArtemisTestServer embedded(
-        KafkaTestContainer kafkaTestContainer, Consumer<Builder> serverSpecBuilder) {
+    public ArtemisTestServer embedded(Properties kafkaProps, Consumer<Builder> serverSpecBuilder) {
 
       Function<String, String> makeId = prefix -> prefix + "-" + testNumber;
 
@@ -468,15 +463,26 @@ public class ArtemisTestServer implements
               .id(makeId.apply("test-bridge")))
           .groupId(makeId.apply("junit")));
 
-      if (kafkaTestContainer != null) {
+      if (kafkaProps != null) {
         specConsumer = specConsumer.andThen(b -> b
             .mutateJmsBridgeConfig(jb -> jb
                 .putAllKafka(Maps.transformValues(
-                    BridgeConfigFactory.propsToMap(kafkaTestContainer.defaultProps()),
+                    BridgeConfigFactory.propsToMap(kafkaProps),
                     Objects::toString))
                 .putAllStreams(Maps.transformValues(
-                    BridgeConfigFactory.propsToMap(kafkaTestContainer.defaultProps()),
-                    Object::toString))));
+                    BridgeConfigFactory.propsToMap(kafkaProps),
+                    Object::toString))
+                .mapRouting(rb -> new RoutingConfig.Builder().mergeFrom(rb)
+                    .putAllProducer(
+                        Maps.transformValues(
+                            BridgeConfigFactory.propsToMap(kafkaProps),
+                            Objects::toString))
+                    .putAllConsumer(
+                        Maps.transformValues(
+                            BridgeConfigFactory.propsToMap(kafkaProps),
+                            Objects::toString))
+                    .build()
+                )));
       }
 
       return new ArtemisTestServer(

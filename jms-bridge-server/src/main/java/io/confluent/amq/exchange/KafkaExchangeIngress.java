@@ -4,40 +4,29 @@
 
 package io.confluent.amq.exchange;
 
-import org.apache.activemq.artemis.api.core.ICoreMessage;
-import org.apache.activemq.artemis.api.core.Message;
 import org.apache.activemq.artemis.core.filter.Filter;
 import org.apache.activemq.artemis.core.server.Consumer;
 import org.apache.activemq.artemis.core.server.HandleStatus;
 import org.apache.activemq.artemis.core.server.MessageReference;
 import org.apache.activemq.artemis.core.server.Queue;
-import org.apache.activemq.artemis.reader.BytesMessageUtil;
-import org.apache.activemq.artemis.reader.TextMessageUtil;
-import org.apache.kafka.clients.producer.Callback;
-import org.apache.kafka.clients.producer.KafkaProducer;
-import org.apache.kafka.clients.producer.ProducerRecord;
-import org.apache.kafka.clients.producer.RecordMetadata;
 
-import io.confluent.amq.config.BridgeConfig;
 import io.confluent.amq.logging.StructuredLogger;
-import io.confluent.amq.persistence.kafka.KafkaIO;
 
 import java.util.Collections;
-import java.util.EnumSet;
 import java.util.List;
-import java.util.Map;
-import javax.annotation.Nullable;
 
 
+/*
+A Shadow consumer that is used to immediately ack all messages destined for kafka.  The underlying
+stream processor does the actual propagation of the message to Kafka.
+
+This consumer is needed to fulfill AMQs routing requirements that allows the message to flow through
+the system.
+ */
 public class KafkaExchangeIngress implements Consumer {
 
   private static final StructuredLogger SLOG = StructuredLogger
       .with(b -> b.loggerClass(KafkaExchangeIngress.class));
-
-  private static final EnumSet<KExMessageType> ROUTEABLE_MESSAGE_TYPES = EnumSet.of(
-      KExMessageType.BYTES,
-      KExMessageType.TEXT
-  );
 
   private boolean active;
 
@@ -45,24 +34,9 @@ public class KafkaExchangeIngress implements Consumer {
 
   private final long sequentialID;
 
-  private final BridgeConfig config;
-
-  private final KafkaTopicExchange exchange;
-
-  private final KafkaIO kafkaIO;
-
   public KafkaExchangeIngress(
-      BridgeConfig config,
-      KafkaTopicExchange kafkaTopicExchange,
-      KafkaIO kafkaIO,
       Queue queue,
       long sequentialID) {
-
-    this.config = config;
-
-    this.exchange = kafkaTopicExchange;
-
-    this.kafkaIO = kafkaIO;
 
     this.queue = queue;
 
@@ -121,51 +95,12 @@ public class KafkaExchangeIngress implements Consumer {
   }
 
   @Override
-  public synchronized HandleStatus handle(final MessageReference reference) throws Exception {
-    KafkaProducer<byte[], byte[]> producer = kafkaIO.getExternalProducer();
-    if (!active || null == producer) {
-      SLOG.trace(b -> b
-          .event("RouteMessage")
-          .markFailure()
-          .eventResult("NotReady")
-          .putTokens("exchange", exchange)
-          .putTokens("producerIsNull", null == producer)
-          .putTokens("message", reference.getMessageID()));
-      return HandleStatus.BUSY;
-    } else if (!isRouteableMessageType(reference.getMessage())) {
-      //add metric for unrouteable messages
-      //add metric for routed messages
-      SLOG.trace(b -> b
-          .event("RouteMessage")
-          .markFailure()
-          .eventResult("WrongMessageType")
-          .putTokens("exchange", exchange)
-          .putTokens("message", reference.getMessageID()));
-      return HandleStatus.NO_MATCH;
-    }
-
-    //add metric for routed messages
-    SLOG.trace(b -> b
-        .event("RouteMessage")
-        .putTokens("exchange", exchange)
-        .putTokens("message", reference.getMessageID()));
-
-    ICoreMessage coreMessage = reference.getMessage().toCore();
-    String bridgeId = config.id();
-
-    Map<String, byte[]> headers = Headers.convertHeaders(coreMessage, bridgeId, true);
-    byte[] key = extractKey(headers);
-    byte[] value = extractValue(coreMessage);
-    ProducerRecord<byte[], byte[]> record = new ProducerRecord<>(
-        exchange.kafkaTopicName(), key, value);
-
-    headers.forEach(record.headers()::add);
-
-    producer.send(record, ack(reference));
-
-    //get more messages
-    queue.deliverAsync();
-
+  public synchronized HandleStatus handle(MessageReference reference) throws Exception {
+    //Ack all messages immediately
+    reference.handled();
+    reference.incrementDeliveryCount();
+    reference.getQueue().acknowledge(reference);
+    reference.getQueue().deliverAsync();
     return HandleStatus.HANDLED;
   }
 
@@ -181,64 +116,4 @@ public class KafkaExchangeIngress implements Consumer {
   public List<MessageReference> getDeliveringMessages() {
     return Collections.emptyList();
   }
-
-
-  private Callback ack(MessageReference reference) {
-    return (RecordMetadata meta, Exception err) -> {
-      SLOG.trace(b -> b
-          .event("PublishRoutedMessage")
-          .markSuccess()
-          .putTokens("messageId", reference.getMessageID())
-          .addRecordMetadata(meta));
-
-      Exception ourErr = err;
-      if (null == ourErr) {
-        reference.handled();
-
-        try {
-          queue.acknowledge(reference);
-        } catch (Exception e) {
-          ourErr = e;
-        }
-        //add metric for successful publishes
-      }
-
-      if (null != ourErr) {
-        SLOG.error(b -> b
-            .event("PublishRoutedMessage")
-            .markFailure(), ourErr);
-        //add metric for failed publishes
-      }
-    };
-  }
-
-  public byte[] extractKey(Map<String, byte[]> headers) {
-    byte[] key = headers.get(Headers.createKafkaJmsPropKey(Headers.HDR_CORRELATION_ID));
-    if (null == key) {
-      key = headers.get(Headers.createKafkaJmsPropKey(exchange.originConfig().keyProperty()));
-      if (null == key) {
-        key = headers.get(Headers.createKafkaJmsPropKey(Headers.HDR_MESSAGE_ID));
-      }
-    }
-    return key;
-  }
-
-  @Nullable
-  public byte[] extractValue(ICoreMessage message) {
-    switch (KExMessageType.fromId(message.getType())) {
-      case BYTES:
-        byte[] value = new byte[message.getBodyBufferSize()];
-        BytesMessageUtil.bytesReadBytes(message.getReadOnlyBodyBuffer(), value);
-        return value;
-      case TEXT:
-        return Headers.toBytes(TextMessageUtil.readBodyText(message.getBodyBuffer()).toString());
-      default:
-        return null;
-    }
-  }
-
-  public boolean isRouteableMessageType(Message message) {
-    return ROUTEABLE_MESSAGE_TYPES.contains(KExMessageType.fromId(message.toCore().getType()));
-  }
-
 }

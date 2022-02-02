@@ -4,113 +4,168 @@
   -->
 
 <Configuration status="INFO">
-  <Appenders>
-    <Console name="stdout" target="SYSTEM_OUT">
-      <PatternLayout pattern="[%d] %p %m (%c:%L)%n"/>
-    </Console>
-  </Appenders>
+    <Appenders>
+        <Console name="stdout" target="SYSTEM_OUT">
+            <PatternLayout pattern="[%d] %p %m (%c:%L)%n"/>
+        </Console>
+    </Appenders>
 
-  <Loggers>
+    <Loggers>
 
-    <!-- Loggers useful for debugging tests -->
-    <Logger name="io.confluent.amq" level="WARN" additivity="false">
-      <AppenderRef ref="stdout"/>
-    </Logger>
+        <!-- Loggers useful for debugging tests -->
+        <!--
+        <Logger name="org.apache.kafka.clients" level="info" additivity="false">
+            <AppenderRef ref="stdout"/>
+        </Logger>
+        <Logger name="io.confluent.amq" level="info" additivity="false">
+            <AppenderRef ref="stdout"/>
+        </Logger>
 
-    <Logger name="org.apache.activemq.artemis.core" level="WARN" additivity="false">
-      <AppenderRef ref="stdout"/>
-    </Logger>
 
-    <!-- Prevent kafka configuration from printing out all the time -->
-    <Logger name="io.confluent.connect.avro.AvroConverterConfig" level="WARN" additivity="false">
-      <AppenderRef ref="stdout"/>
-    </Logger>
+        <Logger name="io.confluent.amq.persistence.kafka.journal.impl.MainRecordProcessor" level="TRACE" additivity="false">
+          <AppenderRef ref="stdout"/>
+        </Logger>
+        <Logger name="io.confluent.amq.persistence.kafka.journal.impl.KafkaDivertProcessor" level="TRACE" additivity="false">
+          <AppenderRef ref="stdout"/>
+        </Logger>
 
-    <Logger name="io.confluent.connect.avro.AvroDataConfig" level="WARN" additivity="false">
-      <AppenderRef ref="stdout"/>
-    </Logger>
+        <Logger name="io.confluent.amq.exchange.KafkaExchangeManager" level="trace" additivity="false">
+          <AppenderRef ref="stdout"/>
+        </Logger>
+        <Logger name="io.confluent.amq.exchange.KafkaExchangeEgress" level="trace" additivity="false">
+          <AppenderRef ref="stdout"/>
+        </Logger>
 
-    <Logger name="io.confluent.kafka.serializers.KafkaAvroDeserializerConfig" level="WARN"
-      additivity="false">
-      <AppenderRef ref="stdout"/>
-    </Logger>
 
-    <Logger name="io.confluent.kafka.serializers.KafkaAvroSerializerConfig" level="WARN"
-      additivity="false">
-      <AppenderRef ref="stdout"/>
-    </Logger>
+        <Logger name="io.confluent.amq.persistence.kafka.ConsumerThread"  level="trace" additivity="false">
+          <AppenderRef ref="stdout"/>
+        </Logger>
 
-    <Logger name="io.confluent.kafka.serializers.KafkaJsonDeserializerConfig" level="WARN"
-      additivity="false">
-      <AppenderRef ref="stdout"/>
-    </Logger>
 
-    <Logger name="io.confluent.kafka.serializers.KafkaJsonSerializerConfig" level="WARN"
-      additivity="false">
-      <AppenderRef ref="stdout"/>
-    </Logger>
+        <Logger name="io.confluent.amq.persistence.kafka.journal.impl" level="TRACE" additivity="false">
+          <AppenderRef ref="stdout"/>
+        </Logger>
+        <Logger name="io.confluent.amq.persistence.kafka.journal.impl.KafkaDivertProcessor" level="TRACE" additivity="false">
+          <AppenderRef ref="stdout"/>
+        </Logger>
+        <Logger name="io.confluent.amq.persistence.kafka.journal.impl.MainRecordProcessor" level="TRACE" additivity="false">
+          <AppenderRef ref="stdout"/>
+        </Logger>
+        <Logger name="io.confluent.amq.persistence.kafka.journal.impl.TransactionProcessor" level="TRACE" additivity="false">
+          <AppenderRef ref="stdout"/>
+        </Logger>
+        <Logger name="io.confluent.amq.persistence.kafka.journal.impl.GlobalStoreProcessor" level="TRACE" additivity="false">
+          <AppenderRef ref="stdout"/>
+        </Logger>
+        -->
 
-    <Logger name="io.confluent.kafka.serializers.json.KafkaJsonSchemaSerializerConfig" level="WARN"
-      additivity="false">
-      <AppenderRef ref="stdout"/>
-    </Logger>
 
-    <Logger name="io.confluent.kafka.serializers.json.KafkaJsonSchemaDeserializerConfig"
-      level="WARN" additivity="false">
-      <AppenderRef ref="stdout"/>
-    </Logger>
+        <Logger name="org.apache.activemq.artemis.core" level="ERROR" additivity="false">
+            <AppenderRef ref="stdout"/>
+        </Logger>
 
-    <Logger name="io.confluent.kafka.serializers.protobuf.KafkaProtobufSerializerConfig"
-      level="WARN" additivity="false">
-      <AppenderRef ref="stdout"/>
-    </Logger>
+        <!-- Prevent kafka configuration from printing out all the time -->
+        <Logger name="io.confluent.connect.avro.AvroConverterConfig" level="ERROR"
+                additivity="false">
+            <AppenderRef ref="stdout"/>
+        </Logger>
 
-    <Logger name="io.confluent.kafka.serializers.protobuf.KafkaProtobufDeserializerConfig"
-      level="WARN" additivity="false">
-      <AppenderRef ref="stdout"/>
-    </Logger>
+        <Logger name="io.confluent.connect.avro.AvroDataConfig" level="ERROR" additivity="false">
+            <AppenderRef ref="stdout"/>
+        </Logger>
 
-    <Logger name="kafka.server.KafkaConfig" level="WARN" additivity="false">
-      <AppenderRef ref="stdout"/>
-    </Logger>
+        <Logger name="io.confluent.kafka.serializers.KafkaAvroDeserializerConfig" level="ERROR"
+                additivity="false">
+            <AppenderRef ref="stdout"/>
+        </Logger>
 
-    <Logger name="org.apache.kafka.clients.admin.AdminClientConfig" level="ERROR" additivity="false">
-      <AppenderRef ref="stdout"/>
-    </Logger>
+        <Logger name="io.confluent.kafka.serializers.KafkaAvroSerializerConfig" level="ERROR"
+                additivity="false">
+            <AppenderRef ref="stdout"/>
+        </Logger>
 
-    <Logger name="org.apache.kafka.clients.consumer.ConsumerConfig" level="ERROR" additivity="false">
-      <AppenderRef ref="stdout"/>
-    </Logger>
+        <Logger name="io.confluent.kafka.serializers.KafkaJsonDeserializerConfig" level="ERROR"
+                additivity="false">
+            <AppenderRef ref="stdout"/>
+        </Logger>
 
-    <Logger name="org.apache.kafka.clients.producer.ProducerConfig" level="ERROR" additivity="false">
-      <AppenderRef ref="stdout"/>
-    </Logger>
+        <Logger name="io.confluent.kafka.serializers.KafkaJsonSerializerConfig" level="ERROR"
+                additivity="false">
+            <AppenderRef ref="stdout"/>
+        </Logger>
 
-    <Logger name="org.apache.kafka.connect.json.JsonConverterConfig" level="WARN"
-      additivity="false">
-      <AppenderRef ref="stdout"/>
-    </Logger>
+        <Logger name="io.confluent.kafka.serializers.json.KafkaJsonSchemaSerializerConfig"
+                level="ERROR"
+                additivity="false">
+            <AppenderRef ref="stdout"/>
+        </Logger>
 
-    <Logger name="io.confluent.connect.json.JsonSchemaConverterConfig" level="WARN"
-      additivity="false">
-      <AppenderRef ref="stdout"/>
-    </Logger>
+        <Logger name="io.confluent.kafka.serializers.json.KafkaJsonSchemaDeserializerConfig"
+                level="ERROR" additivity="false">
+            <AppenderRef ref="stdout"/>
+        </Logger>
 
-    <Logger name="io.confluent.connect.json.JsonSchemaDataConfig" level="WARN" additivity="false">
-      <AppenderRef ref="stdout"/>
-    </Logger>
+        <Logger name="io.confluent.kafka.serializers.protobuf.KafkaProtobufSerializerConfig"
+                level="ERROR" additivity="false">
+            <AppenderRef ref="stdout"/>
+        </Logger>
 
-    <Logger name="io.confluent.connect.protobuf.ProtobufDataConfig" level="WARN" additivity="false">
-      <AppenderRef ref="stdout"/>
-    </Logger>
+        <Logger name="io.confluent.kafka.serializers.protobuf.KafkaProtobufDeserializerConfig"
+                level="ERROR" additivity="false">
+            <AppenderRef ref="stdout"/>
+        </Logger>
 
-    <Logger name="io.confluent.connect.protobuf.ProtobufConverterConfig" level="WARN"
-      additivity="false">
-      <AppenderRef ref="stdout"/>
-    </Logger>
+        <Logger name="kafka.server.KafkaConfig" level="ERROR" additivity="false">
+            <AppenderRef ref="stdout"/>
+        </Logger>
 
-    <Root level="ERROR">
-      <AppenderRef ref="stdout"/>
-    </Root>
-  </Loggers>
+        <Logger name="org.apache.kafka.clients.admin.AdminClientConfig" level="ERROR"
+                additivity="false">
+            <AppenderRef ref="stdout"/>
+        </Logger>
+
+        <Logger name="org.apache.kafka.clients.consumer.ConsumerConfig" level="ERROR"
+                additivity="false">
+            <AppenderRef ref="stdout"/>
+        </Logger>
+
+        <Logger name="org.apache.kafka.clients.consumer.StreamsConfig" level="ERROR"
+                additivity="false">
+            <AppenderRef ref="stdout"/>
+        </Logger>
+
+        <Logger name="org.apache.kafka.clients.producer.ProducerConfig" level="ERROR"
+                additivity="false">
+            <AppenderRef ref="stdout"/>
+        </Logger>
+
+        <Logger name="org.apache.kafka.connect.json.JsonConverterConfig" level="WARN"
+                additivity="false">
+            <AppenderRef ref="stdout"/>
+        </Logger>
+
+        <Logger name="io.confluent.connect.json.JsonSchemaConverterConfig" level="WARN"
+                additivity="false">
+            <AppenderRef ref="stdout"/>
+        </Logger>
+
+        <Logger name="io.confluent.connect.json.JsonSchemaDataConfig" level="WARN"
+                additivity="false">
+            <AppenderRef ref="stdout"/>
+        </Logger>
+
+        <Logger name="io.confluent.connect.protobuf.ProtobufDataConfig" level="WARN"
+                additivity="false">
+            <AppenderRef ref="stdout"/>
+        </Logger>
+
+        <Logger name="io.confluent.connect.protobuf.ProtobufConverterConfig" level="WARN"
+                additivity="false">
+            <AppenderRef ref="stdout"/>
+        </Logger>
+
+        <Root level="ERROR">
+            <AppenderRef ref="stdout"/>
+        </Root>
+    </Loggers>
 </Configuration>

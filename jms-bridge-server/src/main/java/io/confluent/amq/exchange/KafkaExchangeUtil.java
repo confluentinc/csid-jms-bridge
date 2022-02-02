@@ -12,7 +12,7 @@ public final class KafkaExchangeUtil {
   }
 
   public static String createIngressDestinationName(String topicAddress) {
-    return String.format("%s.forward", topicAddress);
+    return String.format("%s::kafka_forward", topicAddress);
   }
 
   public static String createDivertName(String address) {

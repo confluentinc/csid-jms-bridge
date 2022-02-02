@@ -152,15 +152,4 @@ public class Jms2Jms implements Runnable {
     LOGGER.info("Test completed");
   }
 
-  public enum ActivityOptions {
-    pub, sub, pubsub;
-
-    public boolean pubActive() {
-      return this == pub || this == pubsub;
-    }
-
-    public boolean subActive() {
-      return this == sub || this == pubsub;
-    }
-  }
 }

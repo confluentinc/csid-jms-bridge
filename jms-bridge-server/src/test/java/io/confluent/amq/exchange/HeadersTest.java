@@ -66,7 +66,7 @@ class HeadersTest {
     assertThat(mappedHeaders).containsKey("jms.string.JMSReplyTo");
     assertThat(mappedHeaders).containsKey("jms.long.JMSTimestamp");
     assertThat(mappedHeaders).containsKey("jms.string.JMSType");
-    assertThat(mappedHeaders).containsKey("jmsbridge_bridge_id_hops");
+    assertThat(mappedHeaders).containsKey("_jmsbr_bridge_id_hops");
     assertThat(mappedHeaders).containsKey("jms.long.JMSMessageID");
     assertThat(mappedHeaders).containsKey("jms.string.JMSCorrelationID");
     assertThat(mappedHeaders).containsKey("jms.string.cust-prop-key");
@@ -76,13 +76,10 @@ class HeadersTest {
     assertThat(mappedHeaders).containsKey("jms.long.long-property");
     assertThat(mappedHeaders).containsKey("jms.bytes.bytes-property");
     assertThat(mappedHeaders).containsKey("jms.string.object-property");
-
-    //Currently not support types
-    //assertThat(mappedHeaders).containsKey("jms.boolean.boolean-property");
-    //assertThat(mappedHeaders).containsKey("jms.char.char-property");
-    //assertThat(mappedHeaders).containsKey("jms.double.double-property");
-    //assertThat(mappedHeaders).containsKey("jms.short.short-property");
-    //assertThat(mappedHeaders).containsKey("jms.float.float-property");
+    assertThat(mappedHeaders).containsKey("jms.boolean.boolean-property");
+    assertThat(mappedHeaders).containsKey("jms.double.double-property");
+    assertThat(mappedHeaders).containsKey("jms.short.short-property");
+    assertThat(mappedHeaders).containsKey("jms.float.float-property");
   }
 
   @Test
@@ -106,7 +103,7 @@ class HeadersTest {
     assertThat(mappedHeaders).containsKey("JMSType");
     assertThat(mappedHeaders.get("JMSReplyTo")).isInstanceOf(String.class);
 
-    assertThat(mappedHeaders).containsKey("jmsbridge_bridge_id_hops");
+    assertThat(mappedHeaders).containsKey("_jmsbr_bridge_id_hops");
 
     assertThat(mappedHeaders).containsKey("JMSMessageID");
     assertThat(mappedHeaders.get("JMSMessageID")).isInstanceOf(Long.class);
@@ -135,6 +132,17 @@ class HeadersTest {
     assertThat(mappedHeaders).containsKey("object-property");
     assertThat(mappedHeaders.get("object-property")).isInstanceOf(String.class);
 
+    assertThat(mappedHeaders).containsKey("boolean-property");
+    assertThat(mappedHeaders.get("boolean-property")).isInstanceOf(Boolean.class);
+
+    assertThat(mappedHeaders).containsKey("double-property");
+    assertThat(mappedHeaders.get("double-property")).isInstanceOf(Double.class);
+
+    assertThat(mappedHeaders).containsKey("short-property");
+    assertThat(mappedHeaders.get("short-property")).isInstanceOf(Short.class);
+
+    assertThat(mappedHeaders).containsKey("float-property");
+    assertThat(mappedHeaders.get("float-property")).isInstanceOf(Float.class);
   }
 
   @Test

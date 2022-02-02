@@ -4,16 +4,7 @@
 
 package io.confluent.amq.persistence.kafka.journal.impl;
 
-import io.confluent.amq.logging.StructuredLogger;
-import io.confluent.amq.persistence.domain.proto.JournalEntry;
-import io.confluent.amq.persistence.domain.proto.JournalEntryKey;
-import io.confluent.amq.persistence.kafka.journal.KJournal;
-import io.confluent.amq.persistence.kafka.journal.serde.JournalKeySerde;
-import io.confluent.amq.persistence.kafka.journal.serde.JournalValueSerde;
-import java.util.Collection;
-import java.util.List;
-import java.util.Properties;
-import java.util.stream.Collectors;
+import org.apache.kafka.common.serialization.Serdes;
 import org.apache.kafka.common.utils.Bytes;
 import org.apache.kafka.streams.StreamsBuilder;
 import org.apache.kafka.streams.Topology;
@@ -27,13 +18,29 @@ import org.apache.kafka.streams.kstream.Produced;
 import org.apache.kafka.streams.state.KeyValueStore;
 import org.apache.kafka.streams.state.StoreBuilder;
 import org.apache.kafka.streams.state.Stores;
+import org.inferred.freebuilder.FreeBuilder;
 
+import io.confluent.amq.exchange.Headers;
+import io.confluent.amq.logging.StructuredLogger;
+import io.confluent.amq.persistence.domain.proto.JournalEntry;
+import io.confluent.amq.persistence.domain.proto.JournalEntryKey;
+import io.confluent.amq.persistence.kafka.KafkaRecordUtils;
+import io.confluent.amq.persistence.kafka.journal.KJournal;
+import io.confluent.amq.persistence.kafka.journal.serde.JournalKeySerde;
+import io.confluent.amq.persistence.kafka.journal.serde.JournalValueSerde;
+import io.confluent.amq.persistence.kafka.streams.StreamsSupport;
+
+import java.util.Collection;
+import java.util.List;
+import java.util.Properties;
+import java.util.stream.Collectors;
 
 //CHECKSTYLE:OFF: LineLength
+
 /**
  * Creates the kafka streams topology used to store journal data within Kafka.  It is responsible
  * for maintaining relationships between records and annotations and the execution of transactions.
- *
+ * <p>
  * Below is a sequence diagram illustrating how messages generally flow through it.
  * <pre>
  * +---------+                   +-----------+                       +-------------+            +-----------------+
@@ -95,29 +102,34 @@ import org.apache.kafka.streams.state.Stores;
 //CHECKSTYLE:ON: LineLength
 public class JournalTopology {
 
-  public static Topology createTopology(
-      Collection<? extends KJournal> journals, EpochCoordinator coordinator, Properties topoProps) {
+
+  public static Topology createTopology(TopologySpec topologySpec) {
 
     StreamsBuilder sb = new StreamsBuilder();
-    List<JournalTopology> jts = journals.stream()
-        .map(j -> new JournalTopology(j, sb, coordinator))
+    List<JournalTopology> jts = topologySpec.journals().stream()
+        .map(j -> new JournalTopology(
+            topologySpec.bridgeId(), j, sb, topologySpec.coordinator()))
         .collect(Collectors.toList());
     jts.forEach(JournalTopology::applyToBuilder);
 
-    Topology topo = sb.build(topoProps);
-    return topo;
+    return sb.build(topologySpec.topologyProps());
   }
 
   private static final StructuredLogger SLOG = StructuredLogger
       .with(b -> b.loggerClass(JournalTopology.class));
 
+  private final String bridgeId;
   private final KJournal journal;
   private final EpochCoordinator coordinator;
   private final StreamsBuilder streamsBuilder;
 
-  public JournalTopology(KJournal journal, StreamsBuilder streamBuilder,
+  public JournalTopology(
+      String bridgeId,
+      KJournal journal,
+      StreamsBuilder streamBuilder,
       EpochCoordinator coordinator) {
 
+    this.bridgeId = bridgeId;
     this.journal = journal;
     this.coordinator = coordinator;
     this.streamsBuilder = streamBuilder;
@@ -136,9 +148,12 @@ public class JournalTopology {
     journalStream = journalStream
         .filter((k, v) -> v != null, Named.as(journal.prefix("TombstoneFilter")));
 
-    journalStream = handleTransactions(journalStream);
-    journalStream = handleRecords(journalStream);
-    publishToJournalTopic(journalStream);
+    journalStream = StreamsSupport.branchStream(journalStream, streamsBuilder)
+        .when((k, v) -> v.hasEpochEvent() || KafkaRecordUtils.isTxRecord(v.getAppendedRecord()))
+        .branchTo(this::handleTransactions)
+        .done();
+
+    handleRecords(journalStream, "_Main");
 
   }
 
@@ -156,7 +171,7 @@ public class JournalTopology {
 
   }
 
-  protected KStream<JournalEntryKey, JournalEntry> handleTransactions(
+  protected void handleTransactions(
       KStream<JournalEntryKey, JournalEntry> stream) {
 
     KTable<JournalEntryKey, JournalEntry> txTable = stream
@@ -165,32 +180,44 @@ public class JournalTopology {
                 journal.txStoreName())
                 .withCachingDisabled());
 
-    return txTable.toStream()
-        .flatTransform(() -> new TransactionProcessor(journal.walTopic(), journal.txStoreName()),
+    KStream<JournalEntryKey, JournalEntry> txStream = txTable.toStream()
+        .flatTransform(() -> new TransactionProcessor(journal.name(), journal.txStoreName()),
             Named.as(journal.prefix("handleTransactions")),
             journal.txStoreName());
+
+    handleRecords(txStream, "_TX");
   }
 
-  protected KStream<JournalEntryKey, JournalEntry> handleRecords(
-      KStream<JournalEntryKey, JournalEntry> recordStream) {
+  protected void handleRecords(
+      KStream<JournalEntryKey, JournalEntry> recordStream, String suffix) {
 
-    return recordStream
-        .flatTransform(() -> new MainRecordProcessor(journal.walTopic(), journal.storeName()),
-            Named.as(journal.prefix("handleMainRecord")));
+    KStream<JournalEntryKey, JournalEntry> mainStream = recordStream
+        .flatTransform(() -> new MainRecordProcessor(journal.name(), journal.storeName()),
+            Named.as(journal.prefix("handleMainRecord") + suffix));
+
+    publishToIntegratedKafkaTopics(mainStream, suffix);
+    publishToJournalTopic(mainStream);
   }
 
-  protected void handleDeadletters(
-      KJournal kjournal, StreamsBuilder sb, KStream<JournalEntryKey, JournalEntry> dlStream) {
+  protected void publishToIntegratedKafkaTopics(
+      KStream<JournalEntryKey, JournalEntry> recordStream, String suffix) {
 
-    dlStream.foreach((k, v) ->
-        SLOG.error(b -> b
-            .event("DeadLetterRecord")
-            .message("logging and skipping unprocessable record")
-            .name(kjournal.name())
-            .addJournalEntryKey(k)
-            .addJournalEntry(v)), Named.as(kjournal.prefix("handleDeadLetters")));
-
+    recordStream
+        .filter((k, v) ->
+            v != null
+                && v.hasAppendedRecord()
+                && KafkaRecordUtils.isMessageRecord(v.getAppendedRecord()))
+        .flatTransform(() -> new KafkaDivertProcessor(bridgeId, journal.name()),
+            Named.as(journal.prefix("kafkaDivert") + suffix))
+        .to((k, v, ctx) -> {
+          String topic = Serdes.String().deserializer().deserialize(
+              null,
+              ctx.headers().lastHeader(Headers.EX_HDR_KAFKA_TOPIC).value());
+          ctx.headers().remove(Headers.EX_HDR_KAFKA_TOPIC);
+          return topic;
+        }, Produced.with(Serdes.ByteArray(), Serdes.ByteArray()));
   }
+
 
   protected void publishToJournalTopic(
       KStream<JournalEntryKey, JournalEntry> entryStream) {
@@ -200,12 +227,12 @@ public class JournalTopology {
 
   private void addGlobalStore() {
 
-    final String globalStoreName = journal.storeName();
+    String globalStoreName = journal.storeName();
     StoreBuilder<KeyValueStore<JournalEntryKey, JournalEntry>> globalStoreBuilder = Stores
         .keyValueStoreBuilder(
             Stores.persistentKeyValueStore(globalStoreName),
             JournalKeySerde.DEFAULT, JournalValueSerde.DEFAULT)
-        .withLoggingDisabled();
+        .withCachingDisabled();
 
     streamsBuilder.addGlobalStore(
         globalStoreBuilder,
@@ -215,6 +242,28 @@ public class JournalTopology {
             JournalValueSerde.DEFAULT),
         () -> new GlobalStoreProcessor(globalStoreName, journal));
 
+  }
+
+  public static class TopologySpecBuilder extends TopologySpec.Builder {
+
+  }
+
+  @SuppressWarnings("InterfaceWithOnlyOneDirectInheritor")
+  @FreeBuilder
+  public interface TopologySpec {
+
+    String bridgeId();
+
+    Collection<? extends KJournal> journals();
+
+    EpochCoordinator coordinator();
+
+    Properties topologyProps();
+
+    @SuppressWarnings("ClassWithoutConstructor")
+    class Builder extends JournalTopology_TopologySpec_Builder {
+
+    }
   }
 
 }

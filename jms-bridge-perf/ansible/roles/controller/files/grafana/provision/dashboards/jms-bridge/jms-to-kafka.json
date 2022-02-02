@@ -8,6 +8,12 @@
         "hide": true,
         "iconColor": "rgba(0, 211, 255, 1)",
         "name": "Annotations & Alerts",
+        "target": {
+          "limit": 100,
+          "matchAny": false,
+          "tags": [],
+          "type": "dashboard"
+        },
         "type": "dashboard"
       }
     ]
@@ -16,6 +22,7 @@
   "gnetId": null,
   "graphTooltip": 1,
   "id": 2,
+  "iteration": 1634737968234,
   "links": [
     {
       "asDropdown": false,
@@ -42,11 +49,13 @@
           },
           "mappings": [
             {
-              "id": 0,
-              "op": "=",
-              "text": "N/A",
-              "type": 1,
-              "value": "null"
+              "options": {
+                "match": "null",
+                "result": {
+                  "text": "N/A"
+                }
+              },
+              "type": "special"
             }
           ],
           "max": 1000000,
@@ -115,7 +124,7 @@
         "text": {},
         "textMode": "auto"
       },
-      "pluginVersion": "7.5.7",
+      "pluginVersion": "8.1.7",
       "targets": [
         {
           "exemplar": true,
@@ -176,7 +185,7 @@
         "text": {},
         "textMode": "auto"
       },
-      "pluginVersion": "7.5.7",
+      "pluginVersion": "8.1.7",
       "targets": [
         {
           "exemplar": true,
@@ -239,7 +248,7 @@
         "orientation": "horizontal",
         "reduceOptions": {
           "calcs": [
-            "lastNotNull"
+            "delta"
           ],
           "fields": "",
           "values": false
@@ -247,7 +256,7 @@
         "text": {},
         "textMode": "auto"
       },
-      "pluginVersion": "7.5.7",
+      "pluginVersion": "8.1.7",
       "targets": [
         {
           "exemplar": true,
@@ -308,7 +317,7 @@
         "text": {},
         "textMode": "auto"
       },
-      "pluginVersion": "7.5.7",
+      "pluginVersion": "8.1.7",
       "targets": [
         {
           "exemplar": true,
@@ -409,11 +418,11 @@
         "text": {},
         "textMode": "auto"
       },
-      "pluginVersion": "7.5.7",
+      "pluginVersion": "8.1.7",
       "targets": [
         {
           "exemplar": true,
-          "expr": "histogram_quantile(0.95, sum(rate(perf_test_producer_to_consumer_latency_ms_bucket[5m])) by (le))",
+          "expr": "histogram_quantile(0.95, sum(rate(perf_test_producer_to_consumer_latency_ms_bucket[$__interval])) by (le))",
           "hide": false,
           "interval": "",
           "legendFormat": "95th",
@@ -421,7 +430,7 @@
         },
         {
           "exemplar": true,
-          "expr": "histogram_quantile(0.90, sum(rate(perf_test_producer_to_consumer_latency_ms_bucket[5m])) by (le))",
+          "expr": "histogram_quantile(0.90, sum(rate(perf_test_producer_to_consumer_latency_ms_bucket[$__interval])) by (le))",
           "hide": false,
           "interval": "",
           "legendFormat": "90th",
@@ -429,7 +438,7 @@
         },
         {
           "exemplar": true,
-          "expr": "histogram_quantile(0.75, sum(rate(perf_test_producer_to_consumer_latency_ms_bucket[5m])) by (le))",
+          "expr": "histogram_quantile(0.75, sum(rate(perf_test_producer_to_consumer_latency_ms_bucket[$__interval])) by (le))",
           "hide": false,
           "interval": "",
           "legendFormat": "75th",
@@ -487,7 +496,7 @@
         "text": {},
         "textMode": "auto"
       },
-      "pluginVersion": "7.5.7",
+      "pluginVersion": "8.1.7",
       "targets": [
         {
           "exemplar": true,
@@ -547,7 +556,7 @@
         "text": {},
         "textMode": "auto"
       },
-      "pluginVersion": "7.5.7",
+      "pluginVersion": "8.1.7",
       "targets": [
         {
           "exemplar": true,
@@ -561,185 +570,230 @@
       "type": "stat"
     },
     {
-      "aliasColors": {},
-      "bars": false,
       "cacheTimeout": null,
-      "dashLength": 10,
-      "dashes": false,
       "datasource": null,
       "description": "The average time it takes for the test consumer to receive a message from the test publisher.",
       "fieldConfig": {
-        "defaults": {},
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisLabel": "Latency",
+            "axisPlacement": "auto",
+            "barAlignment": -1,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 4,
+            "pointSize": 8,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "decimals": 3,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "ms"
+        },
         "overrides": []
       },
-      "fill": 0,
-      "fillGradient": 0,
       "gridPos": {
         "h": 5,
         "w": 24,
         "x": 0,
         "y": 7
       },
-      "hiddenSeries": false,
       "id": 2,
       "interval": "30s",
-      "legend": {
-        "avg": false,
-        "current": false,
-        "max": false,
-        "min": false,
-        "show": true,
-        "total": false,
-        "values": false
-      },
-      "lines": true,
-      "linewidth": 4,
       "links": [],
       "maxDataPoints": 3,
-      "nullPointMode": "null",
       "options": {
-        "alertThreshold": false
+        "legend": {
+          "calcs": [
+            "mean",
+            "lastNotNull",
+            "range"
+          ],
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single"
+        }
       },
-      "percentage": false,
-      "pluginVersion": "7.5.7",
-      "pointradius": 2,
-      "points": false,
-      "renderer": "flot",
-      "seriesOverrides": [],
-      "spaceLength": 10,
-      "stack": false,
-      "steppedLine": false,
+      "pluginVersion": "8.1.7",
       "targets": [
         {
           "exemplar": true,
-          "expr": "histogram_quantile(0.95, sum(rate(perf_test_producer_to_consumer_latency_ms_bucket[$__rate_interval])) by (le)) ",
+          "expr": "histogram_quantile(0.95, sum(rate(perf_test_producer_to_consumer_latency_ms_bucket[$__interval])) by (name, le)) ",
           "format": "time_series",
           "hide": false,
           "instant": false,
           "interval": "",
-          "legendFormat": "95th",
+          "legendFormat": "95th - {{name}}",
           "refId": "A"
         },
         {
           "exemplar": true,
-          "expr": "histogram_quantile(0.90, sum(rate(perf_test_producer_to_consumer_latency_ms_bucket[$__rate_interval])) by (le))",
+          "expr": "histogram_quantile(0.90, sum(rate(perf_test_producer_to_consumer_latency_ms_bucket[$__interval])) by (name, le))",
           "format": "time_series",
           "hide": false,
           "instant": false,
           "interval": "",
-          "legendFormat": "90th",
+          "legendFormat": "90th - {{name}}",
           "refId": "B"
         },
         {
           "exemplar": true,
-          "expr": "histogram_quantile(0.75, sum(rate(perf_test_producer_to_consumer_latency_ms_bucket[$__rate_interval])) by (le))",
+          "expr": "histogram_quantile(0.75, sum(rate(perf_test_producer_to_consumer_latency_ms_bucket[$__interval])) by (name, le))",
           "format": "time_series",
           "hide": false,
           "instant": false,
           "interval": "",
-          "legendFormat": "75th",
+          "legendFormat": "75th - {{name}}",
           "refId": "C"
         }
       ],
-      "thresholds": [],
       "timeFrom": null,
-      "timeRegions": [],
       "timeShift": null,
       "title": "Message Latency",
-      "tooltip": {
-        "shared": true,
-        "sort": 0,
-        "value_type": "individual"
-      },
-      "type": "graph",
-      "xaxis": {
-        "buckets": null,
-        "mode": "time",
-        "name": null,
-        "show": true,
-        "values": []
-      },
-      "yaxes": [
-        {
-          "decimals": 3,
-          "format": "ms",
-          "label": "Latency",
-          "logBase": 1,
-          "max": null,
-          "min": null,
-          "show": true
-        },
-        {
-          "format": "rps",
-          "label": null,
-          "logBase": 1,
-          "max": null,
-          "min": null,
-          "show": false
-        }
-      ],
-      "yaxis": {
-        "align": false,
-        "alignLevel": null
-      }
+      "type": "timeseries"
     },
     {
-      "aliasColors": {},
-      "bars": false,
-      "dashLength": 10,
-      "dashes": false,
       "datasource": null,
       "description": "The rate at which the test producer(s) are publishing data into the JMS Bridge.",
       "fieldConfig": {
         "defaults": {
-          "links": []
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisLabel": "Message Write Rate",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "decimals": 0,
+          "links": [],
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "wps"
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Total"
+            },
+            "properties": [
+              {
+                "id": "custom.fillOpacity",
+                "value": 0
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 4
+              },
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "dash": [
+                    10,
+                    10
+                  ],
+                  "fill": "dash"
+                }
+              }
+            ]
+          }
+        ]
       },
-      "fill": 1,
-      "fillGradient": 0,
       "gridPos": {
         "h": 11,
         "w": 12,
         "x": 0,
         "y": 12
       },
-      "hiddenSeries": false,
       "id": 4,
       "interval": "30s",
-      "legend": {
-        "alignAsTable": true,
-        "avg": true,
-        "current": true,
-        "hideEmpty": true,
-        "max": true,
-        "min": false,
-        "show": true,
-        "total": true,
-        "values": true
-      },
-      "lines": true,
-      "linewidth": 1,
-      "nullPointMode": "null as zero",
       "options": {
-        "alertThreshold": true
-      },
-      "percentage": false,
-      "pluginVersion": "7.5.7",
-      "pointradius": 2,
-      "points": false,
-      "renderer": "flot",
-      "seriesOverrides": [
-        {
-          "alias": "Total",
-          "dashes": true,
-          "fill": 0,
-          "linewidth": 4
+        "legend": {
+          "calcs": [
+            "mean",
+            "lastNotNull",
+            "max",
+            "sum"
+          ],
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single"
         }
-      ],
-      "spaceLength": 10,
-      "stack": false,
-      "steppedLine": false,
+      },
+      "pluginVersion": "8.1.7",
       "targets": [
         {
           "exemplar": true,
@@ -757,105 +811,118 @@
           "refId": "A"
         }
       ],
-      "thresholds": [],
       "timeFrom": null,
-      "timeRegions": [],
       "timeShift": null,
       "title": "Test Publisher Throughput",
-      "tooltip": {
-        "shared": true,
-        "sort": 0,
-        "value_type": "individual"
-      },
-      "type": "graph",
-      "xaxis": {
-        "buckets": null,
-        "mode": "time",
-        "name": null,
-        "show": true,
-        "values": []
-      },
-      "yaxes": [
-        {
-          "decimals": 0,
-          "format": "wps",
-          "label": "Message Write Rate",
-          "logBase": 1,
-          "max": null,
-          "min": null,
-          "show": true
-        },
-        {
-          "format": "short",
-          "label": null,
-          "logBase": 1,
-          "max": null,
-          "min": null,
-          "show": true
-        }
-      ],
-      "yaxis": {
-        "align": false,
-        "alignLevel": null
-      }
+      "type": "timeseries"
     },
     {
-      "aliasColors": {},
-      "bars": false,
-      "dashLength": 10,
-      "dashes": false,
       "datasource": null,
       "description": "The rate at which the test Kafka consumer is reading messages from Kafka.",
       "fieldConfig": {
         "defaults": {
-          "links": []
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisLabel": "Message Read Rate",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "decimals": 0,
+          "links": [],
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "rps"
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Total"
+            },
+            "properties": [
+              {
+                "id": "custom.fillOpacity",
+                "value": 0
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 4
+              },
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "dash": [
+                    10,
+                    10
+                  ],
+                  "fill": "dash"
+                }
+              }
+            ]
+          }
+        ]
       },
-      "fill": 1,
-      "fillGradient": 0,
       "gridPos": {
         "h": 11,
         "w": 12,
         "x": 12,
         "y": 12
       },
-      "hiddenSeries": false,
       "id": 17,
       "interval": "30s",
-      "legend": {
-        "alignAsTable": true,
-        "avg": true,
-        "current": true,
-        "hideEmpty": true,
-        "max": true,
-        "min": false,
-        "show": true,
-        "total": true,
-        "values": true
-      },
-      "lines": true,
-      "linewidth": 1,
-      "nullPointMode": "null",
       "options": {
-        "alertThreshold": true
-      },
-      "percentage": false,
-      "pluginVersion": "7.5.7",
-      "pointradius": 2,
-      "points": false,
-      "renderer": "flot",
-      "seriesOverrides": [
-        {
-          "alias": "Total",
-          "dashes": true,
-          "fill": 0,
-          "linewidth": 4
+        "legend": {
+          "calcs": [
+            "mean",
+            "lastNotNull",
+            "max",
+            "sum"
+          ],
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single"
         }
-      ],
-      "spaceLength": 10,
-      "stack": false,
-      "steppedLine": false,
+      },
+      "pluginVersion": "8.1.7",
       "targets": [
         {
           "exemplar": true,
@@ -874,99 +941,92 @@
           "refId": "B"
         }
       ],
-      "thresholds": [],
       "timeFrom": null,
-      "timeRegions": [],
       "timeShift": null,
       "title": "Test Consumer Throughput",
-      "tooltip": {
-        "shared": true,
-        "sort": 0,
-        "value_type": "individual"
-      },
-      "type": "graph",
-      "xaxis": {
-        "buckets": null,
-        "mode": "time",
-        "name": null,
-        "show": true,
-        "values": []
-      },
-      "yaxes": [
-        {
-          "decimals": 0,
-          "format": "rps",
-          "label": "Message Read Rate",
-          "logBase": 1,
-          "max": null,
-          "min": null,
-          "show": true
-        },
-        {
-          "format": "short",
-          "label": null,
-          "logBase": 1,
-          "max": null,
-          "min": null,
-          "show": true
-        }
-      ],
-      "yaxis": {
-        "align": false,
-        "alignLevel": null
-      }
+      "type": "timeseries"
     },
     {
-      "aliasColors": {},
-      "bars": false,
-      "dashLength": 10,
-      "dashes": false,
       "datasource": null,
       "fieldConfig": {
-        "defaults": {},
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "bytes"
+        },
         "overrides": []
       },
-      "fill": 1,
-      "fillGradient": 0,
       "gridPos": {
         "h": 8,
-        "w": 7,
+        "w": 8,
         "x": 0,
         "y": 23
       },
-      "hiddenSeries": false,
       "id": 23,
-      "legend": {
-        "alignAsTable": true,
-        "avg": true,
-        "current": true,
-        "max": true,
-        "min": false,
-        "show": true,
-        "sort": "max",
-        "sortDesc": true,
-        "total": false,
-        "values": true
-      },
-      "lines": true,
-      "linewidth": 1,
-      "nullPointMode": "connected",
       "options": {
-        "alertThreshold": true
+        "legend": {
+          "calcs": [
+            "mean",
+            "lastNotNull",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single"
+        }
       },
-      "percentage": false,
-      "pluginVersion": "7.5.7",
-      "pointradius": 2,
-      "points": false,
-      "renderer": "flot",
-      "seriesOverrides": [],
-      "spaceLength": 10,
-      "stack": false,
-      "steppedLine": false,
+      "pluginVersion": "8.1.7",
+      "repeat": "bridgeInstance",
+      "repeatDirection": "v",
       "targets": [
         {
           "exemplar": true,
-          "expr": "jvm_memory_bytes_used{area=\"heap\", service=\"bridge\"}",
+          "expr": "jvm_memory_bytes_used{area=\"heap\", name=\"$bridgeInstance\"}",
           "hide": false,
           "interval": "",
           "legendFormat": "Heap Used",
@@ -974,424 +1034,742 @@
         },
         {
           "exemplar": true,
-          "expr": "jvm_memory_bytes_max{area=\"heap\", service=\"bridge\"}",
+          "expr": "jvm_memory_bytes_max{area=\"heap\", name=\"$bridgeInstance\"}",
           "hide": false,
           "interval": "",
           "legendFormat": "Max Heap",
           "refId": "B"
         }
       ],
-      "thresholds": [],
       "timeFrom": null,
-      "timeRegions": [],
       "timeShift": null,
-      "title": "Bridge Memory Usage",
-      "tooltip": {
-        "shared": true,
-        "sort": 0,
-        "value_type": "individual"
-      },
-      "type": "graph",
-      "xaxis": {
-        "buckets": null,
-        "mode": "time",
-        "name": null,
-        "show": true,
-        "values": []
-      },
-      "yaxes": [
-        {
-          "format": "bytes",
-          "label": null,
-          "logBase": 1,
-          "max": null,
-          "min": null,
-          "show": true
-        },
-        {
-          "format": "short",
-          "label": null,
-          "logBase": 1,
-          "max": null,
-          "min": null,
-          "show": true
-        }
-      ],
-      "yaxis": {
-        "align": false,
-        "alignLevel": null
-      }
+      "title": "Bridge ($bridgeInstance) Memory Usage",
+      "type": "timeseries"
     },
     {
-      "aliasColors": {},
-      "bars": false,
-      "dashLength": 10,
-      "dashes": false,
       "datasource": null,
       "fieldConfig": {
-        "defaults": {},
-        "overrides": []
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "normal"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "Bps"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Total"
+            },
+            "properties": [
+              {
+                "id": "custom.fillOpacity",
+                "value": 0
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 4
+              },
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "dash": [
+                    10,
+                    10
+                  ],
+                  "fill": "dash"
+                }
+              }
+            ]
+          }
+        ]
       },
-      "fill": 1,
-      "fillGradient": 0,
       "gridPos": {
         "h": 8,
-        "w": 9,
-        "x": 7,
+        "w": 8,
+        "x": 8,
         "y": 23
       },
-      "hiddenSeries": false,
       "id": 34,
-      "legend": {
-        "alignAsTable": true,
-        "avg": true,
-        "current": true,
-        "max": true,
-        "min": false,
-        "show": true,
-        "sort": "max",
-        "sortDesc": true,
-        "total": false,
-        "values": true
-      },
-      "lines": true,
-      "linewidth": 1,
-      "nullPointMode": "connected",
+      "maxPerRow": 2,
       "options": {
-        "alertThreshold": true
-      },
-      "percentage": false,
-      "pluginVersion": "7.5.7",
-      "pointradius": 2,
-      "points": false,
-      "renderer": "flot",
-      "seriesOverrides": [
-        {
-          "alias": "Total",
-          "dashes": true,
-          "fill": 0,
-          "linewidth": 4
+        "legend": {
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
         }
-      ],
-      "spaceLength": 10,
-      "stack": false,
-      "steppedLine": false,
+      },
+      "pluginVersion": "8.1.7",
+      "repeat": "bridgeInstance",
+      "repeatDirection": "v",
       "targets": [
         {
           "exemplar": true,
-          "expr": "sum(kafka_consumer_consumer_fetch_manager_metrics{exported_name=\"bytes-consumed-rate\"}) by (topic)",
-          "interval": "",
-          "legendFormat": "Topic {{topic}}",
-          "refId": "A"
-        },
-        {
-          "exemplar": true,
-          "expr": "sum(kafka_consumer_consumer_fetch_manager_metrics{exported_name=\"bytes-consumed-rate\"})",
-          "hide": false,
+          "expr": "sum(kafka_consumer_consumer_fetch_manager_metrics_bytes_consumed_rate{})",
+          "hide": true,
           "interval": "",
           "legendFormat": "Total",
           "refId": "B"
-        }
-      ],
-      "thresholds": [],
-      "timeFrom": null,
-      "timeRegions": [],
-      "timeShift": null,
-      "title": "Bridge Consumption Rate",
-      "tooltip": {
-        "shared": true,
-        "sort": 0,
-        "value_type": "individual"
-      },
-      "type": "graph",
-      "xaxis": {
-        "buckets": null,
-        "mode": "time",
-        "name": null,
-        "show": true,
-        "values": []
-      },
-      "yaxes": [
-        {
-          "format": "Bps",
-          "label": "",
-          "logBase": 1,
-          "max": null,
-          "min": null,
-          "show": true
         },
         {
-          "format": "Bps",
-          "label": null,
-          "logBase": 1,
-          "max": null,
-          "min": null,
-          "show": true
+          "exemplar": true,
+          "expr": "sum(rate(kafka_consumer_consumer_fetch_manager_metrics_bytes_consumed_rate{name=~\"$bridgeInstance\", topic=~\".+\"}[$__interval])) by (topic, instance)",
+          "interval": "",
+          "legendFormat": "Topic {{topic}}",
+          "refId": "A"
         }
       ],
-      "yaxis": {
-        "align": false,
-        "alignLevel": null
-      }
+      "timeFrom": null,
+      "timeShift": null,
+      "title": "Bridge ($bridgeInstance) Consumption Rate",
+      "transformations": [
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "jms_bridge_.*(bindings|messages)(_tbl-store.*)",
+            "renamePattern": "...$1$2"
+          }
+        }
+      ],
+      "type": "timeseries"
     },
     {
-      "aliasColors": {},
-      "bars": false,
-      "dashLength": 10,
-      "dashes": false,
       "datasource": null,
       "fieldConfig": {
-        "defaults": {},
-        "overrides": []
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "normal"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "Bps"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Total"
+            },
+            "properties": [
+              {
+                "id": "custom.fillOpacity",
+                "value": 0
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 4
+              },
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "dash": [
+                    10,
+                    10
+                  ],
+                  "fill": "dash"
+                }
+              }
+            ]
+          }
+        ]
       },
-      "fill": 1,
-      "fillGradient": 0,
       "gridPos": {
         "h": 8,
         "w": 8,
         "x": 16,
         "y": 23
       },
-      "hiddenSeries": false,
       "id": 25,
-      "legend": {
-        "alignAsTable": true,
-        "avg": true,
-        "current": true,
-        "max": true,
-        "min": false,
-        "rightSide": false,
-        "show": true,
-        "sideWidth": 100,
-        "total": false,
-        "values": true
-      },
-      "lines": true,
-      "linewidth": 1,
-      "nullPointMode": "connected",
+      "maxPerRow": 2,
       "options": {
-        "alertThreshold": true
-      },
-      "percentage": false,
-      "pluginVersion": "7.5.7",
-      "pointradius": 2,
-      "points": false,
-      "renderer": "flot",
-      "seriesOverrides": [
-        {
-          "alias": "Total",
-          "dashes": true,
-          "fill": 0,
-          "linewidth": 4
+        "legend": {
+          "calcs": [
+            "mean",
+            "lastNotNull",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
         }
-      ],
-      "spaceLength": 10,
-      "stack": false,
-      "steppedLine": false,
+      },
+      "pluginVersion": "8.1.7",
+      "repeat": "bridgeInstance",
+      "repeatDirection": "v",
       "targets": [
         {
           "exemplar": true,
-          "expr": "sum(kafka_producer_producer_topic_metrics{exported_name=\"byte-rate\", service=\"bridge\"})",
-          "hide": false,
-          "interval": "",
-          "legendFormat": "Total",
-          "refId": "B"
-        },
-        {
-          "exemplar": true,
-          "expr": "sum(kafka_producer_producer_topic_metrics{exported_name=\"byte-rate\", service=\"bridge\"}) by (topic)",
+          "expr": "sum(kafka_producer_producer_topic_metrics_byte_rate{name=~\"$bridgeInstance\"}) by (topic)",
           "interval": "",
           "legendFormat": "{{ topic }}",
           "refId": "A"
         }
       ],
-      "thresholds": [],
       "timeFrom": null,
-      "timeRegions": [],
       "timeShift": null,
-      "title": "Bridge Producer Byte Rate",
-      "tooltip": {
-        "shared": true,
-        "sort": 0,
-        "value_type": "individual"
-      },
-      "type": "graph",
-      "xaxis": {
-        "buckets": null,
-        "mode": "time",
-        "name": null,
-        "show": true,
-        "values": []
-      },
-      "yaxes": [
+      "title": "Bridge ($bridgeInstance) Producer Byte Rate",
+      "transformations": [
         {
-          "format": "Bps",
-          "label": null,
-          "logBase": 1,
-          "max": null,
-          "min": null,
-          "show": true
-        },
-        {
-          "format": "short",
-          "label": null,
-          "logBase": 1,
-          "max": null,
-          "min": null,
-          "show": true
+          "id": "renameByRegex",
+          "options": {
+            "regex": "jms[._]bridge[._].*(bindings|messages)(_tbl-store.*)",
+            "renamePattern": "...$1$2"
+          }
         }
       ],
-      "yaxis": {
-        "align": false,
-        "alignLevel": null
-      }
+      "type": "timeseries"
     },
     {
-      "aliasColors": {
-        "Depth kafka.jms-load-test-0.forward": "dark-blue"
-      },
-      "bars": false,
-      "dashLength": 10,
-      "dashes": false,
       "datasource": null,
       "description": "The rate of messages being added and acked to/from a queue. Includes the total size of the queue which indicates queue depth.",
       "fieldConfig": {
         "defaults": {
-          "links": []
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisLabel": "Message Rate",
+            "axisPlacement": "left",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "normal"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "decimals": 0,
+          "links": [],
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "short"
         },
         "overrides": [
           {
             "matcher": {
-              "id": "byRegexp",
-              "options": "Depth.*"
+              "id": "byFrameRefID",
+              "options": "E"
             },
             "properties": [
               {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              },
+              {
+                "id": "custom.axisLabel",
+                "value": "Size"
+              },
+              {
                 "id": "unit",
-                "value": "short"
+                "value": "bytes"
+              },
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "dash": [
+                    10,
+                    15
+                  ],
+                  "fill": "dash"
+                }
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 4
               }
             ]
           }
         ]
       },
-      "fill": 1,
-      "fillGradient": 0,
       "gridPos": {
-        "h": 6,
-        "w": 24,
+        "h": 10,
+        "w": 8,
         "x": 0,
         "y": 31
       },
-      "hiddenSeries": false,
       "id": 11,
-      "legend": {
-        "alignAsTable": true,
-        "avg": true,
-        "current": true,
-        "hideEmpty": true,
-        "hideZero": false,
-        "max": true,
-        "min": false,
-        "show": true,
-        "sort": "current",
-        "sortDesc": true,
-        "total": true,
-        "values": true
-      },
-      "lines": true,
-      "linewidth": 2,
-      "nullPointMode": "connected",
       "options": {
-        "alertThreshold": true
-      },
-      "percentage": false,
-      "pluginVersion": "7.5.7",
-      "pointradius": 2,
-      "points": false,
-      "renderer": "flot",
-      "seriesOverrides": [
-        {
-          "alias": "/Depth.*/",
-          "fill": 5,
-          "linewidth": 1,
-          "steppedLine": true,
-          "yaxis": 2,
-          "zindex": -1
+        "legend": {
+          "calcs": [
+            "mean",
+            "lastNotNull",
+            "max",
+            "sum"
+          ],
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single"
         }
-      ],
-      "spaceLength": 10,
-      "stack": true,
-      "steppedLine": false,
+      },
+      "pluginVersion": "8.1.7",
+      "repeat": "bridgeInstance",
+      "repeatDirection": "v",
       "targets": [
         {
           "exemplar": true,
-          "expr": "rate(artemis_messages_added{queue=~\".+\"}[$__rate_interval])",
+          "expr": "rate(artemis_routed_message_count{name=~\"$bridgeInstance\"}[$__interval])",
+          "hide": true,
           "interval": "",
-          "legendFormat": "Adds {{queue}}",
+          "legendFormat": "{{address}}",
           "refId": "A"
         },
         {
           "exemplar": true,
-          "expr": "rate(artemis_messages_acknowledged{queue=~\".+\"}[$__rate_interval])",
+          "expr": "rate(artemis_un_routed_message_count{name=~\"$bridgeInstance\"}[$__interval])",
+          "hide": true,
           "interval": "",
-          "legendFormat": "Acks {{queue}}",
-          "refId": "B"
+          "legendFormat": "Un-Routed {{address}}",
+          "refId": "C"
         },
         {
           "exemplar": true,
-          "expr": "artemis_message_count{queue=~\".+\"}",
+          "expr": "rate(artemis_address_size{name=~\"$bridgeInstance\"}[$__interval]) > 0",
           "hide": false,
           "interval": "",
-          "legendFormat": "Depth {{queue}}",
+          "legendFormat": "{{address}} Size",
+          "refId": "E"
+        },
+        {
+          "exemplar": true,
+          "expr": "{__name__=~\"artemis_.*\"} > 0",
+          "hide": true,
+          "interval": "",
+          "legendFormat": "",
           "refId": "D"
-        },
-        {
-          "hide": false,
-          "refId": "C"
         }
       ],
-      "thresholds": [],
       "timeFrom": null,
-      "timeRegions": [],
       "timeShift": null,
-      "title": "JMS Bridge Queue Add/Ack/Size",
-      "tooltip": {
-        "shared": true,
-        "sort": 0,
-        "value_type": "individual"
-      },
-      "type": "graph",
-      "xaxis": {
-        "buckets": null,
-        "mode": "time",
-        "name": null,
-        "show": true,
-        "values": []
-      },
-      "yaxes": [
-        {
+      "title": "JMS Bridge ($bridgeInstance) Address Size",
+      "type": "timeseries"
+    },
+    {
+      "datasource": null,
+      "description": "The rate of messages being added and acked to/from a queue. Includes the total size of the queue which indicates queue depth.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisLabel": "Message Rate",
+            "axisPlacement": "left",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 7,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "always",
+            "spanNulls": 3600000,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
           "decimals": 0,
-          "format": "short",
-          "label": "Message Rate",
-          "logBase": 1,
-          "max": null,
-          "min": null,
-          "show": true
+          "links": [],
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "E"
+            },
+            "properties": [
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              },
+              {
+                "id": "custom.axisLabel",
+                "value": "Size"
+              },
+              {
+                "id": "unit",
+                "value": "bytes"
+              },
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "dash": [
+                    10,
+                    15
+                  ],
+                  "fill": "dash"
+                }
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 4
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 8,
+        "x": 8,
+        "y": 31
+      },
+      "id": 41,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "lastNotNull",
+            "max",
+            "sum"
+          ],
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "pluginVersion": "8.1.7",
+      "repeatDirection": "v",
+      "targets": [
+        {
+          "exemplar": true,
+          "expr": "rate(artemis_routed_message_count{name=~\"$bridgeInstance\"}[$__interval])",
+          "interval": "",
+          "legendFormat": "{{address}}",
+          "refId": "A"
         },
         {
-          "decimals": 0,
-          "format": "short",
-          "label": "Depth",
-          "logBase": 1,
-          "max": null,
-          "min": null,
-          "show": true
+          "exemplar": true,
+          "expr": "rate(artemis_un_routed_message_count{name=~\"$bridgeInstance\"}[$__interval])",
+          "hide": true,
+          "interval": "",
+          "legendFormat": "Un-Routed {{address}}",
+          "refId": "C"
+        },
+        {
+          "exemplar": true,
+          "expr": "rate(artemis_address_size{name=~\"$bridgeInstance\"}[$__interval]) > 0",
+          "hide": true,
+          "interval": "",
+          "legendFormat": "{{address}} Size",
+          "refId": "E"
+        },
+        {
+          "exemplar": true,
+          "expr": "{__name__=~\"artemis_.*\"} > 0",
+          "hide": true,
+          "interval": "",
+          "legendFormat": "",
+          "refId": "D"
         }
       ],
-      "yaxis": {
-        "align": false,
-        "alignLevel": null
-      }
+      "timeFrom": null,
+      "timeShift": null,
+      "title": "JMS Bridge ($bridgeInstance) Address Routed",
+      "type": "timeseries"
+    },
+    {
+      "datasource": null,
+      "description": "The rate of messages being added and acked to/from a queue. Includes the total size of the queue which indicates queue depth.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisLabel": "Message Rate",
+            "axisPlacement": "left",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "normal"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "decimals": 0,
+          "links": [],
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "E"
+            },
+            "properties": [
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              },
+              {
+                "id": "custom.axisLabel",
+                "value": "Size"
+              },
+              {
+                "id": "unit",
+                "value": "bytes"
+              },
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "dash": [
+                    10,
+                    15
+                  ],
+                  "fill": "dash"
+                }
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 4
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 8,
+        "x": 16,
+        "y": 31
+      },
+      "id": 40,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "lastNotNull",
+            "max",
+            "sum"
+          ],
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "pluginVersion": "8.1.7",
+      "repeatDirection": "v",
+      "targets": [
+        {
+          "exemplar": true,
+          "expr": "rate(artemis_routed_message_count{name=~\"$bridgeInstance\"}[$__interval])",
+          "hide": true,
+          "interval": "",
+          "legendFormat": "{{address}}",
+          "refId": "A"
+        },
+        {
+          "exemplar": true,
+          "expr": "rate(artemis_un_routed_message_count{name=~\"$bridgeInstance\"}[$__interval])",
+          "hide": false,
+          "interval": "",
+          "legendFormat": "Un-Routed {{address}}",
+          "refId": "C"
+        },
+        {
+          "exemplar": true,
+          "expr": "rate(artemis_address_size{name=~\"$bridgeInstance\"}[$__interval]) > 0",
+          "hide": true,
+          "interval": "",
+          "legendFormat": "{{address}} Size",
+          "refId": "E"
+        },
+        {
+          "exemplar": true,
+          "expr": "{__name__=~\"artemis_.*\"} > 0",
+          "hide": true,
+          "interval": "",
+          "legendFormat": "",
+          "refId": "D"
+        }
+      ],
+      "timeFrom": null,
+      "timeShift": null,
+      "title": "JMS Bridge ($bridgeInstance) Address Not Routed",
+      "type": "timeseries"
     },
     {
       "aliasColors": {},
@@ -1399,17 +1777,13 @@
       "dashLength": 10,
       "dashes": false,
       "datasource": null,
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 37
+        "y": 41
       },
       "hiddenSeries": false,
       "id": 29,
@@ -1430,7 +1804,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.7",
+      "pluginVersion": "8.1.7",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -1494,17 +1868,13 @@
       "dashLength": 10,
       "dashes": false,
       "datasource": null,
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 37
+        "y": 41
       },
       "hiddenSeries": false,
       "id": 27,
@@ -1525,7 +1895,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.7",
+      "pluginVersion": "8.1.7",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -1584,107 +1954,204 @@
       }
     },
     {
-      "aliasColors": {},
-      "bars": false,
-      "dashLength": 10,
-      "dashes": false,
       "datasource": null,
       "fieldConfig": {
-        "defaults": {},
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "percentunit"
+        },
         "overrides": []
       },
-      "fill": 1,
-      "fillGradient": 0,
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 45
+        "y": 49
       },
-      "hiddenSeries": false,
       "id": 30,
-      "legend": {
-        "alignAsTable": true,
-        "avg": true,
-        "current": true,
-        "max": true,
-        "min": false,
-        "show": true,
-        "total": false,
-        "values": true
-      },
-      "lines": true,
-      "linewidth": 1,
-      "nullPointMode": "null as zero",
       "options": {
-        "alertThreshold": true
+        "legend": {
+          "calcs": [
+            "mean",
+            "lastNotNull",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single"
+        }
       },
-      "percentage": false,
-      "pluginVersion": "7.5.7",
-      "pointradius": 2,
-      "points": false,
-      "renderer": "flot",
-      "seriesOverrides": [],
-      "spaceLength": 10,
-      "stack": false,
-      "steppedLine": false,
+      "pluginVersion": "8.1.7",
+      "repeat": "bridgeInstance",
+      "repeatDirection": "v",
       "targets": [
         {
           "exemplar": true,
-          "expr": "1 - avg(rate(node_cpu_seconds_total{mode=\"idle\", service=\"bridge\"}[$__interval])) by (name)",
+          "expr": "1 - avg(rate(node_cpu_seconds_total{mode=\"idle\", name=\"$bridgeInstance\"}[$__interval]))",
+          "hide": true,
           "interval": "",
-          "legendFormat": "{{ name }}",
+          "legendFormat": "{{",
           "refId": "A"
         },
         {
           "exemplar": true,
-          "expr": "1 - rate(node_cpu_seconds_total{mode=\"idle\", service=\"bridge\"}[$__interval])",
+          "expr": "1 - rate(node_cpu_seconds_total{mode=\"idle\", name=\"$bridgeInstance\"}[$__interval])",
           "hide": false,
           "interval": "",
-          "legendFormat": "{{cpu}}",
+          "legendFormat": "Core {{cpu}}",
           "refId": "B"
         }
       ],
-      "thresholds": [],
       "timeFrom": null,
-      "timeRegions": [],
       "timeShift": null,
-      "title": "Bridge Instance CPU usage",
-      "tooltip": {
-        "shared": true,
-        "sort": 0,
-        "value_type": "individual"
+      "title": "Bridge ($bridgeInstance) CPU usage",
+      "type": "timeseries"
+    },
+    {
+      "datasource": null,
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "binBps"
+        },
+        "overrides": []
       },
-      "type": "graph",
-      "xaxis": {
-        "buckets": null,
-        "mode": "time",
-        "name": null,
-        "show": true,
-        "values": []
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 49
       },
-      "yaxes": [
+      "id": 31,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "lastNotNull",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "pluginVersion": "8.1.7",
+      "repeat": "bridgeInstance",
+      "repeatDirection": "h",
+      "targets": [
         {
-          "format": "percentunit",
-          "label": null,
-          "logBase": 1,
-          "max": null,
-          "min": null,
-          "show": true
+          "exemplar": true,
+          "expr": "rate(node_network_transmit_bytes_total{name=\"$bridgeInstance\"}[$__interval])",
+          "interval": "",
+          "legendFormat": "Transmit",
+          "refId": "A"
         },
         {
-          "format": "percentunit",
-          "label": null,
-          "logBase": 1,
-          "max": null,
-          "min": null,
-          "show": false
+          "exemplar": true,
+          "expr": "rate(node_network_receive_bytes_total{name=\"$bridgeInstance\"}[$__interval])",
+          "hide": false,
+          "interval": "",
+          "legendFormat": "Receive",
+          "refId": "B"
         }
       ],
-      "yaxis": {
-        "align": false,
-        "alignLevel": null
-      }
+      "timeFrom": null,
+      "timeShift": null,
+      "title": "Bridge ($bridgeInstance) network usage",
+      "type": "timeseries"
     },
     {
       "aliasColors": {},
@@ -1692,17 +2159,13 @@
       "dashLength": 10,
       "dashes": false,
       "datasource": null,
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 12,
-        "y": 45
+        "x": 0,
+        "y": 57
       },
       "hiddenSeries": false,
       "id": 28,
@@ -1723,7 +2186,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.7",
+      "pluginVersion": "8.1.7",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -1787,120 +2250,13 @@
       "dashLength": 10,
       "dashes": false,
       "datasource": null,
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
-      "fill": 1,
-      "fillGradient": 0,
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 53
-      },
-      "hiddenSeries": false,
-      "id": 31,
-      "legend": {
-        "alignAsTable": true,
-        "avg": true,
-        "current": true,
-        "max": true,
-        "min": false,
-        "show": true,
-        "total": false,
-        "values": true
-      },
-      "lines": true,
-      "linewidth": 1,
-      "nullPointMode": "null as zero",
-      "options": {
-        "alertThreshold": true
-      },
-      "percentage": false,
-      "pluginVersion": "7.5.7",
-      "pointradius": 2,
-      "points": false,
-      "renderer": "flot",
-      "seriesOverrides": [],
-      "spaceLength": 10,
-      "stack": false,
-      "steppedLine": false,
-      "targets": [
-        {
-          "exemplar": true,
-          "expr": "rate(node_network_transmit_bytes_total{service=\"bridge\"}[$__rate_interval])",
-          "interval": "",
-          "legendFormat": "Transmit",
-          "refId": "A"
-        },
-        {
-          "exemplar": true,
-          "expr": "rate(node_network_receive_bytes_total{service=\"bridge\"}[$__rate_interval])",
-          "hide": false,
-          "interval": "",
-          "legendFormat": "Receive",
-          "refId": "B"
-        }
-      ],
-      "thresholds": [],
-      "timeFrom": null,
-      "timeRegions": [],
-      "timeShift": null,
-      "title": "Bridge Instance network usage",
-      "tooltip": {
-        "shared": true,
-        "sort": 0,
-        "value_type": "individual"
-      },
-      "type": "graph",
-      "xaxis": {
-        "buckets": null,
-        "mode": "time",
-        "name": null,
-        "show": true,
-        "values": []
-      },
-      "yaxes": [
-        {
-          "format": "binBps",
-          "label": null,
-          "logBase": 1,
-          "max": null,
-          "min": null,
-          "show": true
-        },
-        {
-          "format": "percentunit",
-          "label": null,
-          "logBase": 1,
-          "max": null,
-          "min": null,
-          "show": false
-        }
-      ],
-      "yaxis": {
-        "align": false,
-        "alignLevel": null
-      }
-    },
-    {
-      "aliasColors": {},
-      "bars": false,
-      "dashLength": 10,
-      "dashes": false,
-      "datasource": null,
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 53
+        "y": 57
       },
       "hiddenSeries": false,
       "id": 32,
@@ -1921,7 +2277,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.7",
+      "pluginVersion": "8.1.7",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -2020,14 +2376,46 @@
     }
   ],
   "refresh": "10s",
-  "schemaVersion": 27,
+  "schemaVersion": 30,
   "style": "dark",
   "tags": [],
   "templating": {
-    "list": []
+    "list": [
+      {
+        "allValue": "",
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "datasource": null,
+        "definition": "jvm_memory_bytes_used",
+        "description": null,
+        "error": null,
+        "hide": 0,
+        "includeAll": true,
+        "label": "Bridge Instance",
+        "multi": true,
+        "name": "bridgeInstance",
+        "options": [],
+        "query": {
+          "query": "jvm_memory_bytes_used",
+          "refId": "StandardVariableQuery"
+        },
+        "refresh": 1,
+        "regex": "/.*name=\"(bridge-perf-bridge-\\d+)\".*/",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
+      }
+    ]
   },
   "time": {
-    "from": "2021-05-25T20:57:32.000Z",
+    "from": "now-30m",
     "to": "now"
   },
   "timepicker": {
@@ -2047,5 +2435,5 @@
   "timezone": "",
   "title": "JMS Bridge Performance",
   "uid": "9M1xLswMx",
-  "version": 4
+  "version": 6
 }

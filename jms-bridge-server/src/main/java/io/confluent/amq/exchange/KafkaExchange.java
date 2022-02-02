@@ -6,13 +6,15 @@ package io.confluent.amq.exchange;
 
 import com.google.common.collect.ImmutableSet;
 import io.confluent.amq.logging.StructuredLogger;
-import java.util.LinkedList;
-import java.util.List;
+import org.inferred.freebuilder.FreeBuilder;
+
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiConsumer;
-import org.inferred.freebuilder.FreeBuilder;
+import java.util.stream.Collectors;
 
 /**
  * Contains information on the configuration of how data is exchanged between kakfa topics and amq
@@ -23,24 +25,78 @@ public class KafkaExchange {
   private static final StructuredLogger SLOG = StructuredLogger
       .with(b -> b.loggerClass(KafkaExchange.class));
 
+  private final ReentrantReadWriteLock rwlock = new ReentrantReadWriteLock();
   private final Map<KafkaTopicExchange, ExchangeState> exchanges;
   private final Map<String, KafkaTopicExchange> addressToExchange;
-  private final List<ExchangeChangeListener> listeners;
+  private final Map<String, KafkaTopicExchange> topicToExchange;
 
   public KafkaExchange() {
 
     this.exchanges = new ConcurrentHashMap<>();
     this.addressToExchange = new ConcurrentHashMap<>();
-    this.listeners = new LinkedList<>();
+    this.topicToExchange = new ConcurrentHashMap<>();
+  }
+
+  public Optional<KafkaTopicExchange> findByTopic(String topic) {
+    rwlock.readLock().lock();
+    try {
+      return Optional.ofNullable(topicToExchange.get(topic));
+    } finally {
+      rwlock.readLock().unlock();
+    }
+  }
+
+  public Optional<KafkaTopicExchange> findByAddress(String address) {
+    rwlock.readLock().lock();
+    try {
+      return Optional.ofNullable(addressToExchange.get(address));
+    } finally {
+      rwlock.readLock().unlock();
+    }
+  }
+
+  public Set<String> allExchangeKafkaTopics() {
+    rwlock.readLock().lock();
+    try {
+      return topicToExchange.keySet();
+    } finally {
+      rwlock.readLock().unlock();
+    }
+  }
+
+  public Set<String> allReadyToReadKafkaTopics() {
+    rwlock.readLock().lock();
+    try {
+      return exchanges.entrySet().stream()
+          .filter(en -> en.getValue().shouldRead())
+          .map(en -> en.getKey().kafkaTopicName())
+          .collect(Collectors.toSet());
+    } finally {
+      rwlock.readLock().unlock();
+    }
+
   }
 
   public boolean exchangeWriteable(KafkaTopicExchange exchange) {
-    return exchanges.containsKey(exchange)
-        && !exchanges.get(exchange).readOnly();
+    rwlock.readLock().lock();
+    try {
+      return Optional.ofNullable(exchanges.get(exchange))
+          .map(kte -> !kte.readOnly())
+          .orElse(false);
+    } finally {
+      rwlock.readLock().unlock();
+    }
   }
 
   public boolean exchangeReadable(KafkaTopicExchange exchange) {
-    return exchanges.containsKey(exchange) && exchanges.get(exchange).shouldRead();
+    rwlock.readLock().lock();
+    try {
+      return Optional.ofNullable(exchanges.get(exchange))
+          .map(ExchangeState::shouldRead)
+          .orElse(false);
+    } finally {
+      rwlock.readLock().unlock();
+    }
   }
 
   /**
@@ -48,10 +104,15 @@ public class KafkaExchange {
    * immutable.
    */
   public Set<KafkaTopicExchange> getAllExchanges() {
-    return ImmutableSet.copyOf(exchanges.keySet());
+    rwlock.readLock().lock();
+    try {
+      return ImmutableSet.copyOf(exchanges.keySet());
+    } finally {
+      rwlock.readLock().unlock();
+    }
   }
 
-  private void withAddressExchange(
+  private Optional<ExchangeState> withAddressExchange(
       String addressName,
       BiConsumer<KafkaTopicExchange, ExchangeState> mutator) {
 
@@ -59,28 +120,32 @@ public class KafkaExchange {
       KafkaTopicExchange exchange = this.addressToExchange.get(addressName);
       ExchangeState state = this.exchanges.get(exchange);
       mutator.accept(exchange, state);
+      return Optional.of(state);
     }
+    return Optional.empty();
   }
 
   /**
    * Inform the exchange that a binding has been removed from the given AMQ topic address.
    *
    * @param addressName the topic address the binding was removed from
+   * @return The new state of the exchange if the address can be mapped to one
    */
-  public void removeReader(String addressName) {
+  public Optional<ExchangeState> removeReader(String addressName) {
     SLOG.trace(b -> b
         .event("RemoveExchangeReader")
         .putTokens("addressName", addressName));
 
-    withAddressExchange(addressName, (exchange, currState) -> {
-      ExchangeState newState = this.exchanges.computeIfPresent(
-          exchange,
-          (k, v) -> v.decrementReaderCount(1));
-
-      if (newState != null && currState.shouldRead() && !newState.shouldRead()) {
-        listeners.forEach(l -> l.onDisableExchange(exchange));
-      }
-    });
+    rwlock.writeLock().lock();
+    try {
+      return withAddressExchange(addressName, (exchange, currState) -> {
+        ExchangeState newState = this.exchanges.computeIfPresent(
+            exchange,
+            (k, v) -> v.decrementReaderCount(1));
+      });
+    } finally {
+      rwlock.writeLock().unlock();
+    }
   }
 
   /**
@@ -93,15 +158,16 @@ public class KafkaExchange {
         .event("AddExchangeReader")
         .putTokens("addressName", addressName));
 
-    withAddressExchange(addressName, (exchange, currState) -> {
-      ExchangeState newState = this.exchanges.computeIfPresent(
-          exchange,
-          (k, v) -> v.incrementReaderCount(1));
-
-      if (newState != null && newState.shouldRead() && !currState.shouldRead()) {
-        listeners.forEach(l -> l.onEnableExchange(exchange));
-      }
-    });
+    rwlock.writeLock().lock();
+    try {
+      withAddressExchange(addressName, (exchange, currState) -> {
+        ExchangeState newState = this.exchanges.computeIfPresent(
+            exchange,
+            (k, v) -> v.incrementReaderCount(1));
+      });
+    } finally {
+      rwlock.writeLock().unlock();
+    }
 
   }
 
@@ -115,13 +181,12 @@ public class KafkaExchange {
         .event("DisableExchangeWrite")
         .putTokens("exchange", exchange));
 
-    if (exchanges.containsKey(exchange) && !exchanges.get(exchange).readOnly()) {
-      ExchangeState newState = exchanges
-          .computeIfPresent(exchange, (kte, state) -> state.disableWrite());
-
-      if (newState != null && !newState.shouldRead()) {
-        listeners.forEach(l -> l.onDisableExchange(exchange));
-      }
+    rwlock.writeLock().lock();
+    try {
+      exchanges.computeIfPresent(exchange, (kte, state) ->
+          state.readOnly() ? state : state.disableWrite());
+    } finally {
+      rwlock.writeLock().unlock();
     }
   }
 
@@ -137,16 +202,14 @@ public class KafkaExchange {
         .event("ResumeExchange")
         .putTokens("exchange", exchange));
 
-    if (exchanges.containsKey(exchange) && exchanges.get(exchange).readOnly()) {
-      ExchangeState newState = exchanges.compute(exchange, (kte, state) ->
-          state != null
-              ? state.enableWrite()
-              : new ExchangeState.Builder().readOnly(false).readerCount(0).build());
-
-      if (newState.shouldRead()) {
-        listeners.forEach(l -> l.onEnableExchange(exchange));
-      }
+    rwlock.writeLock().lock();
+    try {
+      exchanges.computeIfPresent(exchange, (kte, state) ->
+          state.readOnly() ? state.enableWrite() : state);
+    } finally {
+      rwlock.writeLock().unlock();
     }
+
   }
 
   /**
@@ -160,10 +223,14 @@ public class KafkaExchange {
         .event("RemoveExchange")
         .putTokens("exchange", exchange));
 
-    this.addressToExchange.remove(exchange.amqAddressName());
-    this.exchanges.remove(exchange);
-
-    listeners.forEach(l -> l.onRemoveExchange(exchange));
+    rwlock.writeLock().lock();
+    try {
+      this.addressToExchange.remove(exchange.amqAddressName());
+      this.topicToExchange.remove(exchange.kafkaTopicName());
+      this.exchanges.remove(exchange);
+    } finally {
+      rwlock.writeLock().unlock();
+    }
   }
 
 
@@ -175,7 +242,32 @@ public class KafkaExchange {
    * @param writeEnabled  enable the passthrough of ingress data to be written to Kafka
    * @param readerCount   The number of bindings associated to client queues (readers)
    */
-  public synchronized void addTopicExchange(
+  public void addTopicExchange(
+      KafkaTopicExchange topicExchange, boolean writeEnabled, int readerCount) {
+
+    rwlock.writeLock().lock();
+    try {
+      addTopicExchangeWithoutLock(topicExchange, writeEnabled, readerCount);
+    } finally {
+      rwlock.writeLock().unlock();
+    }
+  }
+
+  public void addTopicExchanges(
+      Map<KafkaTopicExchange, Integer> kteAndReaderMap, boolean writeEnabled) {
+
+    rwlock.writeLock().lock();
+    try {
+      for (Map.Entry<KafkaTopicExchange, Integer> kteAndReader: kteAndReaderMap.entrySet()) {
+        addTopicExchangeWithoutLock(kteAndReader.getKey(), writeEnabled, kteAndReader.getValue());
+      }
+    } finally {
+      rwlock.writeLock().unlock();
+    }
+
+  }
+
+  private void addTopicExchangeWithoutLock(
       KafkaTopicExchange topicExchange, boolean writeEnabled, int readerCount) {
 
     ExchangeState newState = new ExchangeState.Builder()
@@ -184,69 +276,9 @@ public class KafkaExchange {
         .readOnly(!writeEnabled)
         .build();
 
-    ExchangeState oldState = this.exchanges.put(topicExchange, newState);
+    this.exchanges.put(topicExchange, newState);
     this.addressToExchange.put(topicExchange.amqAddressName(), topicExchange);
-
-    if (oldState != null) {
-      if (oldState.readOnly() && !newState.readOnly()) {
-        listeners.forEach(l -> l.onEnableExchange(topicExchange));
-      } else if (!oldState.readOnly() && newState.readOnly()) {
-        listeners.forEach(l -> l.onDisableExchange(topicExchange));
-      }
-    } else {
-      listeners.forEach(l -> l.onAddExchange(topicExchange));
-    }
-  }
-
-  /**
-   * This is the central means in staying up to date with what topic exchanges are currently being
-   * managed and their enabled state. Any time a topic exchange is removed/added/enabled/disabled
-   * for any reason all listeners will be invoked. Be aware that any processing happening within a
-   * listener's method will be done on the exchanges thread.
-   *
-   * @param listener a listener that will be invoked on state changes.
-   */
-  public void registerListener(ExchangeChangeListener listener) {
-    this.listeners.add(listener);
-  }
-
-  public interface ExchangeChangeListener {
-
-    /**
-     * Triggered whenever a topic exchange is added to this exchange.
-     *
-     * @param topicExchange the added exchange.
-     */
-    default void onAddExchange(KafkaTopicExchange topicExchange) {
-
-    }
-
-    /**
-     * Triggered whenever a topic exchange is removed from this exchange.
-     *
-     * @param topicExchange the removed topic exchange
-     */
-    default void onRemoveExchange(KafkaTopicExchange topicExchange) {
-
-    }
-
-    /**
-     * Triggered whenever a topic exchange is disabled. Disabled exchanges should not flow data.
-     *
-     * @param topicExchange the disabled topic exchange
-     */
-    default void onDisableExchange(KafkaTopicExchange topicExchange) {
-
-    }
-
-    /**
-     * Triggered whenever a topic exchange is enabled. Enabled exchanges may flow data.
-     *
-     * @param topicExchange the disabled topic exchange
-     */
-    default void onEnableExchange(KafkaTopicExchange topicExchange) {
-
-    }
+    this.topicToExchange.put(topicExchange.kafkaTopicName(), topicExchange);
   }
 
   @FreeBuilder
@@ -277,6 +309,12 @@ public class KafkaExchange {
       return new Builder().mergeFrom(this).readerCount(readerCount() + amount).build();
     }
 
+    /**
+     * Whether the corresponding kafka topic is read accessible and their are interested consumers
+     * available on the JMS side (bindings).
+     *
+     * @return
+     */
     default boolean shouldRead() {
       return (alwaysAttemptRead() || readerCount() > 0) && canRead();
     }

@@ -5,43 +5,61 @@
 package io.confluent.amq.config;
 
 import com.typesafe.config.Config;
-import java.util.List;
 import org.inferred.freebuilder.FreeBuilder;
+
+import java.util.List;
+import java.util.Map;
 
 @FreeBuilder
 public interface RoutingConfig {
 
   /**
+   * Configure the producer used for propagating routed messages to Kafka.
+   *
+   * @return
+   */
+  Map<String, String> producer();
+
+  /**
+   * Configure the consumer used for receiving routed topic messages from Kafka.
+   *
+   * @return
+   */
+  Map<String, String> consumer();
+
+  /**
    * <p>
-   *  The list of topic routing rules that are used to establish JMS topic exchanges for passing
-   *  data between top level Kafka topics and JMS topics.  Each rule can match any number of topics,
-   *  including zero.
+   * The list of topic routing rules that are used to establish JMS topic exchanges for passing data
+   * between top level Kafka topics and JMS topics.  Each rule can match any number of topics,
+   * including zero.
    * </p>
    * <p>
-   *  Rules are applied in order and if multiple match a single topic the last applied rule will
-   *  take affect.
+   * Rules are applied in order and if multiple match a single topic the last applied rule will take
+   * affect.
    * </p>
+   *
    * @return a list of Kafka topic matching rules to be applied in order
    */
   List<RoutedTopic> topics();
 
   /**
    * <p>
-   *  Config Key: <pre>metadata-refresh-ms</pre>
+   * Config Key: <pre>metadata-refresh-ms</pre>
    * </p>
    * <p>
-   *   Set the interval at which metadata on topics will be refreshed from the Kafka broker. This
-   *   refresh will determine if any new matching Kafka topics have been found and establish JMS
-   *   topic exchanges for them. It will also disable or remove any existing JMS topic exchanges
-   *   that no longer have a corresponding Kafka topic.
+   * Set the interval at which metadata on topics will be refreshed from the Kafka broker. This
+   * refresh will determine if any new matching Kafka topics have been found and establish JMS topic
+   * exchanges for them. It will also disable or remove any existing JMS topic exchanges that no
+   * longer have a corresponding Kafka topic.
    * </p>
    * <p>
-   *   This refresh is affected by both changes in the existence of topics (create / delete) and
-   *   access controls (read / write permission).
+   * This refresh is affected by both changes in the existence of topics (create / delete) and
+   * access controls (read / write permission).
    * </p>
    * <p>
-   *   DEFAULT: 300000, five minutes
+   * DEFAULT: 300000, five minutes
    * </p>
+   *
    * @return The refresh interval as measured in milliseconds
    */
   Integer metadataRefreshMs();
@@ -54,9 +72,15 @@ public interface RoutingConfig {
       metadataRefreshMs(1000 * 60 * 5);
     }
 
-    public Builder(Config routingConfig) {
+    public Builder(Config baseKafkaConfig, Config routingConfig) {
       //set defaults
       this();
+      this.putAllProducer(
+          BridgeConfigFactory
+              .fetchMapConfigWithDefaults("producer", routingConfig, baseKafkaConfig));
+
+      this.putAllConsumer(BridgeConfigFactory
+          .fetchMapConfigWithDefaults("consumer", routingConfig, baseKafkaConfig));
 
       if (routingConfig.hasPath("metadata.refresh.ms")) {
         metadataRefreshMs(routingConfig.getInt("metadata.refresh.ms"));
@@ -86,8 +110,8 @@ public interface RoutingConfig {
      * to Kafka using the configuration of this routed topic.
      * </p>
      * <p>
-     * This match also applies to data being received from Kafka. All received data will be sent
-     * to the address created by this routed topic and be made available as a JMS message via the
+     * This match also applies to data being received from Kafka. All received data will be sent to
+     * the address created by this routed topic and be made available as a JMS message via the
      * bridge.
      * </p>
      * <p>
@@ -101,9 +125,9 @@ public interface RoutingConfig {
      * Config Key: <pre>address-template</pre>
      * </p>
      * <p>
-     * A simple character template that can be used to determine the name of the JMS topic
-     * that will be created for each Kafka topic matching this. A single token is available for
-     * replacement, '${topic}', it will be replaced by the name of the matched kafka topic.
+     * A simple character template that can be used to determine the name of the JMS topic that will
+     * be created for each Kafka topic matching this. A single token is available for replacement,
+     * '${topic}', it will be replaced by the name of the matched kafka topic.
      * </p>
      * <p>
      * By default this is set to 'kafka.${topic}';
@@ -131,8 +155,8 @@ public interface RoutingConfig {
      * Config Key: <pre>key-property</pre>
      * </p>
      * <p>
-     * Specify a property on the message that should be used as the record key when publishing
-     * to Kafka. If the property cannot be found then the 'JMSMessageID' will be used.
+     * Specify a property on the message that should be used as the record key when publishing to
+     * Kafka. If the property cannot be found then the 'JMSMessageID' will be used.
      * </p>
      * <p>
      * By default this is set to 'JMSMessageID'.
@@ -145,9 +169,9 @@ public interface RoutingConfig {
      * Config Key: <pre>correlation-key-override</pre>
      * </p>
      * <p>
-     * If this is set to true then when a correlation ID is found on the message it will be used
-     * as the Kafka record key instead of the property set by the 'key-property'
-     * ({@link #keyProperty()}) configuration.
+     * If this is set to true then when a correlation ID is found on the message it will be used as
+     * the Kafka record key instead of the property set by the 'key-property' ({@link
+     * #keyProperty()}) configuration.
      * </p>
      * <p>
      * By default this is set to 'true'.
@@ -157,45 +181,45 @@ public interface RoutingConfig {
 
     /**
      * <p>
-     *   Config Key: <pre>consume-always</pre>
+     * Config Key: <pre>consume-always</pre>
      * </p>
      * <p>
-     *   Always consume and route messages from the matching Kafka topics regardless of whether
-     *   anybody is listening (no bindings). This is required for situations where data may be
-     *   routed to destinations that may not be bound to the corresponding JMS topic
-     *   ( e.g. request/reply pattern with temprary queues).
+     * Always consume and route messages from the matching Kafka topics regardless of whether
+     * anybody is listening (no bindings). This is required for situations where data may be routed
+     * to destinations that may not be bound to the corresponding JMS topic ( e.g. request/reply
+     * pattern with temprary queues).
      * </p>
      * <p>
-     *   Normally, to conserver resources, if a topic exchange is not bound (no queue or consumer
-     *   attached to the JMS topic) then no data will be read from the corresponding Kafka topic
-     *   since it will not be routed.
+     * Normally, to conserver resources, if a topic exchange is not bound (no queue or consumer
+     * attached to the JMS topic) then no data will be read from the corresponding Kafka topic since
+     * it will not be routed.
      * </p>
      * <p>
-     *   DEFAULT: false, save resources by not consuming from Kafka
+     * DEFAULT: false, save resources by not consuming from Kafka
      * </p>
      */
     boolean consumeAlways();
 
     /**
      * <p>
-     *    Config Key: <pre>resume-at-latest</pre>
+     * Config Key: <pre>resume-at-latest</pre>
      * </p>
      * <p>
-     *   If a topic exchange becomes inactive (no bindings attached to the JMS topic) then later
-     *   is bound and becomes active again the underlying consumer will start reading data from
-     *   Kafka using the previous active point offset. If the previous active point offset is no
-     *   longer present in Kafka for that topic (due to expiration) then it will start reading
-     *   from the head of the Kafka topic (latest offset).
+     * If a topic exchange becomes inactive (no bindings attached to the JMS topic) then later is
+     * bound and becomes active again the underlying consumer will start reading data from Kafka
+     * using the previous active point offset. If the previous active point offset is no longer
+     * present in Kafka for that topic (due to expiration) then it will start reading from the head
+     * of the Kafka topic (latest offset).
      * </p>
      * <p>
-     *   This option can be used to force reading, upon reactivation of the topic exchange, from
-     *   the head of the Kafka topic instead of from any previous active point offset.
+     * This option can be used to force reading, upon reactivation of the topic exchange, from the
+     * head of the Kafka topic instead of from any previous active point offset.
      * </p>
      * <p>
-     *   <b>THIS FEATURE IS NOT CURRENTLY AVAILABLE</b>
+     * <b>THIS FEATURE IS NOT CURRENTLY AVAILABLE</b>
      * </p>
      * <p>
-     *   DEFAULT: false, use any previous active point offset when resuming
+     * DEFAULT: false, use any previous active point offset when resuming
      * </p>
      */
     boolean resumeAtLatest();

@@ -18,7 +18,7 @@
 
 - name: Install Grafana
   apt:
-    name: grafana
+    name: grafana=8.1.7
     state: present
 
 - name: Shutdown grafana server

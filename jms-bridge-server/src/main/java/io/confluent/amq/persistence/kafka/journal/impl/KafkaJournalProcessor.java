@@ -23,6 +23,7 @@ import io.confluent.amq.persistence.kafka.KafkaIO;
 import io.confluent.amq.persistence.kafka.journal.JournalEntryKeyPartitioner;
 import io.confluent.amq.persistence.kafka.journal.KJournal;
 import io.confluent.amq.persistence.kafka.journal.KJournalState;
+import io.confluent.amq.persistence.kafka.journal.impl.JournalTopology.TopologySpec.Builder;
 import io.confluent.amq.persistence.kafka.journal.serde.JournalKeySerde;
 import io.confluent.amq.persistence.kafka.journal.serde.JournalValueSerde;
 import io.confluent.amq.util.Retry;
@@ -65,6 +66,7 @@ public class KafkaJournalProcessor implements StateListener {
   private static final StructuredLogger SLOG = StructuredLogger
       .with(b -> b.loggerClass(KafkaJournalProcessor.class));
 
+  private final String bridgeId;
   private final String clientId;
   private final String applicationId;
   private final Map<String, String> streamsConfig;
@@ -80,6 +82,7 @@ public class KafkaJournalProcessor implements StateListener {
   private volatile boolean loadComplete = false;
 
   public KafkaJournalProcessor(
+      String bridgeId,
       List<JournalSpec> journalSpecs,
       String clientId,
       String applicationId,
@@ -87,7 +90,9 @@ public class KafkaJournalProcessor implements StateListener {
       Map<String, String> streamsConfig,
       KafkaIO kafkaIO) {
 
-    this(journalSpecs,
+    this(
+        bridgeId,
+        journalSpecs,
         clientId,
         applicationId,
         loadTimeout,
@@ -97,6 +102,7 @@ public class KafkaJournalProcessor implements StateListener {
   }
 
   protected KafkaJournalProcessor(
+      String bridgeId,
       List<JournalSpec> journalSpecs,
       String clientId,
       String applicationId,
@@ -105,6 +111,7 @@ public class KafkaJournalProcessor implements StateListener {
       KafkaIO kafkaIO,
       EpochCoordinator epochCoordinator) {
 
+    this.bridgeId = bridgeId;
     this.clientId = clientId;
     this.applicationId = applicationId;
     this.loadTimeout = loadTimeOut;
@@ -319,7 +326,13 @@ public class KafkaJournalProcessor implements StateListener {
     Properties topoProps = new Properties();
     topoProps.setProperty(StreamsConfig.TOPOLOGY_OPTIMIZATION, StreamsConfig.OPTIMIZE);
 
-    return JournalTopology.createTopology(journals.values(), epochCoordinator, topoProps);
+    JournalTopology.TopologySpec spec = new JournalTopology.TopologySpecBuilder()
+        .addAllJournals(journals.values())
+        .coordinator(epochCoordinator)
+        .topologyProps(topoProps)
+        .bridgeId(bridgeId)
+        .build();
+    return JournalTopology.createTopology(spec);
   }
 
 

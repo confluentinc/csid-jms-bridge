@@ -1,18 +1,25 @@
 ---
   perf_cfg:
     message_size_bytes: 40000
-    messages_per_second: 2000
+    messages_per_second: 1000
     test_duration_seconds: 300
     use_amqp: "false"
     jms_url: "tcp://%IP:61616"
     jms_url_query_params:
-      confirmationWindowSize: "1024000"
+      confirmationWindowSize: "8192000"
       producerWindowSize: "-1"
       consumerWindowSize: "-1"
 
   perf_scenario: "jms2kafka"
   perf_scenario_cfg:
+   -  "--jms-async"
    -  "-kpf /home/jms-bridge-perf/jms-bridge-perf/kafka-consumer.properties"
    -  "-ktp jms-load-test-1"
    -  "-jtp kafka.jms-load-test-1"
    -  "--kafka-poll-duration-ms 100"
+
+  perf_kafka_consumer_cfg:
+    auto.commit.interval.ms: "1000"
+    enable.auto.commit:  "true"
+    max.partition.fetch.bytes: 4194304
+

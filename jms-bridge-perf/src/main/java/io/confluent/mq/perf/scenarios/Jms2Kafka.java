@@ -69,6 +69,15 @@ public class Jms2Kafka implements Runnable {
       defaultValue = "false")
   private boolean jmsAsync;
 
+  @Option(
+      names = {"--activity"},
+      description =
+          "Indicate the scenario activiy to perform, ${COMPLETION-CANDIDATES}, "
+              + "defaults to ${DEFAULT-VALUE}.",
+      type = ActivityOptions.class,
+      defaultValue = "pubsub")
+  private ActivityOptions activity;
+
 
   @Override
   public void run() {
@@ -84,48 +93,62 @@ public class Jms2Kafka implements Runnable {
       throw new RuntimeException(e);
     }
 
-    DataGenerator dataGenerator = new DataGenerator(parent.getMessageSize());
-
     final Duration executionTime = Duration.ofSeconds(parent.getTestDuration());
     LOGGER.info("Starting test, execution time: {}", executionTime);
 
-    final JmsTestProducer jmsProducer = new JmsTestProducer(
-        jmsFactory,
-        jmsTopic,
-        dataGenerator,
-        executionTime,
-        parent.getMessageRate(),
-        jmsAsync,
-        parent.getTestId());
+    CompletableFuture<Long> consumerFuture = CompletableFuture.completedFuture(0L);
+    KafkaTestConsumer kafkaConsumer = null;
+    if (activity.subActive()) {
+      kafkaConsumer = new KafkaTestConsumer(
+          kprops,
+          kafkaTopic,
+          Duration.ofMillis(kafkaPollDurationMs),
+          parent.getTestId());
 
-    KafkaTestConsumer kafkaConsumer = new KafkaTestConsumer(
-        kprops,
-        kafkaTopic,
-        Duration.ofMillis(kafkaPollDurationMs),
-        parent.getTestId());
-
-    CompletableFuture<Long> consumerFuture = CompletableFuture.supplyAsync(kafkaConsumer::start);
-    LOGGER.info("Waiting for consumer to become ready");
-    try {
-      kafkaConsumer.getInitCompleted().get(30, TimeUnit.SECONDS);
-    } catch (Exception e) {
-      throw new RuntimeException(e);
+      consumerFuture = CompletableFuture.supplyAsync(kafkaConsumer::start);
+      LOGGER.info("Waiting for consumer to become ready");
+      try {
+        kafkaConsumer.getInitCompleted().get(30, TimeUnit.SECONDS);
+        LOGGER.info("Consumer ready");
+      } catch (Exception e) {
+        throw new RuntimeException(e);
+      }
     }
 
-    LOGGER.info("Consumer ready, starting producer");
-    CompletableFuture<Long> producerFuture = CompletableFuture.supplyAsync(jmsProducer::start);
+    if (activity.pubActive()) {
+      DataGenerator dataGenerator = new DataGenerator(parent.getMessageSize());
+      final JmsTestProducer jmsProducer = new JmsTestProducer(
+          jmsFactory,
+          jmsTopic,
+          dataGenerator,
+          executionTime,
+          parent.getMessageRate(),
+          jmsAsync,
+          parent.getTestId());
 
-    LOGGER.info("Waiting for producer to complete.");
-    try {
-      Long producedCount = producerFuture.get();
-      LOGGER.info("Producer complete, produced {} records.", producedCount);
-      kafkaConsumer.stopAtCount(producedCount);
-      LOGGER.info("Waiting for consumer to complete.");
-      Long consumedCount = consumerFuture.get();
-      LOGGER.info("Consumer complete, consumed {} records.", consumedCount);
+      LOGGER.info("Starting producer");
+      CompletableFuture<Long> producerFuture = CompletableFuture.supplyAsync(jmsProducer::start);
 
-    } catch (Exception e) {
-      LOGGER.warn("Error encountered while waiting for clients to complete.", e);
+      LOGGER.info("Waiting for producer to complete.");
+      try {
+        Long producedCount = producerFuture.get();
+        LOGGER.info("Producer complete, produced {} records.", producedCount);
+
+      } catch (Exception e) {
+        LOGGER.warn("Error encountered while waiting for producer to complete.", e);
+      }
+    }
+
+    if (activity.subActive()) {
+      LOGGER.info("Giving");
+      kafkaConsumer.stop();
+      try {
+        Long consumedCount = consumerFuture.get();
+        LOGGER.info("Consumer complete, consumed {} records.", consumedCount);
+
+      } catch (Exception e) {
+        LOGGER.warn("Error encountered while waiting for consumer to complete.", e);
+      }
     }
 
     LOGGER.info("Test Completed");
