@@ -36,7 +36,8 @@ resource "google_compute_instance" "controller" {
 
 // The JMS bridge instance
 resource "google_compute_instance" "bridge" {
-  name = "bridge-perf-bridge"
+  count = var.bridge_count
+  name = "bridge-perf-bridge-${count.index}"
   machine_type = "e2-standard-8"
   zone = "us-central1-a"
 

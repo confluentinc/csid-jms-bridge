@@ -4,28 +4,12 @@
 
 package io.confluent.amq.bridge;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import io.confluent.amq.config.RoutingConfig;
 import io.confluent.amq.config.RoutingConfig.RoutedTopic;
+import io.confluent.amq.test.AbstractContainerTest;
 import io.confluent.amq.test.ArtemisTestServer;
-import io.confluent.amq.test.KafkaTestContainer;
-import java.nio.file.Path;
-import java.time.Duration;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.Map;
-import java.util.Properties;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ForkJoinPool;
-import javax.jms.Message;
-import javax.jms.Session;
-import javax.jms.TextMessage;
-import javax.jms.Topic;
-import javax.jms.TopicRequestor;
-import javax.jms.TopicSession;
+import io.confluent.amq.test.KafkaContainerHelper;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
@@ -36,31 +20,42 @@ import org.apache.kafka.common.serialization.ByteArrayDeserializer;
 import org.apache.kafka.common.serialization.ByteArraySerializer;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.junit.jupiter.api.io.TempDir;
-import org.testcontainers.containers.KafkaContainer;
+
+import javax.jms.Message;
+import javax.jms.Session;
+import javax.jms.TextMessage;
+import javax.jms.Topic;
+import javax.jms.TopicRequestor;
+import javax.jms.TopicSession;
+import java.nio.file.Path;
+import java.time.Duration;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Properties;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ForkJoinPool;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 @SuppressWarnings("checkstyle:ClassDataAbstractionCoupling")
 @SuppressFBWarnings("MS_SHOULD_BE_FINAL")
-public class RequestResponseTest {
+public class RequestResponseTest extends AbstractContainerTest {
 
   @TempDir
   @Order(100)
   public static Path tempdir;
 
   @RegisterExtension
-  @Order(200)
-  public static final KafkaTestContainer kafkaContainer = new KafkaTestContainer(
-      new KafkaContainer("5.5.2")
-          .withEnv("KAFKA_DELETE_TOPIC_ENABLE", "true")
-          .withEnv("KAFKA_AUTO_CREATE_TOPICS_ENABLE", "false"));
-
-  @RegisterExtension
   @Order(300)
   public static final ArtemisTestServer amqServer = ArtemisTestServer
-      .embedded(kafkaContainer, b -> b
+      .embedded(essentialProps(), b -> b
           .mutateJmsBridgeConfig(br -> br
               .putKafka(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest")
               .putKafka(ConsumerConfig.AUTO_COMMIT_INTERVAL_MS_CONFIG, "500")
@@ -78,11 +73,12 @@ public class RequestResponseTest {
           )
           .dataDirectory(tempdir.toAbsolutePath().toString()));
 
+  KafkaContainerHelper.AdminHelper adminHelper = getContainerHelper().adminHelper();
 
   @Test
   public void testKafkaTopicAddressIsAvailable() throws Exception {
-    String requestTopic = kafkaContainer.safeCreateTopic("request", 3);
-    String responseTopic = kafkaContainer.safeCreateTopic("response", 3);
+    String requestTopic = adminHelper.safeCreateTopic("request", 3);
+    String responseTopic = adminHelper.safeCreateTopic("response", 3);
 
     amqServer.confluentAmqServer().getKafkaExchangeManager().synchronizeTopics();
 
@@ -92,8 +88,7 @@ public class RequestResponseTest {
     String responseAddress = "test." + responseTopic;
     amqServer.assertAddressAvailable(responseAddress);
 
-    Properties responderProps = new Properties();
-    responderProps.putAll(kafkaContainer.defaultProps());
+    Properties responderProps = essentialProps();
     responderProps.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
     responderProps.put(ConsumerConfig.GROUP_ID_CONFIG, amqServer.safeId("test-group"));
 

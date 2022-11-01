@@ -31,11 +31,8 @@ class BridgeConfigFactoryTest {
         "localhost:9092", config.kafka().get(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG));
     assertEquals(
         "localhost:9092", config.streams().get(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG));
-    assertEquals(4, config.streams().size());
+    assertEquals(1, config.streams().size());
     assertTrue(config.streams().containsKey("bootstrap.servers"));
-    assertTrue(config.streams().containsKey("commit.interval.ms"));
-    assertTrue(config.streams().containsKey("cache.max.bytes.buffering"));
-    assertTrue(config.streams().containsKey("num.standby.replicas"));
 
     assertEquals(Duration.ofSeconds(60), config.journals().readyTimeout());
     assertEquals(Duration.ofSeconds(1), config.journals().readyCheckInterval());
@@ -54,7 +51,6 @@ class BridgeConfigFactoryTest {
     BridgeConfig config = getConfig("minimal.conf");
     assertEquals("minimal", config.id());
     assertTrue(config.journals().topic().options().containsKey("segment.bytes"));
-    assertTrue(config.streams().containsKey("commit.interval.ms"));
   }
 
   @Test

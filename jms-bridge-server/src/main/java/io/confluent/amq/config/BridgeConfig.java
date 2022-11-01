@@ -44,7 +44,9 @@ public interface BridgeConfig {
                   .withFallback(bridgeConfig.getConfig("kafka"))));
 
       if (bridgeConfig.hasPath("routing")) {
-        this.routing(new RoutingConfig.Builder(bridgeConfig.getConfig("routing")).build());
+        this.routing(new RoutingConfig.Builder(
+            bridgeConfig.getConfig("kafka"),
+            bridgeConfig.getConfig("routing")).build());
       }
 
       if (bridgeConfig.hasPath("security")) {

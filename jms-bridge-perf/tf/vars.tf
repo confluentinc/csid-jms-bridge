@@ -22,3 +22,8 @@ variable "tester_count" {
   type    = number
   default = 4
 }
+
+variable "bridge_count" {
+  type    = number
+  default = 1
+}

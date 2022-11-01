@@ -43,19 +43,19 @@ public class CapturedCommandIo implements
 
   public CapturedCommandIo() {
     try {
-      errorInPipe = new PipedInputStream(8192);
+      errorInPipe = new PipedInputStream(16384);
       errorOutPipe = new PipedOutputStream(errorInPipe);
       errorPrinter = new PrintStream(errorOutPipe, true, StandardCharsets.UTF_8.name());
       errorReader = new BufferedReader(new InputStreamReader(errorInPipe, StandardCharsets.UTF_8));
 
-      outputInPipe = new PipedInputStream(8192);
+      outputInPipe = new PipedInputStream(16384);
       outputOutPipe = new PipedOutputStream(outputInPipe);
       outputPrinter = new PrintStream(outputOutPipe, true, StandardCharsets.UTF_8.name());
       outputReader = new BufferedReader(
           new InputStreamReader(outputInPipe, StandardCharsets.UTF_8));
 
       inputOutPipe = new PipedOutputStream();
-      inputInPipe = new PipedInputStream(inputOutPipe, 8192);
+      inputInPipe = new PipedInputStream(inputOutPipe, 16384);
       inputWriter = new BufferedWriter(
           new OutputStreamWriter(inputOutPipe, StandardCharsets.UTF_8));
     } catch (Exception e) {

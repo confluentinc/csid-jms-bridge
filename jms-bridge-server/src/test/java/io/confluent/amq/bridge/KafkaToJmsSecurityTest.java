@@ -4,16 +4,8 @@
 
 package io.confluent.amq.bridge;
 
-import io.confluent.amq.test.KafkaTestContainer;
+import io.confluent.amq.test.KafkaContainerHelper;
 import io.confluent.amq.test.TestSupport;
-import java.nio.file.Path;
-import java.time.Duration;
-import java.util.ArrayList;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Properties;
-import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 import org.apache.kafka.clients.CommonClientConfigs;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
@@ -40,6 +32,17 @@ import org.junit.jupiter.api.io.TempDir;
 import org.testcontainers.containers.KafkaContainer;
 import org.testcontainers.utility.MountableFile;
 
+import java.nio.file.Path;
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Properties;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+
+import static io.confluent.amq.test.AbstractContainerTest.KAFKA_DOCKER_IMAGE_NAME;
+
 @SuppressWarnings("checkstyle:ClassDataAbstractionCoupling")
 public class KafkaToJmsSecurityTest {
 
@@ -61,13 +64,7 @@ public class KafkaToJmsSecurityTest {
           + "password=\"admin-secret\" "
           + "user_admin=\"admin-secret\" "
           + "user_alice=\"alice-secret\";";
-  private static final Properties BASE_PROPS = new Properties();
 
-  static {
-    BASE_PROPS.put(CommonClientConfigs.SECURITY_PROTOCOL_CONFIG, "SASL_PLAINTEXT");
-    BASE_PROPS.put(SaslConfigs.SASL_MECHANISM, "PLAIN");
-    BASE_PROPS.put(SaslConfigs.SASL_JAAS_CONFIG, ADMIN_JAAS_CONFIG);
-  }
 
 
   @TempDir
@@ -76,9 +73,7 @@ public class KafkaToJmsSecurityTest {
 
   @RegisterExtension
   @Order(200)
-  public static final KafkaTestContainer kafkaContainer = new KafkaTestContainer(
-      BASE_PROPS,
-      new KafkaContainer("5.5.2")
+  public static final KafkaContainer kafkaContainer = new KafkaContainer(KAFKA_DOCKER_IMAGE_NAME)
           .withEnv(
               "KAFKA_LISTENER_SECURITY_PROTOCOL_MAP",
               "BROKER:SASL_PLAINTEXT,PLAINTEXT:SASL_PLAINTEXT")
@@ -100,36 +95,22 @@ public class KafkaToJmsSecurityTest {
               "/etc/kafka/secrets/broker_jaas.conf")
           .withEnv(
               "KAFKA_OPTS",
-              "-Djava.security.auth.login.config=/etc/kafka/secrets/broker_jaas.conf")
+              "-Djava.security.auth.login.config=/etc/kafka/secrets/broker_jaas.conf");
 
-  );
+
+  private static final KafkaContainerHelper kafkaHelper = new KafkaContainerHelper(kafkaContainer)
+      .addBaseProp(CommonClientConfigs.SECURITY_PROTOCOL_CONFIG, "SASL_PLAINTEXT")
+      .addBaseProp(SaslConfigs.SASL_MECHANISM, "PLAIN")
+      .addBaseProp(SaslConfigs.SASL_JAAS_CONFIG, ADMIN_JAAS_CONFIG);
+
+  private static final KafkaContainerHelper.AdminHelper adminHelper = kafkaHelper.adminHelper();
 
   public Properties saslProps() {
     Properties props = new Properties();
-    props.putAll(kafkaContainer.defaultProps());
+    props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaContainer.getBootstrapServers());
     props.put("sasl.mechanism", "PLAIN");
     props.put("security.protocol", "SASL_PLAINTEXT");
     return props;
-  }
-
-  public AdminClient openAdminClient() {
-    Properties props = saslProps();
-    props.put(SaslConfigs.SASL_JAAS_CONFIG, ADMIN_JAAS_CONFIG);
-    AdminClient admin = AdminClient.create(props);
-    return admin;
-  }
-
-  public interface RiskyConsumer<T> {
-
-    void accept(T t) throws Exception;
-  }
-
-  public void withAdminClient(RiskyConsumer<AdminClient> fn) {
-    try (AdminClient admin = openAdminClient()) {
-      fn.accept(admin);
-    } catch (Exception e) {
-      throw new RuntimeException(e);
-    }
   }
 
   public AclBinding createTopicReadAcl(String principal, String topic) {
@@ -169,7 +150,7 @@ public class KafkaToJmsSecurityTest {
         .map(t -> createTopicWriteAcl(principal, t))
         .collect(Collectors.toList());
 
-    withAdminClient(admin ->
+    adminHelper.withAdminClient(admin ->
         admin.createAcls(bindingList).all().get());
   }
 
@@ -178,7 +159,7 @@ public class KafkaToJmsSecurityTest {
         .map(t -> createTopicReadAcl(principal, t))
         .collect(Collectors.toList());
 
-    withAdminClient(admin ->
+    adminHelper.withAdminClient(admin ->
         admin.createAcls(bindingList).all().get());
   }
 
@@ -186,7 +167,7 @@ public class KafkaToJmsSecurityTest {
     List<AclBinding> bindingList = new ArrayList<>();
     bindingList.add(createConsumerGroupAcl(principal, consumerGroup));
 
-    withAdminClient(admin ->
+    adminHelper.withAdminClient(admin ->
         admin.createAcls(bindingList).all().get());
   }
 
@@ -197,8 +178,8 @@ public class KafkaToJmsSecurityTest {
     List<String> noAccessTopics = new LinkedList<>();
 
     for (int i = 0; i < topicCount; i++) {
-      readAccessTopics.add(kafkaContainer.safeCreateTopic("read", 1));
-      noAccessTopics.add(kafkaContainer.safeCreateTopic("no-read", 1));
+      readAccessTopics.add(adminHelper.safeCreateTopic("read", 1));
+      noAccessTopics.add(adminHelper.safeCreateTopic("no-read", 1));
     }
 
     String groupId = "junit-group";
@@ -219,7 +200,7 @@ public class KafkaToJmsSecurityTest {
       consumer.subscribe(Pattern.compile("[^_].*"));
       consumer.poll(Duration.ofMillis(100));
 
-      kafkaContainer.listTopics().forEach(t -> TestSupport.println("Admin topic -> {}", t));
+      adminHelper.listTopics().forEach(t -> TestSupport.println("Admin topic -> {}", t));
       consumer.listTopics().forEach((topic, partitions) ->
           TestSupport.println("Alice consumer topic -> {}", topic));
       consumer.assignment().forEach(tp -> TestSupport.println("" + tp));
@@ -227,7 +208,7 @@ public class KafkaToJmsSecurityTest {
       admin.listTopics().names().get().forEach(s ->
           TestSupport.println("Alice admin topic -> {}", s));
 
-      withAdminClient(root -> {
+      adminHelper.withAdminClient(root -> {
         root.describeAcls(new AclBindingFilter(
             new ResourcePatternFilter(
                 ResourceType.TOPIC, null, PatternType.ANY),

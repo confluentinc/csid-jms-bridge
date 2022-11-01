@@ -4,53 +4,50 @@
 
 package io.confluent.amq.bridge;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import io.confluent.amq.config.RoutingConfig;
 import io.confluent.amq.config.RoutingConfig.RoutedTopic;
 import io.confluent.amq.exchange.KafkaExchangeUtil;
+import io.confluent.amq.test.AbstractContainerTest;
 import io.confluent.amq.test.ArtemisTestServer;
-import io.confluent.amq.test.KafkaTestContainer;
+import io.confluent.amq.test.KafkaContainerHelper;
 import io.confluent.amq.test.TestSupport;
-import java.nio.file.Path;
-import java.util.Arrays;
-import java.util.List;
-import javax.jms.Message;
-import javax.jms.MessageConsumer;
-import javax.jms.MessageProducer;
-import javax.jms.Session;
-import javax.jms.Topic;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.common.serialization.ByteArrayDeserializer;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.junit.jupiter.api.io.TempDir;
-import org.testcontainers.containers.KafkaContainer;
+
+import javax.jms.Message;
+import javax.jms.MessageConsumer;
+import javax.jms.MessageProducer;
+import javax.jms.Session;
+import javax.jms.Topic;
+import java.nio.file.Path;
+import java.time.Duration;
+import java.util.Arrays;
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SuppressFBWarnings("MS_SHOULD_BE_FINAL")
-public class KafkaToJmsTest {
+public class KafkaToJmsTest extends AbstractContainerTest {
 
   @TempDir
   @Order(100)
   public static Path tempdir;
 
   @RegisterExtension
-  @Order(200)
-  public static final KafkaTestContainer kafkaContainer = new KafkaTestContainer(
-      new KafkaContainer("5.5.2")
-          .withEnv("KAFKA_DELETE_TOPIC_ENABLE", "true")
-          .withEnv("KAFKA_AUTO_CREATE_TOPICS_ENABLE", "false"));
-
-  @RegisterExtension
   @Order(300)
   public static final ArtemisTestServer amqServer = ArtemisTestServer
-      .embedded(kafkaContainer, b -> b
+      .embedded(essentialProps(), b -> b
           .mutateJmsBridgeConfig(br -> br
               .putKafka(ConsumerConfig.AUTO_COMMIT_INTERVAL_MS_CONFIG, "500")
               .routing(new RoutingConfig.Builder()
@@ -62,10 +59,15 @@ public class KafkaToJmsTest {
           )
           .dataDirectory(tempdir.toAbsolutePath().toString()));
 
+  KafkaContainerHelper.AdminHelper adminHelper = getContainerHelper().adminHelper();
+  KafkaContainerHelper.ProducerHelper<String, String> producerHelper = getContainerHelper()
+      .producerHelper(TestSupport.stringSerializer(), TestSupport.stringSerializer());
+  KafkaContainerHelper.ConsumerHelper<byte[], String> consumerHelper = getContainerHelper()
+      .consumerHelper(new ByteArrayDeserializer(), TestSupport.stringDeserializer());
 
   @Test
   public void testKafkaTopicAddressIsAvailable() throws Exception {
-    String herringTopic = kafkaContainer.safeCreateTopic("herring-events", 3);
+    String herringTopic = adminHelper.safeCreateTopic("herring-events", 3);
     amqServer.confluentAmqServer().getKafkaExchangeManager().synchronizeTopics();
 
     String herringAddress = "test." + herringTopic;
@@ -74,30 +76,30 @@ public class KafkaToJmsTest {
 
   @Test
   public void testConsumerNotConsumingForUnboundAddress() throws Exception {
-    String herringTopic = kafkaContainer.safeCreateTopic("herring-events", 3);
+    String herringTopic = adminHelper.safeCreateTopic("herring-events", 3);
     amqServer.confluentAmqServer().getKafkaExchangeManager().synchronizeTopics();
     amqServer.assertAddressAvailable("test." + herringTopic);
 
-    kafkaContainer.publish(herringTopic, "key", "value");
-    kafkaContainer.publish(herringTopic, "key", "value");
+    producerHelper.publish(herringTopic, "key", "value");
+    producerHelper.publish(herringTopic, "key", "value");
 
     String pluginConsumerGroup = KafkaExchangeUtil.createConsumerGroupId(
         amqServer.confluentAmqServer().getBridgeConfig());
 
-    boolean isConsumingTopic = kafkaContainer.adminClient()
+    boolean isConsumingTopic = adminHelper.withAdminClientResults(admin -> admin
         .listConsumerGroupOffsets(pluginConsumerGroup)
         .partitionsToOffsetAndMetadata()
         .get()
         .keySet()
         .stream()
-        .anyMatch(tp -> tp.topic().equals(herringTopic));
+        .anyMatch(tp -> tp.topic().equals(herringTopic)));
 
     assertFalse(isConsumingTopic, "Consumer should not be consuming unbound topic address");
   }
 
   @Test
   public void testConsumerIsConsumingForBoundAddress() throws Exception {
-    String herringTopic = kafkaContainer.safeCreateTopic("herring-events", 3);
+    String herringTopic = adminHelper.safeCreateTopic("herring-events", 3);
     amqServer.confluentAmqServer().getKafkaExchangeManager().synchronizeTopics();
 
     String herringAddress = "test." + herringTopic;
@@ -115,7 +117,7 @@ public class KafkaToJmsTest {
       ) {
 
         TestSupport.retry(3, 1000, () -> {
-          kafkaContainer.publish(herringTopic, "key", "value");
+          producerHelper.publish(herringTopic, "key", "value");
           Message rcvmsg = consumer.receive(100);
           assertNotNull(rcvmsg);
           assertEquals("value", rcvmsg.getBody(String.class));
@@ -127,11 +129,12 @@ public class KafkaToJmsTest {
 
   @Test
   public void testPublishViaJmsConsumeFromKafka() throws Exception {
-    String herringTopic = kafkaContainer.safeCreateTopic("herring-events", 3);
+    String herringTopic = adminHelper.safeCreateTopic("herring-events", 3);
     amqServer.confluentAmqServer().getKafkaExchangeManager().synchronizeTopics();
 
     String herringAddress = "test." + herringTopic;
     amqServer.assertAddressAvailable(herringAddress);
+    consumerHelper.consumeBegin(herringTopic);
 
     try (Session session = amqServer.getConnection()
         .createSession(false, Session.AUTO_ACKNOWLEDGE)) {
@@ -140,32 +143,31 @@ public class KafkaToJmsTest {
       try (MessageProducer producer = session.createProducer(herringDest)) {
         producer.send(session.createTextMessage("hey kafka"));
 
-        List<ConsumerRecord<byte[], String>> records =
-            kafkaContainer.consumeBytesStringsUntil(herringTopic, 1);
+        ConsumerRecord<byte[], String> record =
+            consumerHelper.lookUntil(r -> "hey kafka".equals(r.value()), Duration.ofSeconds(10));
 
-        assertEquals(1, records.size());
-        assertEquals("hey kafka", records.get(0).value());
+        assertNotNull(record);
       }
     }
   }
 
   @Test
-  @Disabled("Jenkins can't run this for some reason")
   public void testConsumerReceivesJmsOriginatedKafkaMessage() throws Exception {
-    String herringTopic = kafkaContainer.safeCreateTopic("herring-events", 3);
+    String herringTopic = adminHelper.safeCreateTopic("herring-events", 3);
     amqServer.confluentAmqServer().getKafkaExchangeManager().synchronizeTopics();
 
     String herringAddress = "test." + herringTopic;
     amqServer.assertAddressAvailable(herringAddress);
+    consumerHelper.consumeBegin(herringTopic);
 
     try (Session session = amqServer.getConnection()
         .createSession(false, Session.AUTO_ACKNOWLEDGE)) {
       Topic herringDest = session.createTopic(herringAddress);
 
       try (MessageProducer producer = session.createProducer(herringDest);
-          MessageConsumer consumer = session.createConsumer(herringDest)) {
+           MessageConsumer consumer = session.createDurableConsumer(herringDest, "junit")) {
 
-        TestSupport.retry(30, 100, () ->
+        TestSupport.retry(5, 1000, () ->
             assertTrue(amqServer.confluentAmqServer()
                 .getKafkaExchangeManager()
                 .currentSubscribedKafkaTopics()
@@ -173,22 +175,20 @@ public class KafkaToJmsTest {
 
         producer.send(session.createTextMessage("hey kafka"));
 
-        List<ConsumerRecord<byte[], String>> records =
-            kafkaContainer.consumeBytesStringsUntil(herringTopic, 1);
-
-        assertEquals(1, records.size());
-        assertEquals("hey kafka", records.get(0).value());
-
         Message rcvmsg = consumer.receive(30_000);
         assertNotNull(rcvmsg);
-        assertEquals("hey kafka", rcvmsg.getBody(String.class));
+
+        ConsumerRecord<byte[], String> record =
+            consumerHelper.lookUntil(r -> "hey kafka".equals(r.value()));
+        assertNotNull(record);
+
       }
     }
   }
 
   @Test
   public void testPublishViaKafkaConsumeFromJms() throws Exception {
-    String herringTopic = kafkaContainer.safeCreateTopic("herring-events", 3);
+    String herringTopic = adminHelper.safeCreateTopic("herring-events", 3);
     amqServer.confluentAmqServer().getKafkaExchangeManager().synchronizeTopics();
     String herringAddress = "test." + herringTopic;
     amqServer.assertAddressAvailable(herringAddress);
@@ -200,7 +200,7 @@ public class KafkaToJmsTest {
       try (MessageConsumer consumer = session.createConsumer(herringDest)) {
 
         TestSupport.retry(10, 1000, () -> {
-          kafkaContainer.publish(herringTopic, "key", "value");
+          producerHelper.publish(herringTopic, "key", "value");
           Message rcvmsg = consumer.receive(100);
           assertNotNull(rcvmsg);
           assertEquals("value", rcvmsg.getBody(String.class));
@@ -210,9 +210,8 @@ public class KafkaToJmsTest {
   }
 
   @Test
-  @Disabled("Topic deletion tests break other tests")
   public void testExchangeIsRemovedWhenTopicIsDeleted_noConsumers() throws Exception {
-    String herringTopic = kafkaContainer.safeCreateTopic("herring-events", 3);
+    String herringTopic = adminHelper.safeCreateTopic("herring-events", 3);
     amqServer.confluentAmqServer().getKafkaExchangeManager().synchronizeTopics();
 
     String herringAddress = "test." + herringTopic;
@@ -225,14 +224,14 @@ public class KafkaToJmsTest {
       try (MessageConsumer consumer = session.createConsumer(herringDest)) {
 
         TestSupport.retry(10, 1000, () -> {
-          kafkaContainer.publish(herringTopic, "key", "value");
+          producerHelper.publish(herringTopic, "key", "value");
           Message rcvmsg = consumer.receive(100);
           assertNotNull(rcvmsg);
         });
 
       }
 
-      kafkaContainer.deleteTopics(herringTopic);
+      adminHelper.deleteTopics(herringTopic);
 
       TestSupport.retry(10, 500, () -> {
         amqServer.confluentAmqServer().getKafkaExchangeManager().synchronizeTopics();
@@ -244,10 +243,9 @@ public class KafkaToJmsTest {
 
 
   @Test
-  @Disabled("Sporadically fails on Jenkins, works in the IDE")
   public void testExchangeIsRemovedWhenTopicIsDeletedBridgeGracefullyMovesOn() throws Exception {
-    String herringTopic = kafkaContainer.safeCreateTopic("herring-events", 3);
-    String herring2Topic = kafkaContainer.safeCreateTopic("herring2-events", 3);
+    String herringTopic = adminHelper.safeCreateTopic("herring-events", 3);
+    String herring2Topic = adminHelper.safeCreateTopic("herring2-events", 3);
     amqServer.confluentAmqServer().getKafkaExchangeManager().synchronizeTopics();
 
     String herringAddress = "test." + herringTopic;
@@ -264,7 +262,7 @@ public class KafkaToJmsTest {
       try (MessageConsumer consumer = session.createConsumer(herringDest)) {
 
         TestSupport.retry(10, 1000, () -> {
-          kafkaContainer.publish(herringTopic, "key", "value");
+          producerHelper.publish(herringTopic, "key", "value");
           Message rcvmsg = consumer.receive(1000);
           assertNotNull(rcvmsg);
         });
@@ -274,7 +272,7 @@ public class KafkaToJmsTest {
       try (MessageConsumer consumer = session.createConsumer(herring2Dest)) {
 
         TestSupport.retry(10, 1000, () -> {
-          kafkaContainer.publish(herring2Topic, "key", "value");
+          producerHelper.publish(herring2Topic, "key", "value");
           Message rcvmsg = consumer.receive(100);
           assertNotNull(rcvmsg);
         });
@@ -285,10 +283,10 @@ public class KafkaToJmsTest {
           }
         }
 
-        kafkaContainer.deleteTopics(herringTopic);
+        adminHelper.deleteTopics(herringTopic);
 
         TestSupport.retry(10, 1000, () -> {
-          kafkaContainer.publish(herring2Topic, "key", "value2");
+          producerHelper.publish(herring2Topic, "key", "value2");
           Message rcvmsg = consumer.receive(1000);
           assertNotNull(rcvmsg);
           assertEquals("value2", rcvmsg.getBody(String.class));
@@ -303,7 +301,7 @@ public class KafkaToJmsTest {
         amqServer.confluentAmqServer().getKafkaExchangeManager().synchronizeTopics();
 
         TestSupport.retry(10, 1000, () -> {
-          kafkaContainer.publish(herring2Topic, "key", "value3");
+          producerHelper.publish(herring2Topic, "key", "value3");
           Message rcvmsg = consumer.receive(1000);
           assertNotNull(rcvmsg);
           assertEquals("value3", rcvmsg.getBody(String.class));

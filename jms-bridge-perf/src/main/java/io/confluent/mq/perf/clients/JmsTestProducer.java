@@ -98,6 +98,7 @@ public class JmsTestProducer implements CompletionListener {
         message.setStringProperty("test_id", testId);
         message.setLongProperty("test_msg_ms", System.currentTimeMillis());
         producer.send(jmsTopic, message);
+        msgCount++;
         if (!useAsync) {
           onCompletion(message);
         }

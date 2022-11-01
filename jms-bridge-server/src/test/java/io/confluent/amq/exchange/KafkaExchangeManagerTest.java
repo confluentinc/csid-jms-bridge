@@ -99,6 +99,7 @@ public class KafkaExchangeManagerTest {
     when(mockAmqServer.isActive()).thenReturn(true);
     when(mockAmqServer.getStorageManager()).thenReturn(mockStorageManager);
 
+    when(mockAmqServer.updateQueue(any(QueueConfiguration.class))).thenReturn(mock(Queue.class));
     when(mockAmqServer.locateQueue(any(String.class))).thenReturn(mock(Queue.class));
 
     when(mockStorageManager.generateID()).thenReturn(1000L);

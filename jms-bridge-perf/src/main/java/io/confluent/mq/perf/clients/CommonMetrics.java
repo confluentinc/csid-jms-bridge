@@ -11,7 +11,8 @@ import io.prometheus.client.Histogram;
 public final class CommonMetrics {
 
   static final double[] LATENCY_BUCKETS = {
-      1, 5, 10, 25, 50, 100, 250, 500, 750, 1000, 1500, 2000, 3000, 4000, 5000
+      1, 5, 10, 25, 50, 100, 250, 500, 750, 1000, 1500, 2000, 3000, 4000, 5000, 7500, 10000, 12500,
+      15000
   };
 
   public static final Histogram MESSAGE_LATENCY_HIST = Histogram.build()

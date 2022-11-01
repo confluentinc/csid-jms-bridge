@@ -118,6 +118,7 @@ public class TransactionProcessor
             .build();
 
         SLOG.trace(b -> b
+            .name(getJournalName())
             .addJournalEntryKey(readOnlyKey)
             .addJournalEntry(entry)
             .event("ProcessEpochRecord"));
@@ -129,6 +130,7 @@ public class TransactionProcessor
           && KafkaRecordUtils.isTxRecord(entry.getAppendedRecord())) {
 
         SLOG.trace(b -> b
+            .name(getJournalName())
             .addJournalEntryKey(readOnlyKey)
             .addJournalEntry(entry)
             .event("ProcessTransactionRecord"));
@@ -138,6 +140,7 @@ public class TransactionProcessor
     }
 
     SLOG.trace(b -> b
+        .name(getJournalName())
         .addJournalEntryKey(readOnlyKey)
         .addJournalEntry(entry)
         .event("RecordPassThrough"));

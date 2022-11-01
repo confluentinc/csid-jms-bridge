@@ -25,6 +25,16 @@ public final class BridgeConfigFactory {
   public static final StructuredLogger SLOG = StructuredLogger
       .with(b -> b.loggerClass(BridgeConfigFactory.class));
 
+  public static Map<String, String> fetchMapConfigWithDefaults(
+      String configKey, Config keyConfig, Config defaultMapConfig) {
+
+    if (keyConfig.hasPath(configKey)) {
+      return flattenConfig(keyConfig.getConfig(configKey).withFallback(defaultMapConfig));
+    } else {
+      return flattenConfig(defaultMapConfig);
+    }
+  }
+
   public static Map<String, String> flattenConfig(Config config) {
     return config.entrySet()
         .stream()

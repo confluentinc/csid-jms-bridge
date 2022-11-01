@@ -61,6 +61,7 @@ public class KafkaIntegration {
     final String clientId = String.format("%s_%s", bridgeId, nodeUuid.toString());
     this.kafkaIO = new KafkaIO(clientId, BridgeConfigFactory.mapToProps(config.kafka()));
     this.journalProcessor = new KafkaJournalProcessor(
+        bridgeId,
         jspecs,
         clientId,
         applicationId,

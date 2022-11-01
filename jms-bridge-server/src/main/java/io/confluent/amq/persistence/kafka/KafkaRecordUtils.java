@@ -151,6 +151,10 @@ public final class KafkaRecordUtils {
         .build();
   }
 
+  public static boolean isAnnotationsKey(JournalEntryKey key) {
+    return key != null && MESSAGE_ANNOTATIONS_EXTENDED_ID_CONSTANT == key.getExtendedId();
+  }
+
   public static JournalEntryKey transactionReferenceKeyFromTxId(Long txId) {
     return JournalEntryKey.newBuilder()
         .setTxId(txId)
