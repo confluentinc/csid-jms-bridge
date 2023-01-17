@@ -1,0 +1,12 @@
+#
+# Copyright (C) 2021-2022 Confluent, Inc.
+#
+
+name: csid-jms-bridge
+lang: java
+lang_version: 17
+github:
+    enable: true
+    repo_name: confluentinc/csid-jms-bridge
+semaphore:
+    enable: true
