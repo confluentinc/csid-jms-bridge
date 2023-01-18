@@ -34,11 +34,45 @@
     -->
   </modules>
 
+  <profiles>
+    <profile>
+			<id>publish-to-jfrog</id>
+			<distributionManagement>
+				<snapshotRepository>
+					<id>confluent-codeartifact-internal</id>
+					<name>confluent-snapshots</name>
+					<url>https://confluent-519856050701.d.codeartifact.us-west-2.amazonaws.com/maven/maven-releases</url>
+				</snapshotRepository>
+				<repository>
+					<id>confluent-codeartifact-internal</id>
+					<name>confluent-releases</name>
+					<url>https://confluent-519856050701.d.codeartifact.us-west-2.amazonaws.com/maven/maven-releases</url>
+				</repository>
+			</distributionManagement>
+		</profile>
+		<profile>
+			<id>publish-to-s3</id>
+				<distributionManagement>
+					<repository>
+						<id>confluent-csid-repo</id>
+						<url>s3://confluent-csid-maven/releases/</url>
+					</repository>
+					<snapshotRepository>
+						<id>confluent-csid-repo</id>
+						<url>s3://confluent-csid-maven/snapshots/</url>
+					</snapshotRepository>
+				</distributionManagement>
+		</profile>
+  </profiles>
   <build>
-
+    <extensions>
+			<extension>
+				<groupId>org.springframework.build</groupId>
+				<artifactId>aws-maven</artifactId>
+				<version>5.0.0.RELEASE</version>
+			</extension>
+		</extensions>
     <plugins>
-
-
       <plugin>
         <artifactId>spotbugs-maven-plugin</artifactId>
         <configuration>
@@ -140,7 +174,7 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-release-plugin</artifactId>
-        <version>3.0.0-M1</version>
+        <version>3.0.0-M6</version>
         <configuration>
           <tagNameFormat>v@{project.version}</tagNameFormat>
           <autoVersionSubmodules>true</autoVersionSubmodules>
@@ -150,13 +184,30 @@
         </configuration>
       </plugin>
 
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-assembly-plugin</artifactId>
+        <version>3.4.2</version>
+        <executions>
+          <execution>
+            <id>make-assembly</id>
+            <phase>package</phase>
+            <goals>
+              <goal>single</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-dependency-plugin</artifactId>
+				<version>3.3.0</version>
+			</plugin>
     </plugins>
   </build>
 
   <dependencyManagement>
     <dependencies>
-
-
       <dependency>
         <artifactId>airline</artifactId>
         <groupId>com.github.rvesse</groupId>
