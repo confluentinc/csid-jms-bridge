@@ -68,8 +68,8 @@
           </execution>
         </executions>
       </plugin>
-
       <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-assembly-plugin</artifactId>
         <configuration>
           <archive>
@@ -93,7 +93,6 @@
             <phase>package</phase>
           </execution>
         </executions>
-        <groupId>org.apache.maven.plugins</groupId>
       </plugin>
 
       <plugin>
