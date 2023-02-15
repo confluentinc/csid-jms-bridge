@@ -9,3 +9,6 @@ node
 .terraform
 *.tfstate*
 .terraform.lock.hcl
+.vscode/
+pom.xml.releaseBackup
+
