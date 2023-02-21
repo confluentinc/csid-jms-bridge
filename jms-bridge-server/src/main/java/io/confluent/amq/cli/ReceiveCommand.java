@@ -10,14 +10,13 @@ import com.github.rvesse.airline.annotations.Option;
 import com.github.rvesse.airline.annotations.restrictions.NotBlank;
 import com.github.rvesse.airline.annotations.restrictions.Once;
 import com.github.rvesse.airline.annotations.restrictions.Required;
+import io.confluent.amq.cli.JmsClientOptions.SessionAction;
+
 import javax.inject.Inject;
-import javax.jms.Destination;
 import javax.jms.JMSException;
 import javax.jms.Message;
 import javax.jms.MessageConsumer;
-
-import io.confluent.amq.cli.JmsClientOptions.SessionAction;
-
+import javax.jms.Topic;
 import java.nio.charset.StandardCharsets;
 import java.util.Enumeration;
 import java.util.LinkedList;
@@ -38,10 +37,6 @@ public class ReceiveCommand implements BaseCommand {
   @Once
   String topic;
 
-  @Option(name = "--queue", description = "The durable queue to receive the text messages from.")
-  @Once
-  String queue;
-
   @Option(name = "--name", description = "The name of the consumer")
   @Once
   @NotBlank
@@ -61,12 +56,10 @@ public class ReceiveCommand implements BaseCommand {
 
   private SessionAction receive(CommandIo io) {
     return session -> {
-      Destination destination = queue != null
-          ? session.createQueue(format("%s::%s", topic, queue))
-          : session.createTopic(topic);
+      Topic destination = session.createTopic(topic);
 
-      try (MessageConsumer consumer = session.createConsumer(destination, name)) {
-        Channels.output().println("Receiving messages from " + destination.toString());
+      try (MessageConsumer consumer = session.createDurableConsumer(destination, name)) {
+        io.output().println("Receiving messages from " + destination.toString());
 
         final String prefix = "  ";
         while (true) {
@@ -77,8 +70,8 @@ public class ReceiveCommand implements BaseCommand {
               printHeaders(received, prefix);
             }
             final String body = getBody(received);
-            Channels.output().println(prefix + "\"body\": \"" + body + "\"");
-            Channels.output().println("}");
+            io.output().println(prefix + "\"body\": \"" + body + "\"");
+            io.output().println("}");
           }
         }
       }

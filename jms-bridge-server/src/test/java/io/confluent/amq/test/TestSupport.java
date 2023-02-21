@@ -5,6 +5,7 @@
 package io.confluent.amq.test;
 
 import com.google.common.base.Stopwatch;
+import io.confluent.amq.cli.SendCommandTest;
 import io.confluent.amq.logging.LogFormat;
 import io.confluent.amq.persistence.domain.proto.JournalEntry;
 import io.confluent.amq.persistence.domain.proto.JournalEntryKey;
@@ -204,9 +205,19 @@ public final class TestSupport {
     }
   }
 
+  public static Runnable runner(RunnableWithScissors runner) {
+    return () -> {
+      try {
+        runner.run();
+      } catch (Exception e) {
+        throw new RuntimeException(e);
+      }
+    };
+  }
 
   public interface RunnableWithScissors {
     void run() throws Exception;
   }
+
 }
 

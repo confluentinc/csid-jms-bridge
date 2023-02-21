@@ -11,14 +11,11 @@ import com.github.rvesse.airline.model.GlobalMetadata;
 import com.github.rvesse.airline.parser.ParseResult;
 import com.github.rvesse.airline.parser.errors.ParseException;
 import com.github.rvesse.airline.parser.errors.handlers.CollectAll;
-import io.confluent.amq.logging.StructuredLogger;
+
 import java.util.Collections;
 
 @SuppressWarnings("checkstyle:HideUtilityClassConstructor")
 public class JmsBridgeCli {
-
-  private static final StructuredLogger SLOG = StructuredLogger.with(b -> b
-      .loggerClass(JmsBridgeCli.class));
 
   private final CommandIo io;
 

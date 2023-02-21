@@ -274,7 +274,6 @@ public class JmsBridgeToKafkaTests extends AbstractContainerTest {
 
       try (MessageProducer producer = session.createProducer(topic)) {
 
-        StringDeserializer stringDeserializer = TestSupport.stringDeserializer();
         TextMessage message = session.createTextMessage("Message 1");
         message.setJMSCorrelationID("FooCorrelationId");
         producer.send(message);
@@ -283,8 +282,6 @@ public class JmsBridgeToKafkaTests extends AbstractContainerTest {
         assertNotNull(kafkaRecord);
 
       }
-
-
     }
   }
 }

@@ -97,6 +97,14 @@ public class ArtemisTestServer implements
     this.cnxnSpecBuilder = cnxnSpecBuilder;
   }
 
+  public String url() {
+    if (cnxnSpec == null) {
+      throw new IllegalStateException("Server must be started first.");
+    }
+
+    return cnxnSpec.url();
+  }
+
   public String bridgeId() {
     return this.serverSpec.jmsBridgeConfig().id();
   }
