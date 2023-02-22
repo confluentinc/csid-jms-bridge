@@ -2,7 +2,7 @@
   <groupId>io.confluent</groupId>
   <artifactId>jms-bridge-pom</artifactId>
   <packaging>pom</packaging>
-  <version>3.3.0</version>
+  <version>3.3.1-SNAPSHOT</version>
 
   <name>JMS Bridge Parent</name>
   <description>A fully compliant JMS 2.0 broker with tight integration to Kafka.</description>
