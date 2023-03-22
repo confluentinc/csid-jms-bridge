@@ -1,84 +1,94 @@
 #
 # Copyright (C) 2021-2022 Confluent, Inc.
 #
-
 version: v1.0
 name: JMS Bridge
 agent:
-    machine:
-        type: s1-prod-ubuntu20-04-amd64-1
+  machine:
+    type: s1-prod-ubuntu20-04-amd64-1
 
 auto_cancel:
-    running:
-        when: "branch != 'main'"
+  running:
+    when: "branch != 'main'"
 
 global_job_config:
-    env_vars:
-        - name: MAVEN_OPTS
-          value: "-Dmaven.repo.local=.m2"
-    secrets:
-        - name: vault_sem2_approle
-    prologue:
-        commands:
-            - chmod 400 ~/.ssh/id_rsa
-            - checkout
-            - make install-vault
-            - . mk-include/bin/vault-setup
-            - . vault-sem-get-secret semaphore-secrets-global
-            - . vault-sem-get-secret aws_credentials
-            - . vault-sem-get-secret dockerhub-semaphore-cred-ro
-            - . vault-sem-get-secret ssh_id_rsa
-            - . vault-sem-get-secret netrc
-            - . vault-sem-get-secret ssh_config
-            - . vault-sem-get-secret gitconfig
-            - . vault-sem-get-secret maven-settings
-            - chmod 700 ~/.m2/settings.xml
-            - chmod 700 ~/.netrc
-            - make docker-login-ci
-            - sem-version java 11
+  env_vars:
+    - name: MAVEN_OPTS
+      value: "-Dmaven.repo.local=.m2"
+  secrets:
+    - name: vault_sem2_approle
+  prologue:
+    commands:
+      - chmod 400 ~/.ssh/id_rsa
+      - checkout
+      - make install-vault
+      - . mk-include/bin/vault-setup
+      - . vault-sem-get-secret semaphore-secrets-global
+      - . vault-sem-get-secret aws_credentials
+      - . vault-sem-get-secret dockerhub-semaphore-cred-ro
+      - . vault-sem-get-secret ssh_id_rsa
+      - . vault-sem-get-secret netrc
+      - . vault-sem-get-secret ssh_config
+      - . vault-sem-get-secret gitconfig
+      - . vault-sem-get-secret maven-settings
+      # - . vault-sem-get-secret csid-bundles # this might be for csm plugin publishes
+      - chmod 700 ~/.m2/settings.xml
+      - chmod 700 ~/.netrc
+      - make docker-login-ci
+      - sem-version java 11
 
 blocks:
-    - name: Setup
-      dependencies: []
-      task:
-          jobs:
-              - name: Dependencies
-                commands:
-                    - cache restore
-                    # Download all JARs possible and compile as much as possible
-                    # Use -q to reduce output spam
-                    - ./mvnw -q dependency:go-offline clean test-compile
-                    - cache store
-    - name: Tests
-      execution_time_limit:
-          minutes: 40
-      dependencies:
-          - Setup
-      task:
-          prologue:
-              commands:
-                  - checkout
-                  - cache restore
-          jobs:
-              - name: Unit Tests
-                commands:
-                    # Again, -q to reduce output spam. Replace with command
-                    # that executes tests
-                    - ./mvnw -q --batch-mode -PunitTests test
-          epilogue:
-              always:
-                  commands:
-                    - test-results publish **/target/surefire-reports/*.xml
+  - name: Setup
+    dependencies: []
+    task:
+      jobs:
+        - name: Dependencies
+          commands:
+            - cache restore
+            # Download all JARs possible and compile as much as possible
+            # Use -q to reduce output spam
+            - ./mvnw -q dependency:go-offline clean test-compile
+            - cache store
+  - name: Tests
+    execution_time_limit:
+      minutes: 40
+    dependencies:
+      - Setup
+    task:
+      prologue:
+        commands:
+          - checkout
+          - cache restore
+      jobs:
+        - name: Unit Tests
+          commands:
+            # Again, -q to reduce output spam. Replace with command
+            # that executes tests
+            - ./mvnw -q --batch-mode -PunitTests test
+        #   - name: Integration Tests
+        #     commands:
+        #         # Again, -q to reduce output spam. Replace with command
+        #         # that executes tests
+        #         - ./mvnw -q --batch-mode -PintegrationTests test -Dlicense.skip
+      epilogue:
+        always:
+          commands:
+            - test-results publish **/target/surefire-reports/*.xml
 
 after_pipeline:
-    task:
-        jobs:
-            - name: Publish Results
-              commands:
-                  - test-results gen-pipeline-report
+  task:
+    jobs:
+      - name: Publish Results
+        commands:
+          - test-results gen-pipeline-report
 
-# promotions:
-#     - name: Publish to S3
-#       pipeline_file: publish_to_s3.yml
-#     - name: Publish to JFrog
-#       pipeline_file: publish_to_jfrog.yml
+promotions:
+  - name: Publish to S3
+    pipeline_file: publish_to_s3.yml
+    auto_promote:
+      when: "result = 'passed' and tag =~ '.*'"
+
+  - name: Publish to CodeArtifact
+    pipeline_file: publish_to_codeartifact.yml
+    auto_promote:
+      when: "result = 'passed' and tag =~ '.*'"

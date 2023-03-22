@@ -12,6 +12,7 @@
   <properties>
     <main-class>io.confluent.amq.cli.JmsBridgeCli</main-class>
     <package.dir>${project.build.directory}/package</package.dir>
+    <maven.deploy.skip>false</maven.deploy.skip>
   </properties>
 
   <build>
@@ -287,4 +288,3 @@
   </dependencies>
 
 </project>
-
