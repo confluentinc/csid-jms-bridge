@@ -1,8 +1,15 @@
 
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
   <modelVersion>4.0.0</modelVersion>
+    <properties>
+        <proton-j.version>0.33.6</proton-j.version>
+        <qpid-jms-client.version>0.54.0</qpid-jms-client.version>
+        <junit-platform-runner.version>1.6.2</junit-platform-runner.version>
+        <junit-vintage-engine.version>5.6.2</junit-vintage-engine.version>
+        <testcontainers-kafka.version>1.15.1</testcontainers-kafka.version>
+    </properties>
 
-  <parent>
+    <parent>
     <artifactId>jms-bridge-pom</artifactId>
     <groupId>io.confluent</groupId>
     <version>3.3.1-SNAPSHOT</version>
@@ -12,12 +19,11 @@
   <packaging>jar</packaging>
   <name>JMS Bridge Integration Tests</name>
 
-    
   <dependencies>
     <dependency>
       <artifactId>jms-bridge-server</artifactId>
       <groupId>io.confluent</groupId>
-      <version>${project.version}</version>  
+      <version>${project.version}</version>
     </dependency>
 
     <!-- Logging -->
@@ -38,14 +44,13 @@
     <dependency>
       <groupId>org.apache.qpid</groupId>
       <artifactId>qpid-jms-client</artifactId>
-      <version>0.54.0</version>
+      <version>${qpid-jms-client.version}</version>
     </dependency>
     <dependency>
       <groupId>org.apache.qpid</groupId>
       <artifactId>proton-j</artifactId>
-      <version>0.33.6</version>
+      <version>${proton-j.version}</version>
     </dependency>
-
 
     <!-- Test dependencies -->
     <dependency>
@@ -61,14 +66,14 @@
    <dependency>
       <groupId>org.junit.vintage</groupId>
       <artifactId>junit-vintage-engine</artifactId>
-      <version>5.6.2</version>
+      <version>${junit-vintage-engine.version}</version>
       <scope>test</scope>
     </dependency>
    <dependency>
       <groupId>org.junit.platform</groupId>
       <artifactId>junit-platform-runner</artifactId>
       <scope>test</scope>
-      <version>1.6.2</version>
+      <version>${junit-platform-runner.version}</version>
     </dependency>
     <dependency>
       <groupId>org.mockito</groupId>
@@ -112,12 +117,10 @@
       <version>${activemq.version}</version>
       <scope>test</scope>
     </dependency>
-
-
     <dependency>
       <artifactId>kafka</artifactId>
       <groupId>org.testcontainers</groupId>
-      <version>1.15.1</version>
+      <version>${testcontainers-kafka.version}</version>
       <scope>test</scope>
     </dependency>
    <dependency>

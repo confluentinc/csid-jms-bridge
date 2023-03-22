@@ -14,6 +14,7 @@
   <properties>
     <docker.skip-build>${skip.docker.build}</docker.skip-build>
     <docker.skip-test>${skip.docker.test}</docker.skip-test>
+    <jmx_prometheus_javaagent.version>0.15.0</jmx_prometheus_javaagent.version>
   </properties>
 
   <dependencies>
@@ -25,10 +26,9 @@
     <dependency>
       <groupId>io.prometheus.jmx</groupId>
       <artifactId>jmx_prometheus_javaagent</artifactId>
-      <version>0.15.0</version>
+      <version>${jmx_prometheus_javaagent.version}</version>
     </dependency>
   </dependencies>
-
 
   <build>
     <plugins>

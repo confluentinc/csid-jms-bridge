@@ -9,8 +9,11 @@
     <version>3.3.1-SNAPSHOT</version>
   </parent>
 
-  <dependencies>
+  <properties>
+    <truth.version>1.1.3</truth.version>
+  </properties>
 
+  <dependencies>
     <!-- Logging -->
     <dependency>
       <artifactId>log4j-core</artifactId>
@@ -29,7 +32,6 @@
     <dependency>
       <artifactId>artemis-jms-client-all</artifactId>
       <groupId>org.apache.activemq</groupId>
-      <version>2.13.0</version>
       <scope>test</scope>
     </dependency>
   <dependency>
@@ -50,7 +52,7 @@
     <dependency>
       <groupId>com.google.truth</groupId>
       <artifactId>truth</artifactId>
-      <version>1.1.3</version>
+      <version>${truth.version}</version>
       <scope>test</scope>
     </dependency>
     <dependency>
@@ -63,13 +65,11 @@
       <groupId>org.testcontainers</groupId>
       <scope>test</scope>
     </dependency>
-
     <dependency>
       <artifactId>kafka-clients</artifactId>
       <groupId>org.apache.kafka</groupId>
       <scope>test</scope>
     </dependency>
-
   </dependencies>
 
 </project>
