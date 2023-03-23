@@ -1,0 +1,21 @@
+---
+import type { Frontmatter } from '../config'
+import Base from '../layouts/base.astro'
+import PageHero from '../components/pagehero.astro'
+
+const frontmatter: Frontmatter = {
+  title: '404: Not found',
+  description: "You just hit a route that doesn't exist... the sadness.",
+  section: '404',
+  weight: 0,
+}
+---
+
+<Base frontmatter={frontmatter}>
+  <header>
+    <PageHero
+      title={frontmatter.title}
+      description={frontmatter.description}
+    />
+  </header>
+</Base>
