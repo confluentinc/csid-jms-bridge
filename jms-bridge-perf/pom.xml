@@ -10,12 +10,6 @@
   <artifactId>jms-bridge-perf</artifactId>
   <name>JMS Bridge Performance Tests</name>
 
-  <properties>
-    <appassembler.version>1.10</appassembler.version>
-    <picocli.version>4.6.1</picocli.version>
-    <qpid-jms-client.version>1.1.0</qpid-jms-client.version>
-    <simpleclient.version>0.10.0</simpleclient.version>
-  </properties>
 
   <dependencies>
 
@@ -23,24 +17,24 @@
     <dependency>
       <groupId>info.picocli</groupId>
       <artifactId>picocli</artifactId>
-      <version>${picocli.version}</version>
+      <version>4.6.1</version>
     </dependency>
 
     <!-- PROMETHEUS -->
     <dependency>
       <groupId>io.prometheus</groupId>
       <artifactId>simpleclient</artifactId>
-      <version>${simpleclient.version}</version>
+      <version>0.10.0</version>
     </dependency>
     <dependency>
       <groupId>io.prometheus</groupId>
       <artifactId>simpleclient_hotspot</artifactId>
-      <version>${simpleclient.version}</version>
+      <version>0.10.0</version>
     </dependency>
     <dependency>
       <groupId>io.prometheus</groupId>
       <artifactId>simpleclient_httpserver</artifactId>
-      <version>${simpleclient.version}</version>
+      <version>0.10.0</version>
     </dependency>
 
     <!-- Logging -->
@@ -57,6 +51,7 @@
       <artifactId>log4j-slf4j-impl</artifactId>
     </dependency>
 
+
     <!-- Kafka -->
     <dependency>
       <artifactId>kafka-clients</artifactId>
@@ -72,7 +67,7 @@
     <dependency>
       <groupId>org.apache.qpid</groupId>
       <artifactId>qpid-jms-client</artifactId>
-      <version>${qpid-jms-client.version}</version>
+      <version>1.1.0</version>
     </dependency>
 
     <!-- Utilities -->
@@ -93,7 +88,7 @@
             <path>
               <groupId>info.picocli</groupId>
               <artifactId>picocli-codegen</artifactId>
-              <version>${picocli.version}</version>
+              <version>4.6.1</version>
             </path>
           </annotationProcessorPaths>
           <compilerArgs>
@@ -113,7 +108,7 @@
       <plugin>
         <groupId>org.codehaus.mojo</groupId>
         <artifactId>appassembler-maven-plugin</artifactId>
-        <version>${appassembler.version}</version>
+        <version>1.10</version>
         <configuration>
           <repositoryLayout>flat</repositoryLayout>
           <repositoryName>lib</repositoryName>
@@ -157,6 +152,8 @@
           </execution>
         </executions>
       </plugin>
+
+
     </plugins>
   </build>
 
