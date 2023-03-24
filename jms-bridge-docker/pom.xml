@@ -1,76 +1,275 @@
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
 
-  <modelVersion>4.0.0</modelVersion>
+    <modelVersion>4.0.0</modelVersion>
 
-  <parent>
-    <artifactId>jms-bridge-pom</artifactId>
-    <groupId>io.confluent</groupId>
-    <version>3.3.1-SNAPSHOT</version>
-  </parent>
-
-  <name>JMS Bridge Docker</name>
-  <artifactId>jms-bridge-docker</artifactId>
-
-  <properties>
-    <docker.skip-build>${skip.docker.build}</docker.skip-build>
-    <docker.skip-test>${skip.docker.test}</docker.skip-test>
-  </properties>
-
-  <dependencies>
-    <dependency>
-      <groupId>io.confluent</groupId>
-      <artifactId>jms-bridge-server</artifactId>
-      <version>${project.parent.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>io.prometheus.jmx</groupId>
-      <artifactId>jmx_prometheus_javaagent</artifactId>
-      <version>0.15.0</version>
-    </dependency>
-  </dependencies>
+    <parent>
+        <artifactId>jms-bridge-pom</artifactId>
+        <groupId>io.confluent</groupId>
+        <version>3.3.1-SNAPSHOT</version>
+    </parent>
 
 
-  <build>
-    <plugins>
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-assembly-plugin</artifactId>
-        <configuration>
-          <attach>false</attach>
-          <descriptors>
-            <descriptor>src/assembly/package.xml</descriptor>
-          </descriptors>
-        </configuration>
-        <executions>
-          <execution>
-            <id>make-assembly</id>
-            <phase>package</phase>
-            <goals>
-              <goal>single</goal>
-            </goals>
-          </execution>
-        </executions>
-      </plugin>
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-surefire-plugin</artifactId>
-        <configuration>
-          <skip>true</skip>
-        </configuration>
-      </plugin>
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-jar-plugin</artifactId>
-        <executions>
-          <execution>
-            <goals>
-              <goal>test-jar</goal>
-            </goals>
-          </execution>
-        </executions>
-      </plugin>
-    </plugins>
-  </build>
+    <name>JMS Bridge Docker</name>
+    <artifactId>jms-bridge-docker</artifactId>
 
+    <properties>
+        <docker.skip-build>${skip.docker.build}</docker.skip-build>
+        <docker.skip-test>${skip.docker.test}</docker.skip-test>
+        <docker.registry>placeholder/</docker.registry>  <!-- Registry for this build. Must specify a value, or exec plugin throws NPE :((( -->
+        <docker.tag>${project.version}</docker.tag>  <!-- Tag for this build -->
+        <docker.upstream-registry>${docker.registry}</docker.upstream-registry>  <!-- Registry for base images -->
+        <docker.upstream-tag>${docker.tag}</docker.upstream-tag>  <!-- Tag for base images -->
+        <docker.test-registry>${docker.upstream-registry}</docker.test-registry>  <!-- Registry for integration test dependencies -->
+        <docker.test-tag>${docker.upstream-tag}</docker.test-tag>  <!-- Tag for integration test dependencies -->
+        <dockerfile-maven-plugin.version>1.4.13</dockerfile-maven-plugin.version>
+        <exec-maven-plugin.version>3.1.0</exec-maven-plugin.version>
+        <jmx_prometheus_javaagent.version>0.15.0</jmx_prometheus_javaagent.version>
+
+        <maven-assembly.version>3.3.0</maven-assembly.version>
+        <maven-surefire-plugin.version>3.0.0</maven-surefire-plugin.version>
+        <maven-jar-plugin.version>3.3.0</maven-jar-plugin.version>
+        <!-- This version range is only used in the custom resolver plugin for
+          resolving the version of ccs and ce kafka. This property should
+          never be used any where else.
+      -->
+        <confluent.version.range>[7.5.0-0, 7.5.1-0)</confluent.version.range>
+        <io.confluent.license-file-generator.version>${confluent.version.range}</io.confluent.license-file-generator.version>
+
+
+        <BUILD_NUMBER>-1</BUILD_NUMBER>
+        <GIT_COMMIT>unknown</GIT_COMMIT>
+        <kafka.scala.version>2.13</kafka.scala.version>
+        <!-- The name of the docker file to run. -->
+        <docker.file>Dockerfile</docker.file>
+        <!-- Pull the latest base image or use a local image. -->
+        <docker.pull-image>false</docker.pull-image>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>io.confluent</groupId>
+            <artifactId>jms-bridge-server</artifactId>
+            <version>${project.parent.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.prometheus.jmx</groupId>
+            <artifactId>jmx_prometheus_javaagent</artifactId>
+            <version>${jmx_prometheus_javaagent.version}</version>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-assembly-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>make-assembly</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>single</goal>
+                        </goals>
+                        <configuration>
+                            <attach>false</attach>
+                            <descriptors>
+                                <descriptor>src/assembly/package.xml</descriptor>
+                            </descriptors>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>make-assembly-for-docker</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>single</goal>
+                        </goals>
+                        <configuration>
+                            <descriptors>
+                                <descriptor>src/assembly/common-docker-package.xml</descriptor>
+                            </descriptors>
+                            <archive>
+                                <manifest>
+                                    <mainClass>${main-class}</mainClass>
+                                </manifest>
+                            </archive>
+                            <attach>false</attach>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <skip>true</skip>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>test-jar</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>com.spotify</groupId>
+                <artifactId>dockerfile-maven-plugin</artifactId>
+                <version>${dockerfile-maven-plugin.version}</version>
+            </plugin>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>${exec-maven-plugin.version}</version>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>${maven-jar-plugin.version}</version>
+            </plugin>
+        </plugins>
+    </build>
+    <profiles>
+        <profile>
+            <id>docker</id>
+            <activation>
+                <property>
+                    <name>env.DOCKER_HOST</name>
+                </property>
+            </activation>
+
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-dependency-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>unpack-assembly-plugin-boilerplate</id>
+                                <goals>
+                                    <goal>unpack-dependencies</goal>
+                                </goals>
+                                <phase>process-sources</phase>
+                                <configuration>
+                                    <includeArtifactIds>assembly-plugin-boilerplate</includeArtifactIds>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+
+
+
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>exec-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>create-licenses-for-docker</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>java</goal>
+                                </goals>
+                                <configuration>
+                                    <skip>${docker.skip-build}</skip>
+                                    <mainClass>io.confluent.licenses.LicenseFinder</mainClass>
+                                    <arguments>
+                                        <!-- Note use of development instead of package so we pick up all dependencies.
+                                             This assumes both subprojects will be packaged together. -->
+                                        <argument>-i
+                                            ${project.build.directory}/${project.build.finalName}-package/share/java/${project.artifactId}
+                                        </argument>
+                                        <argument>-f</argument>
+                                        <argument>-h
+                                            ${project.build.directory}/${project.build.finalName}-package/share/doc/${project.artifactId}/licenses.html
+                                        </argument>
+                                        <argument>-l
+                                            ${project.build.directory}/${project.build.finalName}-package/share/doc/${project.artifactId}/licenses
+                                        </argument>
+                                        <argument>-n
+                                            ${project.build.directory}/${project.build.finalName}-package/share/doc/${project.artifactId}/notices
+                                        </argument>
+                                        <argument>-x licenses-${io.confluent.license-file-generator.version}.jar
+                                        </argument>
+                                    </arguments>
+                                </configuration>
+                            </execution>
+                            <execution>
+                                <id>python-docker-tests</id>
+                                <phase>integration-test</phase>
+                                <goals>
+                                    <goal>exec</goal>
+                                </goals>
+                                <configuration>
+                                    <skip>${docker.skip-test}</skip>
+                                    <environmentVariables>
+                                        <TOX_TESTENV_PASSENV>DOCKER_REGISTRY DOCKER_TAG DOCKER_TEST_REGISTRY
+                                            DOCKER_TEST_TAG DOCKER_HOST
+                                        </TOX_TESTENV_PASSENV>
+                                        <DOCKER_REGISTRY>${docker.registry}</DOCKER_REGISTRY>
+                                        <DOCKER_TAG>${docker.tag}</DOCKER_TAG>
+                                        <DOCKER_TEST_REGISTRY>${docker.test-registry}</DOCKER_TEST_REGISTRY>
+                                        <DOCKER_TEST_TAG>${docker.test-tag}</DOCKER_TEST_TAG>
+                                    </environmentVariables>
+                                    <executable>tox</executable>
+                                </configuration>
+                            </execution>
+                        </executions>
+
+                        <configuration>
+                            <includeProjectDependencies>true</includeProjectDependencies>
+                            <includePluginDependencies>true</includePluginDependencies>
+                            <executableDependency>
+                                <groupId>io.confluent</groupId>
+                                <artifactId>licenses</artifactId>
+                            </executableDependency>
+                        </configuration>
+                        <dependencies>
+                            <dependency>
+                                <groupId>io.confluent</groupId>
+                                <artifactId>licenses</artifactId>
+                                <version>${io.confluent.license-file-generator.version}</version>
+                            </dependency>
+                        </dependencies>
+                    </plugin>
+
+                    <plugin>
+                        <groupId>com.spotify</groupId>
+                        <artifactId>dockerfile-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>package</id>
+                                <goals>
+                                    <goal>build</goal>
+                                </goals>
+                                <configuration>
+                                    <buildArgs>
+                                        <ARTIFACT_ID>${project.artifactId}</ARTIFACT_ID>
+                                        <BUILD_NUMBER>${BUILD_NUMBER}</BUILD_NUMBER>
+                                        <DOCKER_REGISTRY>${docker.registry}</DOCKER_REGISTRY>
+                                        <DOCKER_TAG>${docker.tag}</DOCKER_TAG>
+                                        <DOCKER_UPSTREAM_REGISTRY>${docker.upstream-registry}</DOCKER_UPSTREAM_REGISTRY>
+                                        <DOCKER_UPSTREAM_TAG>${docker.upstream-tag}</DOCKER_UPSTREAM_TAG>
+                                        <GIT_COMMIT>${GIT_COMMIT}</GIT_COMMIT>
+                                        <PROJECT_VERSION>${project.version}</PROJECT_VERSION>
+                                        <SCALA_VERSION>${kafka.scala.version}</SCALA_VERSION>
+                                    </buildArgs>
+                                    <skip>${docker.skip-build}</skip>
+                                    <tag>${docker.tag}</tag>
+                                    <repository>${docker.registry}confluentinc/${project.artifactId}</repository>
+                                    <pullNewerImage>${docker.pull-image}</pullNewerImage>
+                                    <dockerfile>${docker.file}</dockerfile>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 </project>
 

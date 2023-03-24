@@ -9,12 +9,6 @@
 
   <modelVersion>4.0.0</modelVersion>
 
-  <parent>
-    <artifactId>common</artifactId>
-    <groupId>io.confluent</groupId>
-    <version>6.0.0</version>
-  </parent>
-
   <scm>
     <connection>scm:git:git://github.com:confluentinc/csid-jms-bridge.git</connection>
     <developerConnection>scm:git:git@github.com:confluentinc/csid-jms-bridge.git
@@ -22,7 +16,6 @@
     <url>https://github.com/confluentinc/csid-jms-bridge</url>
     <tag>v3.3.0</tag>
   </scm>
-
 
   <modules>
     <module>jms-bridge-docker</module>
@@ -33,6 +26,35 @@
     <module>jms-bridge-integration-tests</module>
     -->
   </modules>
+
+  <properties>
+    <activemq.version>2.13.0</activemq.version>
+    <airline.version>2.8.0</airline.version>
+    <aws-maven.version>5.0.0.RELEASE</aws-maven.version>
+    <compile.warnings-flag>-Werror</compile.warnings-flag>
+    <freebuilder.version>2.6.0</freebuilder.version>
+    <git-commit-id-plugin.version>2.2.6</git-commit-id-plugin.version>
+    <guava.version>29.0-jre</guava.version>
+    <kafka.version>2.5.0</kafka.version>
+    <log4j.version>2.17.0</log4j.version>
+    <maven.deploy.skip>true</maven.deploy.skip>
+    <maven-compiler-plugin.version>3.10.0</maven-compiler-plugin.version>
+    <maven-release-plugin.version>3.0.0-M6</maven-release-plugin.version>
+    <maven-dependency-plugin.version>3.3.0</maven-dependency-plugin.version>
+    <mockito.version>3.3.3</mockito.version>
+    <myjunit.version>5.6.2</myjunit.version>
+    <protobuf.version>3.12.2</protobuf.version>
+    <release.artifact>
+      ${project.build.directory}/${project.artifactId}-${project.version}-package.zip
+    </release.artifact>
+    <release.repositoryId>confluentinc/csid-jms-bridge</release.repositoryId>
+    <skip.docker.build>true</skip.docker.build>
+    <skip.docker.test>true</skip.docker.test>
+    <slf4j.api.version>2.0.7</slf4j.api.version>
+    <spotbugs.version>4.7.3</spotbugs.version>
+    <spotbugs.maven.plugin.version>4.7.1.0</spotbugs.maven.plugin.version>
+    <testcontainers.version>1.16.0</testcontainers.version>
+  </properties>
 
   <profiles>
     <profile>
@@ -69,18 +91,28 @@
 			<extension>
 				<groupId>org.springframework.build</groupId>
 				<artifactId>aws-maven</artifactId>
-				<version>5.0.0.RELEASE</version>
+				<version>${aws-maven.version}</version>
 			</extension>
 		</extensions>
     <plugins>
       <plugin>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>${maven-compiler-plugin.version}</version>
+        <configuration>
+          <source>1.8</source>
+          <target>1.8</target>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>com.github.spotbugs</groupId>
         <artifactId>spotbugs-maven-plugin</artifactId>
+        <version>${spotbugs.maven.plugin.version}</version>
         <configuration>
           <effort>Max</effort>
           <excludeFilterFile>${project.basedir}/../findbugs/findbugs-exclude.xml</excludeFilterFile>
           <failOnError>true</failOnError>
           <includeTests>true</includeTests>
-          <threshold>Max</threshold>
+          <threshold>High</threshold>
           <xmlOutput>true</xmlOutput>
         </configuration>
         <executions>
@@ -95,7 +127,6 @@
             <phase>compile</phase>
           </execution>
         </executions>
-        <groupId>com.github.spotbugs</groupId>
       </plugin>
 
       <plugin>
@@ -134,7 +165,7 @@
               <file>jms-bridge-tests/test-lib/integration-tests-2.13.0-tests.jar</file>
               <groupId>org.apache.activemq</groupId>
               <artifactId>integration-tests</artifactId>
-              <version>2.13.0</version>
+              <version>${activemq.version}</version>
               <packaging>test-jar</packaging>
             </configuration>
           </execution>
@@ -149,7 +180,7 @@
               <file>jms-bridge-tests/test-lib/unit-tests-2.13.0-tests.jar</file>
               <groupId>org.apache.activemq</groupId>
               <artifactId>unit-tests</artifactId>
-              <version>2.13.0</version>
+              <version>${activemq.version}</version>
               <packaging>test-jar</packaging>
             </configuration>
           </execution>
@@ -164,7 +195,7 @@
               <file>jms-bridge-tests/test-lib/artemis-test-support-2.13.0.jar</file>
               <groupId>org.apache.activemq</groupId>
               <artifactId>artemis-test-support</artifactId>
-              <version>2.13.0</version>
+              <version>${activemq.version}</version>
               <packaging>jar</packaging>
             </configuration>
           </execution>
@@ -174,7 +205,7 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-release-plugin</artifactId>
-        <version>3.0.0-M6</version>
+        <version>${maven-release-plugin.version}</version>
         <configuration>
           <tagNameFormat>v@{project.version}</tagNameFormat>
           <autoVersionSubmodules>true</autoVersionSubmodules>
@@ -184,12 +215,11 @@
         </configuration>
       </plugin>
 
- 
       <plugin>
-				<groupId>org.apache.maven.plugins</groupId>
-				<artifactId>maven-dependency-plugin</artifactId>
-				<version>3.3.0</version>
-			</plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-dependency-plugin</artifactId>
+          <version>${maven-dependency-plugin.version}</version>
+      </plugin>
     </plugins>
   </build>
 
@@ -203,13 +233,13 @@
       <dependency>
         <groupId>org.inferred</groupId>
         <artifactId>freebuilder</artifactId>
-        <version>2.6.0</version>
+        <version>${freebuilder.version}</version>
         <optional>true</optional>
       </dependency>
       <dependency>
         <groupId>com.google.guava</groupId>
         <artifactId>guava</artifactId>
-        <version>29.0-jre</version>
+        <version>${guava.version}</version>
       </dependency>
       <dependency>
         <groupId>com.github.spotbugs</groupId>
@@ -222,7 +252,7 @@
       <dependency>
         <artifactId>slf4j-api</artifactId>
         <groupId>org.slf4j</groupId>
-        <version>${slf4j-api.version}</version>
+        <version>${slf4j.api.version}</version>
       </dependency>
       <dependency>
         <groupId>org.apache.logging.log4j</groupId>
@@ -271,6 +301,11 @@
         <groupId>org.apache.activemq</groupId>
         <artifactId>artemis-amqp-protocol</artifactId>
         <version>${activemq.version}</version>
+      </dependency>
+      <dependency>
+        <artifactId>slf4j-api</artifactId>
+        <groupId>org.slf4j</groupId>
+        <version>${slf4j.api.version}</version>
       </dependency>
 
 
@@ -357,26 +392,4 @@
       </dependency>
     </dependencies>
   </dependencyManagement>
-
-
-  <properties>
-    <activemq.version>2.13.0</activemq.version>
-    <airline.version>2.8.0</airline.version>
-    <compile.warnings-flag>-Werror</compile.warnings-flag>
-    <git-commit-id-plugin.version>2.2.6</git-commit-id-plugin.version>
-    <kafka.version>2.5.0</kafka.version>
-    <log4j.version>2.17.0</log4j.version>
-    <maven.deploy.skip>true</maven.deploy.skip>
-    <mockito.version>3.3.3</mockito.version>
-    <myjunit.version>5.6.2</myjunit.version>
-    <protobuf.version>3.12.2</protobuf.version>
-    <testcontainers.version>1.16.0</testcontainers.version>
-    <release.artifact>
-      ${project.build.directory}/${project.artifactId}-${project.version}-package.zip
-    </release.artifact>
-    <release.repositoryId>confluentinc/csid-jms-bridge</release.repositoryId>
-    <skip.docker.build>true</skip.docker.build>
-    <skip.docker.test>true</skip.docker.test>
-  </properties>
-
 </project>
