@@ -6,6 +6,8 @@ package io.confluent.amq.logging;
 
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import org.inferred.freebuilder.FreeBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -158,6 +160,7 @@ public interface StructuredLogger {
     SlogHelper.logIterable(this, logger()::error, items, logSpec);
   }
 
+  @SuppressFBWarnings(value = {"UPM_UNCALLED_PRIVATE_METHOD"})
   class SlogHelper {
 
     private SlogHelper() {

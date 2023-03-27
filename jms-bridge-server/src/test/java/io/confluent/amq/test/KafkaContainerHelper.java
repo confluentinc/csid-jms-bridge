@@ -62,6 +62,7 @@ public class KafkaContainerHelper {
   private AdminHelper adminHelper;
   private KafkaProducer<byte[], byte[]> producer;
   private KafkaIO kafkaIO;
+  private boolean initComplete = false;
 
   public KafkaContainerHelper(
       KafkaContainer kafkaContainer) {
@@ -86,19 +87,26 @@ public class KafkaContainerHelper {
     this.tempTopics = new LinkedList<>();
     this.baseProps = new Properties();
 
-    this.addBaseProp(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaContainer.getBootstrapServers())
-        .addBaseProp(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false")
-        .addBaseProp(ConsumerConfig.GROUP_ID_CONFIG,
-            "kafka-test-container-" + sequence.getAndIncrement())
-        .addBaseProp(ConsumerConfig.EXCLUDE_INTERNAL_TOPICS_CONFIG, "false");
+    kafkaContainer.start();
+  }
 
-    if (adminClient == null) {
-      AdminClient client = AdminClient.create(baseProps);
-      Runtime.getRuntime().addShutdownHook(new Thread(client::close));
-      this.adminClient = client;
+  private synchronized void init() {
+    if (!initComplete) {
+      this.addBaseProp(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaContainer.getBootstrapServers())
+          .addBaseProp(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false")
+          .addBaseProp(ConsumerConfig.GROUP_ID_CONFIG,
+              "kafka-test-container-" + sequence.getAndIncrement())
+          .addBaseProp(ConsumerConfig.EXCLUDE_INTERNAL_TOPICS_CONFIG, "false");
+
+      if (adminClient == null) {
+        AdminClient client = AdminClient.create(baseProps);
+        Runtime.getRuntime().addShutdownHook(new Thread(client::close));
+        this.adminClient = client;
+      }
+
+      adminHelper = new AdminHelper(this.adminClient, sequence);
+      initComplete = true;
     }
-
-    adminHelper = new AdminHelper(this.adminClient, sequence);
   }
 
   public KafkaContainerHelper addBaseProp(String propName, String propVal) {
@@ -111,11 +119,13 @@ public class KafkaContainerHelper {
   }
 
   public AdminHelper adminHelper() {
+    init();
     return adminHelper;
   }
 
   public <K, V> ProducerHelper<K, V> producerHelper(Serializer<K> keySer, Serializer<V> valSer) {
 
+    init();
     KafkaProducer<K, V> producer = new KafkaProducer<>(this.baseProps, keySer, valSer);
     ProducerHelper<K, V> helper = new ProducerHelper<>(producer);
     clients.add(helper);
@@ -125,6 +135,7 @@ public class KafkaContainerHelper {
   public <K, V> ConsumerHelper<K, V> consumerHelper(
       Deserializer<K> keyDeser, Deserializer<V> valDeser) {
 
+    init();
     KafkaConsumer<K, V> kafkaConsumer = new KafkaConsumer<>(this.baseProps, keyDeser, valDeser);
     ConsumerHelper<K, V> helper = new ConsumerHelper<>(kafkaConsumer);
     clients.add(helper);

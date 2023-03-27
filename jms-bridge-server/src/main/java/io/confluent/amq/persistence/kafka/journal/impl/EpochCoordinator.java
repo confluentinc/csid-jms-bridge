@@ -86,7 +86,9 @@ public class EpochCoordinator implements
   public void configure(Map<String, ?> configs) {
     try {
       String delegateClass = configs.get(DELEGATE_CONFIG_KEY).toString();
-      assignorDelegate = (ConsumerPartitionAssignor) Class.forName(delegateClass).newInstance();
+      assignorDelegate =
+          (ConsumerPartitionAssignor) Class.forName(delegateClass)
+              .getDeclaredConstructor().newInstance();
       if (assignorDelegate instanceof Configurable) {
         ((Configurable) assignorDelegate).configure(configs);
       }

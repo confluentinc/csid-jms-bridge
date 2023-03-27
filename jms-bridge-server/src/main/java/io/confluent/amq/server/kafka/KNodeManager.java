@@ -7,9 +7,6 @@ package io.confluent.amq.server.kafka;
 import io.confluent.amq.JmsBridgeConfiguration;
 import io.confluent.amq.logging.StructuredLogger;
 import io.confluent.amq.persistence.kafka.KafkaIntegration;
-import java.io.File;
-import java.io.IOException;
-import org.apache.activemq.artemis.api.core.ActiveMQIllegalStateException;
 import org.apache.activemq.artemis.api.core.SimpleString;
 import org.apache.activemq.artemis.core.server.ActivateCallback;
 import org.apache.activemq.artemis.core.server.NodeManager;
@@ -29,22 +26,15 @@ public class KNodeManager extends NodeManager {
   private final KafkaIntegration kafkaIntegration;
 
   private volatile State state = State.NOT_STARTED;
-  private volatile boolean interrupted = false;
 
   public long failoverPause = 0L;
 
   public KNodeManager(
-      JmsBridgeConfiguration config, KafkaIntegration kafkaIntegration, boolean replicatedBackup) {
-    this(config, kafkaIntegration, replicatedBackup, null);
-  }
-
-  public KNodeManager(
       JmsBridgeConfiguration config,
       KafkaIntegration kafkaIntegration,
-      boolean replicatedBackup,
-      File directory) {
+      boolean replicatedBackup) {
 
-    super(replicatedBackup, directory);
+    super(replicatedBackup);
     setUUID(kafkaIntegration.getNodeUuid());
     this.kafkaIntegration = kafkaIntegration;
     this.config = config;
@@ -63,37 +53,44 @@ public class KNodeManager extends NodeManager {
     SLOG.info(b -> b.event("StoppedNodeManager"));
   }
 
-  private void checkInterrupted() throws InterruptedException {
-    if (this.interrupted) {
-      interrupted = false;
-      throw new InterruptedException("KNodeManager was interrupted");
-    }
-  }
-
   @Override
-  public void awaitLiveNode() throws Exception {
+  public void awaitLiveNode() {
     SLOG.info(b -> b.event("AwaitLiveNode"));
-    kafkaIntegration.waitForProcessorObtainPartition();
+
+    try {
+      kafkaIntegration.waitForProcessorObtainPartition();
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
+
     if (failoverPause > 0L) {
-      Thread.sleep(failoverPause);
+      try {
+        Thread.sleep(failoverPause);
+      } catch (Exception e) {
+        throw new RuntimeException(e);
+      }
     }
   }
 
   @Override
-  public void awaitLiveStatus() throws Exception {
+  public void awaitLiveStatus() {
     SLOG.info(b -> b.event("AwaitLiveStatus"));
     while (state != State.LIVE) {
-      Thread.sleep(10);
+      try {
+        Thread.sleep(10);
+      } catch (Exception e) {
+        throw new RuntimeException(e);
+      }
     }
   }
 
   @Override
-  public void startBackup() throws Exception {
+  public void startBackup() {
     SLOG.info(b -> b.event("StartBackup"));
   }
 
   @Override
-  public ActivateCallback startLiveNode() throws Exception {
+  public ActivateCallback startLiveNode() {
     SLOG.info(
         b -> b.event("StartLiveNode"));
     state = State.FAILING_BACK;
@@ -111,27 +108,35 @@ public class KNodeManager extends NodeManager {
   }
 
   @Override
-  public void pauseLiveServer() throws Exception {
+  public void pauseLiveServer() {
     state = State.PAUSED;
     SLOG.info(b -> b.event("PauseLiveServer"));
-    kafkaIntegration.stopProcessor();
+    try {
+      kafkaIntegration.stopProcessor();
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
   }
 
   @Override
-  public void crashLiveServer() throws Exception {
+  public void crashLiveServer() {
     SLOG.info(b -> b.event("CrashLiveServer"));
-    kafkaIntegration.stopProcessor();
+    try {
+      kafkaIntegration.stopProcessor();
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
   }
 
   @Override
-  public boolean isAwaitingFailback() throws Exception {
+  public boolean isAwaitingFailback() {
     SLOG.info(
         b -> b.event("IsAwaitingFallback"));
     return state == State.FAILING_BACK;
   }
 
   @Override
-  public boolean isBackupLive() throws Exception {
+  public boolean isBackupLive() {
     ConsumerGroupDescription groupDescription = kafkaIntegration.getKafkaIO()
         .describeConsumerGroup(kafkaIntegration.getApplicationId());
     boolean isLive = groupDescription.members().size() > 1;
@@ -139,13 +144,12 @@ public class KNodeManager extends NodeManager {
     return isLive;
   }
 
-  @Override
   public void interrupt() {
-    this.interrupted = true;
+    //
   }
 
   @Override
-  public void releaseBackup() throws Exception {
+  public void releaseBackup() {
     //
   }
 
@@ -155,7 +159,7 @@ public class KNodeManager extends NodeManager {
   }
 
   @Override
-  public SimpleString readNodeId() throws ActiveMQIllegalStateException, IOException {
+  public SimpleString readNodeId() {
     return getNodeId();
   }
 }

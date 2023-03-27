@@ -178,7 +178,7 @@ public class ConfluentAmqServerImpl extends ActiveMQServerImpl implements Conflu
         throw new IllegalArgumentException(
             "replicating backup is not necessary while using kafka persistence");
       }
-      manager = createKNodeManager(configuration, replicatingBackup, directory);
+      manager = createKNodeManager(configuration, replicatingBackup);
 
     } else if (haType == null || haType == HAPolicyConfiguration.TYPE.LIVE_ONLY) {
 
@@ -187,7 +187,7 @@ public class ConfluentAmqServerImpl extends ActiveMQServerImpl implements Conflu
           .message("Detected no Shared Store HA options on Kafka store"));
 
       //LIVE_ONLY should be the default HA option when HA isn't configured
-      manager = createKNodeManager(configuration, replicatingBackup, directory);
+      manager = createKNodeManager(configuration, replicatingBackup);
 
     } else {
       SLOG.error(b -> b
@@ -201,9 +201,9 @@ public class ConfluentAmqServerImpl extends ActiveMQServerImpl implements Conflu
   }
 
   private NodeManager createKNodeManager(
-      JmsBridgeConfiguration jmsBridgeConfiguration, boolean replicatedBackup, File dir) {
+      JmsBridgeConfiguration jmsBridgeConfiguration, boolean replicatedBackup) {
 
-    return new KNodeManager(jmsBridgeConfiguration, kafkaIntegration, replicatedBackup, dir);
+    return new KNodeManager(jmsBridgeConfiguration, kafkaIntegration, replicatedBackup);
   }
 
   @Override
@@ -215,8 +215,7 @@ public class ConfluentAmqServerImpl extends ActiveMQServerImpl implements Conflu
         getCriticalAnalyzer(),
         executorFactory,
         scheduledPool,
-        ioExecutorFactory,
-        shutdownOnCriticalIO);
+        ioExecutorFactory);
 
     this.getCriticalAnalyzer().add(journal);
     return journal;

@@ -4,7 +4,9 @@
 
 package io.confluent.amq;
 
+import java.io.File;
 import java.util.Collection;
+import java.util.Date;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
@@ -13,6 +15,10 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import javax.management.MBeanServer;
+
+import io.confluent.amq.config.BridgeConfig;
+import io.confluent.amq.exchange.KafkaExchangeManager;
+import io.confluent.amq.persistence.kafka.KafkaIntegration;
 import org.apache.activemq.artemis.api.core.ActiveMQException;
 import org.apache.activemq.artemis.api.core.QueueConfiguration;
 import org.apache.activemq.artemis.api.core.RoutingType;
@@ -21,13 +27,13 @@ import org.apache.activemq.artemis.core.config.BridgeConfiguration;
 import org.apache.activemq.artemis.core.config.Configuration;
 import org.apache.activemq.artemis.core.config.DivertConfiguration;
 import org.apache.activemq.artemis.core.config.FederationConfiguration;
+import org.apache.activemq.artemis.core.io.IOCriticalErrorListener;
 import org.apache.activemq.artemis.core.management.impl.ActiveMQServerControlImpl;
 import org.apache.activemq.artemis.core.paging.PagingManager;
 import org.apache.activemq.artemis.core.persistence.OperationContext;
 import org.apache.activemq.artemis.core.persistence.StorageManager;
 import org.apache.activemq.artemis.core.postoffice.PostOffice;
 import org.apache.activemq.artemis.core.remoting.server.RemotingService;
-import org.apache.activemq.artemis.core.replication.ReplicationEndpoint;
 import org.apache.activemq.artemis.core.replication.ReplicationManager;
 import org.apache.activemq.artemis.core.security.Role;
 import org.apache.activemq.artemis.core.security.SecurityAuth;
@@ -38,6 +44,9 @@ import org.apache.activemq.artemis.core.server.ActiveMQComponent;
 import org.apache.activemq.artemis.core.server.ActiveMQServer;
 import org.apache.activemq.artemis.core.server.AddressQueryResult;
 import org.apache.activemq.artemis.core.server.BindingQueryResult;
+import org.apache.activemq.artemis.core.server.BrokerConnection;
+import org.apache.activemq.artemis.core.server.Divert;
+import org.apache.activemq.artemis.core.server.MessageReference;
 import org.apache.activemq.artemis.core.server.NetworkHealthCheck;
 import org.apache.activemq.artemis.core.server.NodeManager;
 import org.apache.activemq.artemis.core.server.PostQueueCreationCallback;
@@ -45,6 +54,7 @@ import org.apache.activemq.artemis.core.server.PostQueueDeletionCallback;
 import org.apache.activemq.artemis.core.server.Queue;
 import org.apache.activemq.artemis.core.server.QueueFactory;
 import org.apache.activemq.artemis.core.server.QueueQueryResult;
+import org.apache.activemq.artemis.core.server.ServerConsumer;
 import org.apache.activemq.artemis.core.server.ServerSession;
 import org.apache.activemq.artemis.core.server.ServiceRegistry;
 import org.apache.activemq.artemis.core.server.cluster.BackupManager;
@@ -60,6 +70,7 @@ import org.apache.activemq.artemis.core.server.impl.ConnectorsService;
 import org.apache.activemq.artemis.core.server.impl.SharedNothingLiveActivation;
 import org.apache.activemq.artemis.core.server.management.ManagementService;
 import org.apache.activemq.artemis.core.server.metrics.MetricsManager;
+import org.apache.activemq.artemis.core.server.mirror.MirrorController;
 import org.apache.activemq.artemis.core.server.plugin.ActiveMQPluginRunnable;
 import org.apache.activemq.artemis.core.server.plugin.ActiveMQServerAddressPlugin;
 import org.apache.activemq.artemis.core.server.plugin.ActiveMQServerBasePlugin;
@@ -71,8 +82,10 @@ import org.apache.activemq.artemis.core.server.plugin.ActiveMQServerCriticalPlug
 import org.apache.activemq.artemis.core.server.plugin.ActiveMQServerFederationPlugin;
 import org.apache.activemq.artemis.core.server.plugin.ActiveMQServerMessagePlugin;
 import org.apache.activemq.artemis.core.server.plugin.ActiveMQServerQueuePlugin;
+import org.apache.activemq.artemis.core.server.plugin.ActiveMQServerResourcePlugin;
 import org.apache.activemq.artemis.core.server.plugin.ActiveMQServerSessionPlugin;
 import org.apache.activemq.artemis.core.server.reload.ReloadManager;
+import org.apache.activemq.artemis.core.server.routing.ConnectionRouterManager;
 import org.apache.activemq.artemis.core.settings.HierarchicalRepository;
 import org.apache.activemq.artemis.core.settings.impl.AddressSettings;
 import org.apache.activemq.artemis.core.transaction.ResourceManager;
@@ -98,43 +111,103 @@ public class DelegatingConfluentAmqServer implements ActiveMQServer {
   }
 
   public DelegatingConfluentAmqServer(final JmsBridgeConfiguration configuration,
-      final ActiveMQServer parentServer) {
+                                      final ActiveMQServer parentServer) {
     confluentAmqServer = new ConfluentAmqServerImpl(configuration, parentServer);
   }
 
   public DelegatingConfluentAmqServer(final JmsBridgeConfiguration configuration,
-      final MBeanServer mbeanServer) {
+                                      final MBeanServer mbeanServer) {
     confluentAmqServer = new ConfluentAmqServerImpl(configuration, mbeanServer);
   }
 
   public DelegatingConfluentAmqServer(final JmsBridgeConfiguration configuration,
-      final ActiveMQSecurityManager securityManager) {
+                                      final ActiveMQSecurityManager securityManager) {
     confluentAmqServer = new ConfluentAmqServerImpl(configuration, securityManager);
   }
 
   public DelegatingConfluentAmqServer(final JmsBridgeConfiguration configuration,
-      final MBeanServer mbeanServer,
-      final ActiveMQSecurityManager securityManager) {
+                                      final MBeanServer mbeanServer,
+                                      final ActiveMQSecurityManager securityManager) {
     confluentAmqServer = new ConfluentAmqServerImpl(configuration, mbeanServer, securityManager);
   }
 
   public DelegatingConfluentAmqServer(final JmsBridgeConfiguration configuration,
-      final MBeanServer mbeanServer,
-      final ActiveMQSecurityManager securityManager, final ActiveMQServer parentServer) {
+                                      final MBeanServer mbeanServer,
+                                      final ActiveMQSecurityManager securityManager,
+                                      final ActiveMQServer parentServer) {
     confluentAmqServer = new ConfluentAmqServerImpl(configuration, mbeanServer, securityManager,
         parentServer);
   }
 
   public DelegatingConfluentAmqServer(final JmsBridgeConfiguration configuration,
-      final MBeanServer mbeanServer,
-      final ActiveMQSecurityManager securityManager, final ActiveMQServer parentServer,
-      final ServiceRegistry serviceRegistry) {
+                                      final MBeanServer mbeanServer,
+                                      final ActiveMQSecurityManager securityManager,
+                                      final ActiveMQServer parentServer,
+                                      final ServiceRegistry serviceRegistry) {
     confluentAmqServer = new ConfluentAmqServerImpl(configuration, mbeanServer, securityManager,
         parentServer, serviceRegistry);
   }
 
   public ConfluentAmqServer unwrap() {
     return confluentAmqServer;
+  }
+
+  public KafkaExchangeManager getKafkaExchangeManager() {
+    return confluentAmqServer.getKafkaExchangeManager();
+  }
+
+  public KafkaIntegration getKafkaIntegration() {
+    return confluentAmqServer.getKafkaIntegration();
+  }
+
+  public void doStop(boolean failoverOnServerShutdown, boolean isExit) throws Exception {
+    confluentAmqServer.doStop(failoverOnServerShutdown, isExit);
+  }
+
+  public BridgeConfig getBridgeConfig() {
+    return confluentAmqServer.getBridgeConfig();
+  }
+
+
+  public void doStopTheServer(boolean criticalIOError) {
+    confluentAmqServer.doStopTheServer(criticalIOError);
+  }
+
+  public void doFail(boolean failoverOnServerShutdown) throws Exception {
+    confluentAmqServer.doFail(failoverOnServerShutdown);
+  }
+
+  public void doStart() throws Exception {
+    confluentAmqServer.doStart();
+  }
+
+  public NodeManager createNodeManager(File directory, boolean replicatingBackup) {
+    return confluentAmqServer.createNodeManager(directory, replicatingBackup);
+  }
+
+  public StorageManager createStorageManager() {
+    return confluentAmqServer.createStorageManager();
+  }
+
+  public void resetNodeManager() throws Exception {
+    confluentAmqServer.resetNodeManager();
+  }
+
+  public void reloadNetworkHealthCheck() {
+    confluentAmqServer.reloadNetworkHealthCheck();
+  }
+
+  public String getRuntimeTempQueueNamespace(boolean temporary) {
+    return confluentAmqServer.getRuntimeTempQueueNamespace(temporary);
+  }
+
+  public void checkJournalDirectory() {
+    confluentAmqServer.checkJournalDirectory();
+  }
+
+  @Override
+  public AutoCloseable managementLock() throws Exception {
+    return confluentAmqServer.managementLock();
   }
 
   /**
@@ -166,6 +239,10 @@ public class DelegatingConfluentAmqServer implements ActiveMQServer {
   @Override
   public void stop(boolean failoverOnServerShutdown, boolean isExit) throws Exception {
     confluentAmqServer.doStop(failoverOnServerShutdown, isExit);
+  }
+
+  public void stop(boolean failoverOnServerShutdown, boolean criticalIOError, boolean restarting) {
+    confluentAmqServer.stop(failoverOnServerShutdown, criticalIOError, restarting);
   }
 
   @Override
@@ -210,8 +287,8 @@ public class DelegatingConfluentAmqServer implements ActiveMQServer {
   }
 
   @Override
-  public ReplicationEndpoint getReplicationEndpoint() {
-    return confluentAmqServer.getReplicationEndpoint();
+  public void updateStatus(String s, String s1) {
+
   }
 
   @Override
@@ -227,6 +304,48 @@ public class DelegatingConfluentAmqServer implements ActiveMQServer {
   public void interruptActivationThread(
       NodeManager nodeManagerInUse) throws InterruptedException {
     confluentAmqServer.interruptActivationThread(nodeManagerInUse);
+  }
+
+  @Override
+  public ServerSession createSession(String name, String username, String password,
+                                     int minLargeMessageSize, RemotingConnection connection,
+                                     boolean autoCommitSends, boolean autoCommitAcks,
+                                     boolean preAcknowledge, boolean xa, String defaultAddress,
+                                     SessionCallback callback, boolean autoCreateQueues,
+                                     OperationContext context,
+                                     Map<SimpleString, RoutingType> prefixes, String securityDomain,
+                                     String validatedUser, boolean isLegacyProducer)
+      throws Exception {
+
+    return confluentAmqServer.createSession(name, username, password, minLargeMessageSize,
+        connection, autoCommitSends, autoCommitAcks, preAcknowledge, xa, defaultAddress, callback,
+        autoCreateQueues, context, prefixes, securityDomain, validatedUser, isLegacyProducer);
+  }
+
+  @Override
+  public ServerSession createInternalSession(String name, int minLargeMessageSize,
+                                             RemotingConnection remotingConnection,
+                                             boolean autoCommitSends, boolean autoCommitAcks,
+                                             boolean preAcknowledge,
+                                             boolean xa, String defaultAddress,
+                                             SessionCallback sessionCallback,
+                                             boolean autoCreateQueue,
+                                             OperationContext operationContext, Map<SimpleString,
+      RoutingType> prefixes, String securityDomain, boolean isLegacyProducer) throws Exception {
+
+    return confluentAmqServer.createInternalSession(name, minLargeMessageSize, remotingConnection,
+        autoCommitSends, autoCommitAcks, preAcknowledge, xa, defaultAddress, sessionCallback,
+        autoCreateQueue, operationContext, prefixes, securityDomain, isLegacyProducer);
+  }
+
+  @Override
+  public boolean isRebuildCounters() {
+    return false;
+  }
+
+  @Override
+  public void setRebuildCounters(boolean b) {
+
   }
 
   @Override
@@ -251,9 +370,20 @@ public class DelegatingConfluentAmqServer implements ActiveMQServer {
   }
 
   @Override
-  public void addExternalComponent(
-      ActiveMQComponent externalComponent) {
-    confluentAmqServer.addExternalComponent(externalComponent);
+  public MBeanServer getMBeanServer() {
+    return null;
+  }
+
+  @Override
+  public void setSecurityManager(ActiveMQSecurityManager activeMQSecurityManager) {
+
+  }
+
+  @Override
+  public void addExternalComponent(ActiveMQComponent externalComponent, boolean start)
+      throws Exception {
+
+    confluentAmqServer.addExternalComponent(externalComponent, start);
   }
 
   @Override
@@ -266,6 +396,9 @@ public class DelegatingConfluentAmqServer implements ActiveMQServer {
     confluentAmqServer.setActivation(activation);
   }
 
+  public void setActivation(Activation activation) {
+    confluentAmqServer.setActivation(activation);
+  }
 
   @Override
   public void addActivationParam(String key, Object val) {
@@ -293,6 +426,26 @@ public class DelegatingConfluentAmqServer implements ActiveMQServer {
   @Override
   public void threadDump() {
     confluentAmqServer.threadDump();
+  }
+
+  @Override
+  public void registerBrokerConnection(BrokerConnection brokerConnection) {
+    confluentAmqServer.registerBrokerConnection(brokerConnection);
+  }
+
+  @Override
+  public void startBrokerConnection(String name) throws Exception {
+    confluentAmqServer.startBrokerConnection(name);
+  }
+
+  @Override
+  public void stopBrokerConnection(String name) throws Exception {
+    confluentAmqServer.stopBrokerConnection(name);
+  }
+
+  @Override
+  public Collection<BrokerConnection> getBrokerConnections() {
+    return confluentAmqServer.getBrokerConnections();
   }
 
   @Override
@@ -333,6 +486,26 @@ public class DelegatingConfluentAmqServer implements ActiveMQServer {
   @Override
   public Configuration getConfiguration() {
     return confluentAmqServer.getConfiguration();
+  }
+
+  @Override
+  public void installMirrorController(MirrorController mirrorController) {
+    confluentAmqServer.installMirrorController(mirrorController);
+  }
+
+  @Override
+  public void scanAddresses(MirrorController mirrorController) throws Exception {
+    confluentAmqServer.scanAddresses(mirrorController);
+  }
+
+  @Override
+  public MirrorController getMirrorController() {
+    return confluentAmqServer.getMirrorController();
+  }
+
+  @Override
+  public void removeMirrorControl() {
+    confluentAmqServer.removeMirrorControl();
   }
 
   @Override
@@ -404,20 +577,6 @@ public class DelegatingConfluentAmqServer implements ActiveMQServer {
     return confluentAmqServer.getBackupManager();
   }
 
-  @Override
-  public ServerSession createSession(String name,
-      String username, String password, int minLargeMessageSize,
-      RemotingConnection connection,
-      boolean autoCommitSends, boolean autoCommitAcks, boolean preAcknowledge, boolean xa,
-      String defaultAddress, SessionCallback callback,
-      boolean autoCreateQueues, OperationContext context,
-      Map<SimpleString, RoutingType> prefixes,
-      String securityDomain) throws Exception {
-    return confluentAmqServer
-        .createSession(name, username, password, minLargeMessageSize, connection, autoCommitSends,
-            autoCommitAcks, preAcknowledge, xa, defaultAddress, callback, autoCreateQueues, context,
-            prefixes, securityDomain);
-  }
 
   @Override
   public void checkQueueCreationLimit(String username) throws Exception {
@@ -440,7 +599,7 @@ public class DelegatingConfluentAmqServer implements ActiveMQServer {
 
   @Override
   public ServerSession lookupSession(String key,
-      String value) {
+                                     String value) {
     return confluentAmqServer.lookupSession(key, value);
   }
 
@@ -519,19 +678,21 @@ public class DelegatingConfluentAmqServer implements ActiveMQServer {
   @Override
   @Deprecated
   public void createSharedQueue(SimpleString address,
-      RoutingType routingType,
-      SimpleString name, SimpleString filterString,
-      SimpleString user, boolean durable) throws Exception {
+                                RoutingType routingType,
+                                SimpleString name, SimpleString filterString,
+                                SimpleString user, boolean durable) throws Exception {
     confluentAmqServer.createSharedQueue(address, routingType, name, filterString, user, durable);
   }
 
   @Override
   @Deprecated
   public void createSharedQueue(SimpleString address,
-      RoutingType routingType,
-      SimpleString name, SimpleString filterString,
-      SimpleString user, boolean durable, int maxConsumers, boolean purgeOnNoConsumers,
-      boolean exclusive, boolean lastValue) throws Exception {
+                                RoutingType routingType,
+                                SimpleString name, SimpleString filterString,
+                                SimpleString user, boolean durable, int maxConsumers,
+                                boolean purgeOnNoConsumers, boolean exclusive, boolean lastValue)
+      throws Exception {
+
     confluentAmqServer
         .createSharedQueue(address, routingType, name, filterString, user, durable, maxConsumers,
             purgeOnNoConsumers, exclusive, lastValue);
@@ -540,13 +701,15 @@ public class DelegatingConfluentAmqServer implements ActiveMQServer {
   @Override
   @Deprecated
   public void createSharedQueue(SimpleString address,
-      RoutingType routingType,
-      SimpleString name, SimpleString filterString,
-      SimpleString user, boolean durable, int maxConsumers, boolean purgeOnNoConsumers,
-      boolean exclusive, boolean groupRebalance, int groupBuckets, boolean lastValue,
-      SimpleString lastValueKey, boolean nonDestructive, int consumersBeforeDispatch,
-      long delayBeforeDispatch, boolean autoDelete, long autoDeleteDelay,
-      long autoDeleteMessageCount) throws Exception {
+                                RoutingType routingType,
+                                SimpleString name, SimpleString filterString,
+                                SimpleString user, boolean durable, int maxConsumers,
+                                boolean purgeOnNoConsumers, boolean exclusive,
+                                boolean groupRebalance, int groupBuckets, boolean lastValue,
+                                SimpleString lastValueKey, boolean nonDestructive,
+                                int consumersBeforeDispatch, long delayBeforeDispatch,
+                                boolean autoDelete, long autoDeleteDelay,
+                                long autoDeleteMessageCount) throws Exception {
     confluentAmqServer
         .createSharedQueue(address, routingType, name, filterString, user, durable, maxConsumers,
             purgeOnNoConsumers, exclusive, groupRebalance, groupBuckets, lastValue, lastValueKey,
@@ -558,14 +721,16 @@ public class DelegatingConfluentAmqServer implements ActiveMQServer {
   @Override
   @Deprecated
   public void createSharedQueue(SimpleString address,
-      RoutingType routingType,
-      SimpleString name, SimpleString filterString,
-      SimpleString user, boolean durable, int maxConsumers, boolean purgeOnNoConsumers,
-      boolean exclusive, boolean groupRebalance, int groupBuckets,
-      SimpleString groupFirstKey, boolean lastValue,
-      SimpleString lastValueKey, boolean nonDestructive, int consumersBeforeDispatch,
-      long delayBeforeDispatch, boolean autoDelete, long autoDeleteDelay,
-      long autoDeleteMessageCount) throws Exception {
+                                RoutingType routingType,
+                                SimpleString name, SimpleString filterString,
+                                SimpleString user, boolean durable, int maxConsumers,
+                                boolean purgeOnNoConsumers, boolean exclusive,
+                                boolean groupRebalance, int groupBuckets,
+                                SimpleString groupFirstKey, boolean lastValue,
+                                SimpleString lastValueKey, boolean nonDestructive,
+                                int consumersBeforeDispatch, long delayBeforeDispatch,
+                                boolean autoDelete, long autoDeleteDelay,
+                                long autoDeleteMessageCount) throws Exception {
     confluentAmqServer
         .createSharedQueue(address, routingType, name, filterString, user, durable, maxConsumers,
             purgeOnNoConsumers, exclusive, groupRebalance, groupBuckets, groupFirstKey, lastValue,
@@ -591,17 +756,18 @@ public class DelegatingConfluentAmqServer implements ActiveMQServer {
 
   @Override
   @Deprecated
-  public Queue deployQueue(SimpleString address,
-      SimpleString resourceName, SimpleString filterString, boolean durable, boolean temporary)
+  public Queue deployQueue(SimpleString address, SimpleString resourceName,
+                           SimpleString filterString, boolean durable, boolean temporary)
       throws Exception {
+
     return confluentAmqServer.deployQueue(address, resourceName, filterString, durable, temporary);
   }
 
   @Override
   @Deprecated
   public Queue deployQueue(String address, String resourceName, String filterString,
-      boolean durable,
-      boolean temporary) throws Exception {
+                           boolean durable,
+                           boolean temporary) throws Exception {
     return confluentAmqServer.deployQueue(address, resourceName, filterString, durable, temporary);
   }
 
@@ -612,36 +778,37 @@ public class DelegatingConfluentAmqServer implements ActiveMQServer {
 
   @Override
   public void destroyQueue(SimpleString queueName,
-      SecurityAuth session) throws Exception {
+                           SecurityAuth session) throws Exception {
     confluentAmqServer.destroyQueue(queueName, session);
   }
 
   @Override
   public void destroyQueue(SimpleString queueName,
-      SecurityAuth session, boolean checkConsumerCount) throws Exception {
+                           SecurityAuth session, boolean checkConsumerCount) throws Exception {
     confluentAmqServer.destroyQueue(queueName, session, checkConsumerCount);
   }
 
   @Override
   public void destroyQueue(SimpleString queueName,
-      SecurityAuth session, boolean checkConsumerCount,
-      boolean removeConsumers) throws Exception {
+                           SecurityAuth session, boolean checkConsumerCount,
+                           boolean removeConsumers) throws Exception {
     confluentAmqServer.destroyQueue(queueName, session, checkConsumerCount, removeConsumers);
   }
 
   @Override
   public void destroyQueue(SimpleString queueName,
-      SecurityAuth session, boolean checkConsumerCount,
-      boolean removeConsumers, boolean autoDeleteAddress) throws Exception {
+                           SecurityAuth session, boolean checkConsumerCount,
+                           boolean removeConsumers, boolean autoDeleteAddress) throws Exception {
     confluentAmqServer
         .destroyQueue(queueName, session, checkConsumerCount, removeConsumers, autoDeleteAddress);
   }
 
   @Override
   public void destroyQueue(SimpleString queueName,
-      SecurityAuth session, boolean checkConsumerCount,
-      boolean removeConsumers, boolean autoDeleteAddress, boolean checkMessageCount)
-      throws Exception {
+                           SecurityAuth session, boolean checkConsumerCount,
+                           boolean removeConsumers, boolean autoDeleteAddress,
+                           boolean checkMessageCount) throws Exception {
+
     confluentAmqServer
         .destroyQueue(queueName, session, checkConsumerCount, removeConsumers, autoDeleteAddress,
             checkMessageCount);
@@ -668,6 +835,18 @@ public class DelegatingConfluentAmqServer implements ActiveMQServer {
   public void registerActivationFailureListener(
       ActivationFailureListener listener) {
     confluentAmqServer.registerActivationFailureListener(listener);
+  }
+
+  @Override
+  public void registerIOCriticalErrorListener(IOCriticalErrorListener ioCriticalErrorListener) {
+    confluentAmqServer.registerIOCriticalErrorListener(ioCriticalErrorListener);
+  }
+
+  @Override
+  public void replay(Date start, Date end, String address, String target, String filter)
+      throws Exception {
+
+    confluentAmqServer.replay(start, end, address, target, filter);
   }
 
   @Override
@@ -791,6 +970,11 @@ public class DelegatingConfluentAmqServer implements ActiveMQServer {
   }
 
   @Override
+  public List<ActiveMQServerResourcePlugin> getBrokerResourcePlugins() {
+    return confluentAmqServer.getBrokerResourcePlugins();
+  }
+
+  @Override
   public void callBrokerPlugins(
       ActiveMQPluginRunnable pluginRun) throws ActiveMQException {
     confluentAmqServer.callBrokerPlugins(pluginRun);
@@ -839,6 +1023,14 @@ public class DelegatingConfluentAmqServer implements ActiveMQServer {
   }
 
   @Override
+  public boolean callBrokerMessagePluginsCanAccept(ServerConsumer serverConsumer,
+                                                   MessageReference messageReference)
+      throws ActiveMQException {
+
+    return confluentAmqServer.callBrokerMessagePluginsCanAccept(serverConsumer, messageReference);
+  }
+
+  @Override
   public void callBrokerBridgePlugins(
       ActiveMQPluginRunnable<ActiveMQServerBridgePlugin> pluginRun) throws ActiveMQException {
     confluentAmqServer.callBrokerBridgePlugins(pluginRun);
@@ -854,6 +1046,14 @@ public class DelegatingConfluentAmqServer implements ActiveMQServer {
   public void callBrokerFederationPlugins(
       ActiveMQPluginRunnable<ActiveMQServerFederationPlugin> pluginRun) throws ActiveMQException {
     confluentAmqServer.callBrokerFederationPlugins(pluginRun);
+  }
+
+  @Override
+  public void callBrokerResourcePlugins(
+      ActiveMQPluginRunnable<ActiveMQServerResourcePlugin> activeMQPluginRunnable)
+      throws ActiveMQException {
+
+    confluentAmqServer.callBrokerResourcePlugins(activeMQPluginRunnable);
   }
 
   @Override
@@ -912,6 +1112,11 @@ public class DelegatingConfluentAmqServer implements ActiveMQServer {
   }
 
   @Override
+  public boolean hasBrokerResourcePlugins() {
+    return false;
+  }
+
+  @Override
   public ExecutorFactory getExecutorFactory() {
     return confluentAmqServer.getExecutorFactory();
   }
@@ -948,8 +1153,13 @@ public class DelegatingConfluentAmqServer implements ActiveMQServer {
   }
 
   @Override
-  public void deployDivert(DivertConfiguration config) throws Exception {
-    confluentAmqServer.deployDivert(config);
+  public Divert deployDivert(DivertConfiguration config) throws Exception {
+    return confluentAmqServer.deployDivert(config);
+  }
+
+  @Override
+  public Divert updateDivert(DivertConfiguration divertConfiguration) throws Exception {
+    return confluentAmqServer.updateDivert(divertConfiguration);
   }
 
   @Override
@@ -958,8 +1168,8 @@ public class DelegatingConfluentAmqServer implements ActiveMQServer {
   }
 
   @Override
-  public void deployBridge(BridgeConfiguration config) throws Exception {
-    confluentAmqServer.deployBridge(config);
+  public boolean deployBridge(BridgeConfiguration config) throws Exception {
+    return confluentAmqServer.deployBridge(config);
   }
 
   @Override
@@ -1011,20 +1221,20 @@ public class DelegatingConfluentAmqServer implements ActiveMQServer {
     return confluentAmqServer.getMonitor();
   }
 
-  public void completeActivation() throws Exception {
-    confluentAmqServer.completeActivation();
+  public void completeActivation(boolean replicated) throws Exception {
+    confluentAmqServer.completeActivation(replicated);
   }
 
   @Override
   public boolean updateAddressInfo(SimpleString address,
-      EnumSet<RoutingType> routingTypes) throws Exception {
+                                   EnumSet<RoutingType> routingTypes) throws Exception {
     return confluentAmqServer.updateAddressInfo(address, routingTypes);
   }
 
   @Override
   @Deprecated
   public boolean updateAddressInfo(SimpleString address,
-      Collection<RoutingType> routingTypes) throws Exception {
+                                   Collection<RoutingType> routingTypes) throws Exception {
     return confluentAmqServer.updateAddressInfo(address, routingTypes);
   }
 
@@ -1040,20 +1250,49 @@ public class DelegatingConfluentAmqServer implements ActiveMQServer {
   }
 
   @Override
+  public void autoRemoveAddressInfo(SimpleString address, SecurityAuth securityAuth)
+      throws Exception {
+
+    confluentAmqServer.autoRemoveAddressInfo(address, securityAuth);
+  }
+
+  @Override
   public void removeAddressInfo(SimpleString address,
-      SecurityAuth auth) throws Exception {
+                                SecurityAuth auth) throws Exception {
     confluentAmqServer.removeAddressInfo(address, auth);
   }
 
   @Override
   public void removeAddressInfo(SimpleString address,
-      SecurityAuth auth, boolean force) throws Exception {
+                                SecurityAuth auth, boolean force) throws Exception {
     confluentAmqServer.removeAddressInfo(address, auth, force);
   }
 
   @Override
   public String getInternalNamingPrefix() {
     return confluentAmqServer.getInternalNamingPrefix();
+  }
+
+  @Override
+  public double getDiskStoreUsage() {
+    return 0;
+  }
+
+  @Override
+  public void reloadConfigurationFile() throws Exception {
+    confluentAmqServer.reloadConfigurationFile();
+  }
+
+  @Override
+  public ConnectionRouterManager getConnectionRouterManager() {
+    return confluentAmqServer.getConnectionRouterManager();
+  }
+
+  @Override
+  public String validateUser(String s, String s1, RemotingConnection remotingConnection, String s2)
+      throws Exception {
+
+    return confluentAmqServer.validateUser(s, s1, remotingConnection, s2);
   }
 
   @Override
@@ -1083,30 +1322,31 @@ public class DelegatingConfluentAmqServer implements ActiveMQServer {
 
   @Override
   @Deprecated
-  public Queue createQueue(SimpleString address,
-      RoutingType routingType,
-      SimpleString queueName, SimpleString filterString, boolean durable, boolean temporary)
+  public Queue createQueue(SimpleString address, RoutingType routingType, SimpleString queueName,
+                           SimpleString filterString, boolean durable, boolean temporary)
       throws Exception {
+
     return confluentAmqServer
         .createQueue(address, routingType, queueName, filterString, durable, temporary);
   }
 
   @Override
   @Deprecated
-  public Queue createQueue(SimpleString address,
-      RoutingType routingType,
-      SimpleString queueName, SimpleString user,
-      SimpleString filterString, boolean durable, boolean temporary) throws Exception {
+  public Queue createQueue(SimpleString address, RoutingType routingType, SimpleString queueName,
+                           SimpleString user, SimpleString filterString, boolean durable,
+                           boolean temporary) throws Exception {
+
     return confluentAmqServer
         .createQueue(address, routingType, queueName, user, filterString, durable, temporary);
   }
 
   @Override
   @Deprecated
-  public Queue createQueue(SimpleString address,
-      RoutingType routingType,
-      SimpleString queueName, SimpleString filter, boolean durable, boolean temporary,
-      int maxConsumers, boolean purgeOnNoConsumers, boolean autoCreateAddress) throws Exception {
+  public Queue createQueue(SimpleString address, RoutingType routingType, SimpleString queueName,
+                           SimpleString filter, boolean durable, boolean temporary,
+                           int maxConsumers, boolean purgeOnNoConsumers, boolean autoCreateAddress)
+      throws Exception {
+
     return confluentAmqServer
         .createQueue(address, routingType, queueName, filter, durable, temporary, maxConsumers,
             purgeOnNoConsumers, autoCreateAddress);
@@ -1114,15 +1354,15 @@ public class DelegatingConfluentAmqServer implements ActiveMQServer {
 
   @Override
   @Deprecated
-  public Queue createQueue(SimpleString address,
-      RoutingType routingType,
-      SimpleString queueName, SimpleString filter, boolean durable, boolean temporary,
-      int maxConsumers, boolean purgeOnNoConsumers, boolean exclusive, boolean groupRebalance,
-      int groupBuckets, boolean lastValue,
-      SimpleString lastValueKey, boolean nonDestructive, int consumersBeforeDispatch,
-      long delayBeforeDispatch, boolean autoDelete, long autoDeleteDelay,
-      long autoDeleteMessageCount,
-      boolean autoCreateAddress) throws Exception {
+  public Queue createQueue(SimpleString address, RoutingType routingType, SimpleString queueName,
+                           SimpleString filter, boolean durable, boolean temporary,
+                           int maxConsumers, boolean purgeOnNoConsumers, boolean exclusive,
+                           boolean groupRebalance, int groupBuckets, boolean lastValue,
+                           SimpleString lastValueKey, boolean nonDestructive,
+                           int consumersBeforeDispatch, long delayBeforeDispatch,
+                           boolean autoDelete, long autoDeleteDelay, long autoDeleteMessageCount,
+                           boolean autoCreateAddress) throws Exception {
+
     return confluentAmqServer
         .createQueue(address, routingType, queueName, filter, durable, temporary, maxConsumers,
             purgeOnNoConsumers, exclusive, groupRebalance, groupBuckets, lastValue, lastValueKey,
@@ -1133,15 +1373,15 @@ public class DelegatingConfluentAmqServer implements ActiveMQServer {
 
   @Override
   @Deprecated
-  public Queue createQueue(SimpleString address,
-      RoutingType routingType,
-      SimpleString queueName, SimpleString filter, boolean durable, boolean temporary,
-      int maxConsumers, boolean purgeOnNoConsumers, boolean exclusive, boolean groupRebalance,
-      int groupBuckets, SimpleString groupFirstKey, boolean lastValue,
-      SimpleString lastValueKey, boolean nonDestructive, int consumersBeforeDispatch,
-      long delayBeforeDispatch, boolean autoDelete, long autoDeleteDelay,
-      long autoDeleteMessageCount,
-      boolean autoCreateAddress) throws Exception {
+  public Queue createQueue(SimpleString address, RoutingType routingType, SimpleString queueName,
+                           SimpleString filter, boolean durable, boolean temporary,
+                           int maxConsumers, boolean purgeOnNoConsumers, boolean exclusive,
+                           boolean groupRebalance, int groupBuckets, SimpleString groupFirstKey,
+                           boolean lastValue, SimpleString lastValueKey, boolean nonDestructive,
+                           int consumersBeforeDispatch, long delayBeforeDispatch,
+                           boolean autoDelete, long autoDeleteDelay, long autoDeleteMessageCount,
+                           boolean autoCreateAddress) throws Exception {
+
     return confluentAmqServer
         .createQueue(address, routingType, queueName, filter, durable, temporary, maxConsumers,
             purgeOnNoConsumers, exclusive, groupRebalance, groupBuckets, groupFirstKey, lastValue,
@@ -1151,15 +1391,15 @@ public class DelegatingConfluentAmqServer implements ActiveMQServer {
 
   @Override
   @Deprecated
-  public Queue createQueue(SimpleString address,
-      RoutingType routingType,
-      SimpleString queueName, SimpleString filter, boolean durable, boolean temporary,
-      int maxConsumers, boolean purgeOnNoConsumers, boolean exclusive, boolean groupRebalance,
-      int groupBuckets, SimpleString groupFirstKey, boolean lastValue,
-      SimpleString lastValueKey, boolean nonDestructive, int consumersBeforeDispatch,
-      long delayBeforeDispatch, boolean autoDelete, long autoDeleteDelay,
-      long autoDeleteMessageCount,
-      boolean autoCreateAddress, long ringSize) throws Exception {
+  public Queue createQueue(SimpleString address, RoutingType routingType, SimpleString queueName,
+                           SimpleString filter, boolean durable, boolean temporary,
+                           int maxConsumers, boolean purgeOnNoConsumers, boolean exclusive,
+                           boolean groupRebalance, int groupBuckets, SimpleString groupFirstKey,
+                           boolean lastValue, SimpleString lastValueKey, boolean nonDestructive,
+                           int consumersBeforeDispatch, long delayBeforeDispatch,
+                           boolean autoDelete, long autoDeleteDelay, long autoDeleteMessageCount,
+                           boolean autoCreateAddress, long ringSize) throws Exception {
+
     return confluentAmqServer
         .createQueue(address, routingType, queueName, filter, durable, temporary, maxConsumers,
             purgeOnNoConsumers, exclusive, groupRebalance, groupBuckets, groupFirstKey, lastValue,
@@ -1169,12 +1409,12 @@ public class DelegatingConfluentAmqServer implements ActiveMQServer {
 
   @Override
   @Deprecated
-  public Queue createQueue(SimpleString address,
-      RoutingType routingType,
-      SimpleString queueName, SimpleString filter,
-      SimpleString user, boolean durable, boolean temporary, boolean autoCreated,
-      Integer maxConsumers, Boolean purgeOnNoConsumers, boolean autoCreateAddress)
+  public Queue createQueue(SimpleString address, RoutingType routingType, SimpleString queueName,
+                           SimpleString filter, SimpleString user, boolean durable,
+                           boolean temporary, boolean autoCreated, Integer maxConsumers,
+                           Boolean purgeOnNoConsumers, boolean autoCreateAddress)
       throws Exception {
+
     return confluentAmqServer
         .createQueue(address, routingType, queueName, filter, user, durable, temporary, autoCreated,
             maxConsumers, purgeOnNoConsumers, autoCreateAddress);
@@ -1182,11 +1422,11 @@ public class DelegatingConfluentAmqServer implements ActiveMQServer {
 
   @Override
   @Deprecated
-  public Queue createQueue(AddressInfo addressInfo,
-      SimpleString queueName, SimpleString filter,
-      SimpleString user, boolean durable, boolean temporary, boolean autoCreated,
-      Integer maxConsumers, Boolean purgeOnNoConsumers, boolean autoCreateAddress)
-      throws Exception {
+  public Queue createQueue(AddressInfo addressInfo, SimpleString queueName, SimpleString filter,
+                           SimpleString user, boolean durable, boolean temporary,
+                           boolean autoCreated, Integer maxConsumers, Boolean purgeOnNoConsumers,
+                           boolean autoCreateAddress) throws Exception {
+
     return confluentAmqServer
         .createQueue(addressInfo, queueName, filter, user, durable, temporary, autoCreated,
             maxConsumers, purgeOnNoConsumers, autoCreateAddress);
@@ -1194,11 +1434,12 @@ public class DelegatingConfluentAmqServer implements ActiveMQServer {
 
   @Override
   @Deprecated
-  public Queue createQueue(AddressInfo addressInfo,
-      SimpleString queueName, SimpleString filter,
-      SimpleString user, boolean durable, boolean temporary, boolean autoCreated,
-      Integer maxConsumers, Boolean purgeOnNoConsumers, Boolean exclusive,
-      Boolean lastValue, boolean autoCreateAddress) throws Exception {
+  public Queue createQueue(AddressInfo addressInfo, SimpleString queueName, SimpleString filter,
+                           SimpleString user, boolean durable, boolean temporary,
+                           boolean autoCreated, Integer maxConsumers, Boolean purgeOnNoConsumers,
+                           Boolean exclusive, Boolean lastValue, boolean autoCreateAddress)
+      throws Exception {
+
     return confluentAmqServer
         .createQueue(addressInfo, queueName, filter, user, durable, temporary, autoCreated,
             maxConsumers, purgeOnNoConsumers, exclusive, lastValue, autoCreateAddress);
@@ -1206,14 +1447,15 @@ public class DelegatingConfluentAmqServer implements ActiveMQServer {
 
   @Override
   @Deprecated
-  public Queue createQueue(AddressInfo addressInfo,
-      SimpleString queueName, SimpleString filter,
-      SimpleString user, boolean durable, boolean temporary, boolean autoCreated,
-      Integer maxConsumers, Boolean purgeOnNoConsumers, Boolean exclusive,
-      Boolean groupRebalance, Integer groupBuckets, Boolean lastValue,
-      SimpleString lastValueKey, Boolean nonDestructive, Integer consumersBeforeDispatch,
-      Long delayBeforeDispatch, Boolean autoDelete, Long autoDeleteDelay,
-      Long autoDeleteMessageCount, boolean autoCreateAddress) throws Exception {
+  public Queue createQueue(AddressInfo addressInfo, SimpleString queueName, SimpleString filter,
+                           SimpleString user, boolean durable, boolean temporary,
+                           boolean autoCreated, Integer maxConsumers, Boolean purgeOnNoConsumers,
+                           Boolean exclusive, Boolean groupRebalance, Integer groupBuckets,
+                           Boolean lastValue, SimpleString lastValueKey, Boolean nonDestructive,
+                           Integer consumersBeforeDispatch, Long delayBeforeDispatch,
+                           Boolean autoDelete, Long autoDeleteDelay, Long autoDeleteMessageCount,
+                           boolean autoCreateAddress) throws Exception {
+
     return confluentAmqServer
         .createQueue(addressInfo, queueName, filter, user, durable, temporary, autoCreated,
             maxConsumers, purgeOnNoConsumers, exclusive, groupRebalance, groupBuckets, lastValue,
@@ -1223,15 +1465,16 @@ public class DelegatingConfluentAmqServer implements ActiveMQServer {
 
   @Override
   @Deprecated
-  public Queue createQueue(AddressInfo addressInfo,
-      SimpleString queueName, SimpleString filter,
-      SimpleString user, boolean durable, boolean temporary, boolean autoCreated,
-      Integer maxConsumers, Boolean purgeOnNoConsumers, Boolean exclusive,
-      Boolean groupRebalance, Integer groupBuckets,
-      SimpleString groupFirstKey, Boolean lastValue,
-      SimpleString lastValueKey, Boolean nonDestructive, Integer consumersBeforeDispatch,
-      Long delayBeforeDispatch, Boolean autoDelete, Long autoDeleteDelay,
-      Long autoDeleteMessageCount, boolean autoCreateAddress) throws Exception {
+  public Queue createQueue(AddressInfo addressInfo, SimpleString queueName, SimpleString filter,
+                           SimpleString user, boolean durable, boolean temporary,
+                           boolean autoCreated, Integer maxConsumers, Boolean purgeOnNoConsumers,
+                           Boolean exclusive, Boolean groupRebalance, Integer groupBuckets,
+                           SimpleString groupFirstKey, Boolean lastValue, SimpleString lastValueKey,
+                           Boolean nonDestructive, Integer consumersBeforeDispatch,
+                           Long delayBeforeDispatch, Boolean autoDelete, Long autoDeleteDelay,
+                           Long autoDeleteMessageCount, boolean autoCreateAddress)
+      throws Exception {
+
     return confluentAmqServer
         .createQueue(addressInfo, queueName, filter, user, durable, temporary, autoCreated,
             maxConsumers, purgeOnNoConsumers, exclusive, groupRebalance, groupBuckets,
@@ -1242,15 +1485,16 @@ public class DelegatingConfluentAmqServer implements ActiveMQServer {
 
   @Override
   @Deprecated
-  public Queue createQueue(AddressInfo addressInfo,
-      SimpleString queueName, SimpleString filter,
-      SimpleString user, boolean durable, boolean temporary, boolean autoCreated,
-      Integer maxConsumers, Boolean purgeOnNoConsumers, Boolean exclusive,
-      Boolean groupRebalance, Integer groupBuckets,
-      SimpleString groupFirstKey, Boolean lastValue,
-      SimpleString lastValueKey, Boolean nonDestructive, Integer consumersBeforeDispatch,
-      Long delayBeforeDispatch, Boolean autoDelete, Long autoDeleteDelay,
-      Long autoDeleteMessageCount, boolean autoCreateAddress, Long ringSize) throws Exception {
+  public Queue createQueue(AddressInfo addressInfo, SimpleString queueName, SimpleString filter,
+                           SimpleString user, boolean durable, boolean temporary,
+                           boolean autoCreated, Integer maxConsumers, Boolean purgeOnNoConsumers,
+                           Boolean exclusive, Boolean groupRebalance, Integer groupBuckets,
+                           SimpleString groupFirstKey, Boolean lastValue, SimpleString lastValueKey,
+                           Boolean nonDestructive, Integer consumersBeforeDispatch,
+                           Long delayBeforeDispatch, Boolean autoDelete, Long autoDeleteDelay,
+                           Long autoDeleteMessageCount, boolean autoCreateAddress, Long ringSize)
+      throws Exception {
+
     return confluentAmqServer
         .createQueue(addressInfo, queueName, filter, user, durable, temporary, autoCreated,
             maxConsumers, purgeOnNoConsumers, exclusive, groupRebalance, groupBuckets,
@@ -1261,12 +1505,12 @@ public class DelegatingConfluentAmqServer implements ActiveMQServer {
 
   @Override
   @Deprecated
-  public Queue createQueue(SimpleString address,
-      RoutingType routingType,
-      SimpleString queueName, SimpleString filter,
-      SimpleString user, boolean durable, boolean temporary, boolean ignoreIfExists,
-      boolean transientQueue, boolean autoCreated, int maxConsumers, boolean purgeOnNoConsumers,
-      boolean autoCreateAddress) throws Exception {
+  public Queue createQueue(SimpleString address, RoutingType routingType, SimpleString queueName,
+                           SimpleString filter, SimpleString user, boolean durable,
+                           boolean temporary, boolean ignoreIfExists, boolean transientQueue,
+                           boolean autoCreated, int maxConsumers, boolean purgeOnNoConsumers,
+                           boolean autoCreateAddress) throws Exception {
+
     return confluentAmqServer
         .createQueue(address, routingType, queueName, filter, user, durable, temporary,
             ignoreIfExists,
@@ -1275,12 +1519,13 @@ public class DelegatingConfluentAmqServer implements ActiveMQServer {
 
   @Override
   @Deprecated
-  public Queue createQueue(SimpleString address,
-      RoutingType routingType,
-      SimpleString queueName, SimpleString filter,
-      SimpleString user, boolean durable, boolean temporary, boolean ignoreIfExists,
-      boolean transientQueue, boolean autoCreated, int maxConsumers, boolean purgeOnNoConsumers,
-      boolean exclusive, boolean lastValue, boolean autoCreateAddress) throws Exception {
+  public Queue createQueue(SimpleString address, RoutingType routingType, SimpleString queueName,
+                           SimpleString filter, SimpleString user, boolean durable,
+                           boolean temporary, boolean ignoreIfExists, boolean transientQueue,
+                           boolean autoCreated, int maxConsumers, boolean purgeOnNoConsumers,
+                           boolean exclusive, boolean lastValue, boolean autoCreateAddress)
+      throws Exception {
+
     return confluentAmqServer
         .createQueue(address, routingType, queueName, filter, user, durable, temporary,
             ignoreIfExists,
@@ -1290,9 +1535,9 @@ public class DelegatingConfluentAmqServer implements ActiveMQServer {
 
   @Override
   @Deprecated
-  public Queue createQueue(SimpleString address,
-      SimpleString queueName, SimpleString filterString, boolean durable, boolean temporary)
-      throws Exception {
+  public Queue createQueue(SimpleString address, SimpleString queueName, SimpleString filterString,
+                           boolean durable, boolean temporary) throws Exception {
+
     return confluentAmqServer.createQueue(address, queueName, filterString, durable, temporary);
   }
 
@@ -1326,22 +1571,22 @@ public class DelegatingConfluentAmqServer implements ActiveMQServer {
 
   @Override
   public Queue createQueue(QueueConfiguration queueConfiguration,
-      boolean ignoreIfExists) throws Exception {
+                           boolean ignoreIfExists) throws Exception {
     return confluentAmqServer.createQueue(queueConfiguration, ignoreIfExists);
   }
 
   @Override
   @Deprecated
-  public Queue createQueue(SimpleString address,
-      RoutingType routingType,
-      SimpleString queueName, SimpleString filterString,
-      SimpleString user, boolean durable, boolean temporary, boolean ignoreIfExists,
-      boolean transientQueue, boolean autoCreated, int maxConsumers, boolean purgeOnNoConsumers,
-      boolean exclusive, boolean groupRebalance, int groupBuckets, boolean lastValue,
-      SimpleString lastValueKey, boolean nonDestructive, int consumersBeforeDispatch,
-      long delayBeforeDispatch, boolean autoDelete, long autoDeleteDelay,
-      long autoDeleteMessageCount,
-      boolean autoCreateAddress) throws Exception {
+  public Queue createQueue(SimpleString address, RoutingType routingType, SimpleString queueName,
+                           SimpleString filterString, SimpleString user, boolean durable,
+                           boolean temporary, boolean ignoreIfExists, boolean transientQueue,
+                           boolean autoCreated, int maxConsumers, boolean purgeOnNoConsumers,
+                           boolean exclusive, boolean groupRebalance, int groupBuckets,
+                           boolean lastValue, SimpleString lastValueKey, boolean nonDestructive,
+                           int consumersBeforeDispatch, long delayBeforeDispatch,
+                           boolean autoDelete, long autoDeleteDelay, long autoDeleteMessageCount,
+                           boolean autoCreateAddress) throws Exception {
+
     return confluentAmqServer
         .createQueue(address, routingType, queueName, filterString, user, durable, temporary,
             ignoreIfExists, transientQueue, autoCreated, maxConsumers, purgeOnNoConsumers,
@@ -1353,17 +1598,17 @@ public class DelegatingConfluentAmqServer implements ActiveMQServer {
 
   @Override
   @Deprecated
-  public Queue createQueue(SimpleString address,
-      RoutingType routingType,
-      SimpleString queueName, SimpleString filterString,
-      SimpleString user, boolean durable, boolean temporary, boolean ignoreIfExists,
-      boolean transientQueue, boolean autoCreated, int maxConsumers, boolean purgeOnNoConsumers,
-      boolean exclusive, boolean groupRebalance, int groupBuckets,
-      SimpleString groupFirstKey, boolean lastValue,
-      SimpleString lastValueKey, boolean nonDestructive, int consumersBeforeDispatch,
-      long delayBeforeDispatch, boolean autoDelete, long autoDeleteDelay,
-      long autoDeleteMessageCount,
-      boolean autoCreateAddress) throws Exception {
+  public Queue createQueue(SimpleString address, RoutingType routingType, SimpleString queueName,
+                           SimpleString filterString, SimpleString user, boolean durable,
+                           boolean temporary, boolean ignoreIfExists, boolean transientQueue,
+                           boolean autoCreated, int maxConsumers, boolean purgeOnNoConsumers,
+                           boolean exclusive, boolean groupRebalance, int groupBuckets,
+                           SimpleString groupFirstKey, boolean lastValue, SimpleString lastValueKey,
+                           boolean nonDestructive, int consumersBeforeDispatch,
+                           long delayBeforeDispatch, boolean autoDelete, long autoDeleteDelay,
+                           long autoDeleteMessageCount, boolean autoCreateAddress)
+      throws Exception {
+
     return confluentAmqServer
         .createQueue(address, routingType, queueName, filterString, user, durable, temporary,
             ignoreIfExists, transientQueue, autoCreated, maxConsumers, purgeOnNoConsumers,
@@ -1375,17 +1620,17 @@ public class DelegatingConfluentAmqServer implements ActiveMQServer {
 
   @Override
   @Deprecated
-  public Queue createQueue(SimpleString address,
-      RoutingType routingType,
-      SimpleString queueName, SimpleString filterString,
-      SimpleString user, boolean durable, boolean temporary, boolean ignoreIfExists,
-      boolean transientQueue, boolean autoCreated, int maxConsumers, boolean purgeOnNoConsumers,
-      boolean exclusive, boolean groupRebalance, int groupBuckets,
-      SimpleString groupFirstKey, boolean lastValue,
-      SimpleString lastValueKey, boolean nonDestructive, int consumersBeforeDispatch,
-      long delayBeforeDispatch, boolean autoDelete, long autoDeleteDelay,
-      long autoDeleteMessageCount,
-      boolean autoCreateAddress, long ringSize) throws Exception {
+  public Queue createQueue(SimpleString address, RoutingType routingType, SimpleString queueName,
+                           SimpleString filterString, SimpleString user, boolean durable,
+                           boolean temporary, boolean ignoreIfExists, boolean transientQueue,
+                           boolean autoCreated, int maxConsumers, boolean purgeOnNoConsumers,
+                           boolean exclusive, boolean groupRebalance, int groupBuckets,
+                           SimpleString groupFirstKey, boolean lastValue, SimpleString lastValueKey,
+                           boolean nonDestructive, int consumersBeforeDispatch,
+                           long delayBeforeDispatch, boolean autoDelete, long autoDeleteDelay,
+                           long autoDeleteMessageCount, boolean autoCreateAddress, long ringSize)
+      throws Exception {
+
     return confluentAmqServer
         .createQueue(address, routingType, queueName, filterString, user, durable, temporary,
             ignoreIfExists, transientQueue, autoCreated, maxConsumers, purgeOnNoConsumers,
@@ -1398,34 +1643,37 @@ public class DelegatingConfluentAmqServer implements ActiveMQServer {
   @Override
   @Deprecated
   public Queue updateQueue(String name, RoutingType routingType,
-      Integer maxConsumers, Boolean purgeOnNoConsumers) throws Exception {
+                           Integer maxConsumers, Boolean purgeOnNoConsumers) throws Exception {
     return confluentAmqServer.updateQueue(name, routingType, maxConsumers, purgeOnNoConsumers);
   }
 
   @Override
   @Deprecated
-  public Queue updateQueue(String name, RoutingType routingType,
-      Integer maxConsumers, Boolean purgeOnNoConsumers, Boolean exclusive) throws Exception {
+  public Queue updateQueue(String name, RoutingType routingType, Integer maxConsumers,
+                           Boolean purgeOnNoConsumers, Boolean exclusive) throws Exception {
+
     return confluentAmqServer
         .updateQueue(name, routingType, maxConsumers, purgeOnNoConsumers, exclusive);
   }
 
   @Override
   @Deprecated
-  public Queue updateQueue(String name, RoutingType routingType,
-      Integer maxConsumers, Boolean purgeOnNoConsumers, Boolean exclusive, String user)
+  public Queue updateQueue(String name, RoutingType routingType, Integer maxConsumers,
+                           Boolean purgeOnNoConsumers, Boolean exclusive, String user)
       throws Exception {
+
     return confluentAmqServer
         .updateQueue(name, routingType, maxConsumers, purgeOnNoConsumers, exclusive, user);
   }
 
   @Override
   @Deprecated
-  public Queue updateQueue(String name, RoutingType routingType,
-      String filterString, Integer maxConsumers, Boolean purgeOnNoConsumers,
-      Boolean exclusive, Boolean groupRebalance, Integer groupBuckets,
-      Boolean nonDestructive, Integer consumersBeforeDispatch, Long delayBeforeDispatch,
-      String user) throws Exception {
+  public Queue updateQueue(String name, RoutingType routingType, String filterString,
+                           Integer maxConsumers, Boolean purgeOnNoConsumers, Boolean exclusive,
+                           Boolean groupRebalance, Integer groupBuckets, Boolean nonDestructive,
+                           Integer consumersBeforeDispatch, Long delayBeforeDispatch, String user)
+      throws Exception {
+
     return confluentAmqServer
         .updateQueue(name, routingType, filterString, maxConsumers, purgeOnNoConsumers, exclusive,
             groupRebalance, groupBuckets, nonDestructive, consumersBeforeDispatch,
@@ -1435,11 +1683,12 @@ public class DelegatingConfluentAmqServer implements ActiveMQServer {
 
   @Override
   @Deprecated
-  public Queue updateQueue(String name, RoutingType routingType,
-      String filterString, Integer maxConsumers, Boolean purgeOnNoConsumers,
-      Boolean exclusive, Boolean groupRebalance, Integer groupBuckets, String groupFirstKey,
-      Boolean nonDestructive, Integer consumersBeforeDispatch, Long delayBeforeDispatch,
-      String user) throws Exception {
+  public Queue updateQueue(String name, RoutingType routingType, String filterString,
+                           Integer maxConsumers, Boolean purgeOnNoConsumers, Boolean exclusive,
+                           Boolean groupRebalance, Integer groupBuckets, String groupFirstKey,
+                           Boolean nonDestructive, Integer consumersBeforeDispatch,
+                           Long delayBeforeDispatch, String user) throws Exception {
+
     return confluentAmqServer
         .updateQueue(name, routingType, filterString, maxConsumers, purgeOnNoConsumers, exclusive,
             groupRebalance, groupBuckets, groupFirstKey, nonDestructive, consumersBeforeDispatch,
@@ -1448,11 +1697,12 @@ public class DelegatingConfluentAmqServer implements ActiveMQServer {
 
   @Override
   @Deprecated
-  public Queue updateQueue(String name, RoutingType routingType,
-      String filterString, Integer maxConsumers, Boolean purgeOnNoConsumers,
-      Boolean exclusive, Boolean groupRebalance, Integer groupBuckets, String groupFirstKey,
-      Boolean nonDestructive, Integer consumersBeforeDispatch, Long delayBeforeDispatch,
-      String user, Long ringSize) throws Exception {
+  public Queue updateQueue(String name, RoutingType routingType, String filterString,
+                           Integer maxConsumers, Boolean purgeOnNoConsumers, Boolean exclusive,
+                           Boolean groupRebalance, Integer groupBuckets, String groupFirstKey,
+                           Boolean nonDestructive, Integer consumersBeforeDispatch,
+                           Long delayBeforeDispatch, String user, Long ringSize) throws Exception {
+
     return confluentAmqServer
         .updateQueue(name, routingType, filterString, maxConsumers, purgeOnNoConsumers, exclusive,
             groupRebalance, groupBuckets, groupFirstKey, nonDestructive, consumersBeforeDispatch,
@@ -1462,6 +1712,11 @@ public class DelegatingConfluentAmqServer implements ActiveMQServer {
   @Override
   public Queue updateQueue(QueueConfiguration queueConfiguration) throws Exception {
     return confluentAmqServer.updateQueue(queueConfiguration);
+  }
+
+  @Override
+  public Queue updateQueue(QueueConfiguration queueConfiguration, boolean b) throws Exception {
+    return confluentAmqServer.updateQueue(queueConfiguration, b);
   }
 
   @Override

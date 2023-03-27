@@ -72,6 +72,7 @@ public final class KafkaRecordUtils {
         (byte) annotation.getProtocolRecordType(),
         annotation.getData().toByteArray(),
         true,
+        false,
         (short) 0);
   }
 
@@ -84,7 +85,7 @@ public final class KafkaRecordUtils {
         || jrec.getRecordType() == JournalRecordType.ANNOTATE_RECORD_TX;
 
     return new RecordInfo(jrec.getMessageId(), (byte) jrec.getProtocolRecordType(),
-        jrec.getData().toByteArray(), isUpdate, (short) 0);
+        jrec.getData().toByteArray(), isUpdate, false, (short) 0);
   }
 
   public static boolean isTxTerminalRecord(JournalRecord record) {

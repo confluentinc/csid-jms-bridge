@@ -85,12 +85,14 @@
       <artifactId>mockito-junit-jupiter</artifactId>
       <scope>test</scope>
     </dependency>
+      <!--
     <dependency>
       <artifactId>artemis-commons</artifactId>
       <groupId>org.apache.activemq</groupId>
       <scope>test</scope>
       <type>test-jar</type>
     </dependency>
+    -->
     <dependency>
       <artifactId>artemis-server</artifactId>
       <groupId>org.apache.activemq</groupId>

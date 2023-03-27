@@ -71,8 +71,6 @@ public class KafkaToJmsSecurityTest {
   @Order(100)
   public static Path tempdir;
 
-  @RegisterExtension
-  @Order(200)
   public static final KafkaContainer kafkaContainer = new KafkaContainer(KAFKA_DOCKER_IMAGE_NAME)
           .withEnv(
               "KAFKA_LISTENER_SECURITY_PROTOCOL_MAP",

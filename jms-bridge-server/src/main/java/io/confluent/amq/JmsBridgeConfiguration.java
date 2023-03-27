@@ -5,12 +5,6 @@
 package io.confluent.amq;
 
 import io.confluent.amq.config.BridgeConfig;
-import java.io.File;
-import java.net.URL;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
-import java.util.Set;
 import org.apache.activemq.artemis.api.core.BroadcastGroupConfiguration;
 import org.apache.activemq.artemis.api.core.DiscoveryGroupConfiguration;
 import org.apache.activemq.artemis.api.core.QueueConfiguration;
@@ -24,9 +18,12 @@ import org.apache.activemq.artemis.core.config.CoreAddressConfiguration;
 import org.apache.activemq.artemis.core.config.DivertConfiguration;
 import org.apache.activemq.artemis.core.config.FederationConfiguration;
 import org.apache.activemq.artemis.core.config.HAPolicyConfiguration;
+import org.apache.activemq.artemis.core.config.MetricsConfiguration;
 import org.apache.activemq.artemis.core.config.StoreConfiguration;
 import org.apache.activemq.artemis.core.config.WildcardConfiguration;
+import org.apache.activemq.artemis.core.config.amqpBrokerConnectivity.AMQPBrokerConnectConfiguration;
 import org.apache.activemq.artemis.core.config.impl.ConfigurationImpl;
+import org.apache.activemq.artemis.core.config.routing.ConnectionRouterConfiguration;
 import org.apache.activemq.artemis.core.security.Role;
 import org.apache.activemq.artemis.core.server.JournalType;
 import org.apache.activemq.artemis.core.server.SecuritySettingPlugin;
@@ -42,10 +39,18 @@ import org.apache.activemq.artemis.core.server.plugin.ActiveMQServerCriticalPlug
 import org.apache.activemq.artemis.core.server.plugin.ActiveMQServerFederationPlugin;
 import org.apache.activemq.artemis.core.server.plugin.ActiveMQServerMessagePlugin;
 import org.apache.activemq.artemis.core.server.plugin.ActiveMQServerQueuePlugin;
+import org.apache.activemq.artemis.core.server.plugin.ActiveMQServerResourcePlugin;
 import org.apache.activemq.artemis.core.server.plugin.ActiveMQServerSessionPlugin;
 import org.apache.activemq.artemis.core.settings.impl.AddressSettings;
 import org.apache.activemq.artemis.core.settings.impl.ResourceLimitSettings;
 import org.apache.activemq.artemis.utils.critical.CriticalAnalyzerPolicy;
+
+import java.io.File;
+import java.net.URL;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 @SuppressWarnings("deprecation")
 public class JmsBridgeConfiguration implements Configuration {
@@ -70,6 +75,205 @@ public class JmsBridgeConfiguration implements Configuration {
   }
 
   @Override
+  public Configuration parseProperties(String s) throws Exception {
+    return delegate.parseProperties(s);
+  }
+
+  @Override
+  public Configuration setAuthenticationCacheSize(long l) {
+    return delegate.setAuthenticationCacheSize(l);
+  }
+
+  @Override
+  public long getAuthenticationCacheSize() {
+    return delegate.getAuthenticationCacheSize();
+  }
+
+  @Override
+  public Configuration setAuthorizationCacheSize(long l) {
+    return delegate.setAuthorizationCacheSize(l);
+  }
+
+  @Override
+  public long getAuthorizationCacheSize() {
+    return delegate.getAuthorizationCacheSize();
+  }
+
+  @Override
+  public List<ConnectionRouterConfiguration> getConnectionRouters() {
+    return delegate.getConnectionRouters();
+  }
+
+  @Override
+  public Configuration setConnectionRouters(List<ConnectionRouterConfiguration> list) {
+    return delegate.setConnectionRouters(list);
+  }
+
+  @Override
+  public Configuration addConnectionRouter(
+      ConnectionRouterConfiguration connectionRouterConfiguration) {
+
+    return delegate.addConnectionRouter(connectionRouterConfiguration);
+  }
+
+  @Override
+  public Configuration addAMQPConnection(
+      AMQPBrokerConnectConfiguration amqpBrokerConnectConfiguration) {
+
+    return delegate.addAMQPConnection(amqpBrokerConnectConfiguration);
+  }
+
+  @Override
+  public List<AMQPBrokerConnectConfiguration> getAMQPConnection() {
+    return delegate.getAMQPConnection();
+  }
+
+  @Override
+  public String getNodeManagerLockDirectory() {
+    return delegate.getNodeManagerLockDirectory();
+  }
+
+  @Override
+  public String getJournalRetentionDirectory() {
+    return delegate.getJournalRetentionDirectory();
+  }
+
+  @Override
+  public Configuration setJournalRetentionDirectory(String s) {
+    return delegate.setJournalRetentionDirectory(s);
+  }
+
+  @Override
+  public File getJournalRetentionLocation() {
+    return delegate.getJournalRetentionLocation();
+  }
+
+  @Override
+  public long getJournalRetentionPeriod() {
+    return delegate.getJournalRetentionPeriod();
+  }
+
+  @Override
+  public Configuration setJournalRetentionPeriod(TimeUnit timeUnit, long l) {
+    return delegate.setJournalRetentionPeriod(timeUnit, l);
+  }
+
+  @Override
+  public long getJournalRetentionMaxBytes() {
+    return delegate.getJournalRetentionMaxBytes();
+  }
+
+  @Override
+  public Configuration setJournalRetentionMaxBytes(long l) {
+    return delegate.setJournalRetentionMaxBytes(l);
+  }
+
+  @Override
+  public int getJournalMaxAtticFiles() {
+    return delegate.getJournalMaxAtticFiles();
+  }
+
+  @Override
+  public Configuration setJournalMaxAtticFiles(int i) {
+    return delegate.setJournalMaxAtticFiles(i);
+  }
+
+  @Override
+  public Map<String, AddressSettings> getAddressSettings() {
+    return delegate.getAddressSettings();
+  }
+
+  @Override
+  public Configuration setAddressSettings(Map<String, AddressSettings> map) {
+    return delegate.setAddressSettings(map);
+  }
+
+  @Override
+  public Configuration addAddressSetting(String s, AddressSettings addressSettings) {
+    return delegate.addAddressSetting(s, addressSettings);
+  }
+
+  @Override
+  public Configuration clearAddressSettings() {
+    return delegate.clearAddressSettings();
+  }
+
+  @Override
+  public Configuration setMetricsConfiguration(MetricsConfiguration metricsConfiguration) {
+    return delegate.setMetricsConfiguration(metricsConfiguration);
+  }
+
+  @Override
+  public MetricsConfiguration getMetricsConfiguration() {
+    return delegate.getMetricsConfiguration();
+  }
+
+  @Override
+  public Configuration setGlobalMaxMessages(long l) {
+    return delegate.setGlobalMaxMessages(l);
+  }
+
+  @Override
+  public long getGlobalMaxMessages() {
+    return delegate.getGlobalMaxMessages();
+  }
+
+  @Override
+  public Configuration setNetworkCheckNIC(String s) {
+    return delegate.setNetworkCheckNIC(s);
+  }
+
+  @Override
+  public List<ActiveMQServerResourcePlugin> getBrokerResourcePlugins() {
+    return delegate.getBrokerResourcePlugins();
+  }
+
+  @Override
+  public String getTemporaryQueueNamespace() {
+    return delegate.getTemporaryQueueNamespace();
+  }
+
+  @Override
+  public Configuration setTemporaryQueueNamespace(String s) {
+    return delegate.setTemporaryQueueNamespace(s);
+  }
+
+  @Override
+  public Configuration setMqttSessionScanInterval(long l) {
+    return delegate.setMqttSessionScanInterval(l);
+  }
+
+  @Override
+  public long getMqttSessionScanInterval() {
+    return delegate.getMqttSessionScanInterval();
+  }
+
+  @Override
+  public boolean isSuppressSessionNotifications() {
+    return delegate.isSuppressSessionNotifications();
+  }
+
+  @Override
+  public Configuration setSuppressSessionNotifications(boolean b) {
+    return delegate.setSuppressSessionNotifications(b);
+  }
+
+  @Override
+  public String resolvePropertiesSources(String propertiesFileUrl) {
+    return delegate.resolvePropertiesSources(propertiesFileUrl);
+  }
+
+  @Override
+  public String getStatus() {
+    return delegate.getStatus();
+  }
+
+  @Override
+  public void setStatus(String s) {
+    delegate.setStatus(s);
+  }
+
+  @Override
   public String getName() {
     return delegate.getName();
   }
@@ -87,16 +291,6 @@ public class JmsBridgeConfiguration implements Configuration {
   @Override
   public String getSystemPropertyPrefix() {
     return delegate.getSystemPropertyPrefix();
-  }
-
-  @Override
-  public Configuration parseSystemProperties() throws Exception {
-    return delegate.parseSystemProperties();
-  }
-
-  @Override
-  public Configuration parseSystemProperties(Properties properties) throws Exception {
-    return delegate.parseSystemProperties(properties);
   }
 
   @Override
