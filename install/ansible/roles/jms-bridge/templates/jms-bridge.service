@@ -1,0 +1,14 @@
+[Unit]
+Description=The JMS-Bridge service, JMS on Kafka
+
+[Service]
+Type=simple
+ExecStart={{ jms_bridge_home }}/bin/jms-bridge-run.sh
+Restart=on-failure
+User=jms-bridge
+WorkingDirectory={{ jms_bridge_home }}
+StateDirectory=%p
+LogsDirectory=%p
+
+[Install]
+WantedBy=multi-user.target

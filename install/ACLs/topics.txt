@@ -1,0 +1,5 @@
+_jms.bridge_{{BRIDGE_ID_PLACEHOLDER}}_bindings_wal
+_jms.bridge_{{BRIDGE_ID_PLACEHOLDER}}_bindings_tbl
+_jms.bridge_{{BRIDGE_ID_PLACEHOLDER}}_messages_wal
+_jms.bridge_{{BRIDGE_ID_PLACEHOLDER}}_messages_tbl
+jms-*

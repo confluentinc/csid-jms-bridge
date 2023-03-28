@@ -1,0 +1,25 @@
+plugin: gcp_compute
+zones: # populate inventory with instances in these regions
+  - us-central1-a
+projects:
+  - csid-281116
+filters:
+  - labels.bridge-perf = true
+scopes:
+  - 'https://www.googleapis.com/auth/cloud-platform'
+  - 'https://www.googleapis.com/auth/compute.readonly'
+auth_kind: application
+keyed_groups:
+  # Create groups from GCE labels
+  - prefix: gcp
+    key: labels.node
+hostnames:
+  # List host by name instead of the default public ip
+  - name
+compose:
+  # Set an inventory parameter to use the Public IP address to connect to the host
+  # For Private ip use "networkInterfaces[0].networkIP"
+  ansible_host: networkInterfaces[0].accessConfigs[0].natIP
+  project: project
+  zone: zone
+  private_ip: networkInterfaces[0].networkIP

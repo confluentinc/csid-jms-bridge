@@ -1,0 +1,79 @@
+#For JMS Bridge
+jms_bridge_archive: "REQUIRED"
+jms_bridge_version: "REQUIRED"
+jms_bridge_user: jms-bridge
+
+jms_bridge_version_name: jms-bridge-server-{{ jms_bridge_version }}
+jms_bridge_home: /opt/{{ jms_bridge_version_name }}
+
+jms_bridge_cfg: {}
+jms_bridge_defaults_cfg:
+  id: "load-test-1"
+
+jms_bridge_cfg_kafka: {}
+jms_bridge_defaults_cfg_kafka:
+  compression.type: snappy
+  batch.size: 256000
+  acks: all
+
+
+jms_bridge_cfg_journals: {}
+jms_bridge_defaults_cfg_journals:
+  ready.timeout: 5m
+
+jms_bridge_cfg_journals_topic: {}
+jms_bridge_defaults_cfg_journals_topic: {}
+
+jms_bridge_cfg_streams: {}
+jms_bridge_defaults_cfg_streams:
+  replication.factor: 3
+  acks: all
+  producer.compression.type: snappy
+  producer.batch.size: 512000
+
+
+broker_xml_cfg: {}
+broker_xml_defaults_cfg:
+  core:
+    name: "0.0.0.0"
+    persistence-enabled: "true"
+    journal-type: ASYNCIO
+    paging-directory: '${jms-bridge.data.dir:./data}/paging'
+    bindings-directory: '${jms-bridge.data.dir:./data}/bindings'
+    journal-directory: '${jms-bridge.data.dir:./data}/journal'
+    large-messages-directory: ${jms-bridge.data.dir:./data}/large-messages
+    journal-datasync: "true"
+    journal-min-files: 2
+    journal-pool-files: 10
+    journal-device-block-size: 4096
+    journal-file-size: 10M
+    journal-buffer-timeout: 12000
+    journal-max-io: 4096
+    disk-scan-period: 5000
+    max-disk-usage: 90
+    critical-analyzer: "true"
+    critical-analyzer-timeout: 120000
+    critical-analyzer-check-period: 60000
+    critical-analyzer-policy: HALT
+    page-sync-timeout: 632000
+    security-enabled: "false"
+
+  acceptors:
+    artemis: tcp://0.0.0.0:61616?tcpSendBufferSize=1048576;tcpReceiveBufferSize=1048576;amqpMinLargeMessageSize=102400;protocols=CORE,AMQP;useEpoll=true;amqpCredits=1000;amqpLowCredits=300
+
+  address-settings:
+    "#": |
+      <redelivery-delay>0</redelivery-delay>
+      <max-size-bytes>-1</max-size-bytes>
+      <message-counter-history-day-limit>10</message-counter-history-day-limit>
+      <address-full-policy>BLOCK</address-full-policy>
+
+  addresses:
+    defaultTopic: |
+      <multicast/>
+
+  diverts: {}
+
+  security-settings: {}
+
+  broker-plugins: {}
