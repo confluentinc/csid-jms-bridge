@@ -49,7 +49,7 @@ public class JaasTest {
   private static final Logger LOGGER = LoggerFactory.getLogger(JaasTest.class);
 
   private static final DockerImageName KAFKA_IMAGE = DockerImageName
-      .parse("confluentinc/cp-kafka:6.2.0-3-ubi8");
+      .parse("confluentinc/cp-kafka:7.3.2-1-ubi8");
 
   private static final DockerImageName JMS_BRIDGE_IMAGE = DockerImageName
       .parse("local.build/confluentinc/jms-bridge-docker:latest");

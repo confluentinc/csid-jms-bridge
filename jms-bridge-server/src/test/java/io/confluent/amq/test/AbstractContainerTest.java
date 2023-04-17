@@ -16,7 +16,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public abstract class AbstractContainerTest {
   public static final DockerImageName KAFKA_DOCKER_IMAGE_NAME =
-      DockerImageName.parse("confluentinc/cp-kafka:6.2.2-2-ubi8");
+      DockerImageName.parse("confluentinc/cp-kafka:7.3.2-1-ubi8");
 
   private static final Object READY_LOCK = new Object();
   private static final AtomicInteger SEQUENCE = new AtomicInteger(0);

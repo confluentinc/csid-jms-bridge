@@ -29,7 +29,7 @@ public final class TestResources {
     }
 
     public static String kafkaDockerImageString() {
-        return "confluentinc/cp-kafka:6.2.0-3-ubi8";
+        return "confluentinc/cp-kafka:7.3.2-1-ubi8";
     }
 
 
