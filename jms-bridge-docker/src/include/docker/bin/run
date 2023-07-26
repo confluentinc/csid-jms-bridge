@@ -20,7 +20,7 @@ echo "===> Configuring jms-bridge ..."
 dub template "/etc/jms-bridge/jms-bridge.properties.template" "/etc/jms-bridge/jms-bridge.properties"
 
 echo "===> Configuring logging ..."
-dub template "/etc/jms-bridge/log4j2.xml.template" "/etc/jms-bridge/log4j2.xml"
+dub template "/etc/jms-bridge/logback.xml.template" "/etc/jms-bridge/logback.xml"
 
 #check for broker xml in env
 echo "===> Analyzing BROKER_XML environment variable"

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ~ Copyright 2020 Confluent Inc.
+  -->
+
+<Configuration status="WARN">
+
+  <appender name="main" class="ch.qos.logback.core.RollingFileAppender">
+    <!-- encoders are assigned the type
+         ch.qos.logback.classic.encoder.PatternLayoutEncoder by default -->
+    <file>${sys:jms-bridge.log.dir:-./logs}/jms-bridge.log</file>
+    <append>true</append>
+    <rollingPolicy>
+      <fileNamePattern>logs/$${date:yyyy-MM}/app-%d{MM-dd-yyyy}-%i.log</fileNamePattern>
+      <maxFileSize>10MB</maxFileSize>
+      <maxHistory>60</maxHistory>
+    </rollingPolicy>
+    <encoder>
+      <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} -%kvp- %msg%n</pattern>
+    </encoder>
+  </appender>
+
+  <root level="info">
+    <appender-ref ref="main" />
+  </root>
+
+</Configuration>

@@ -109,7 +109,7 @@ public class HeadersIT {
         .withExposedPorts(61616)
         .waitingFor(new LogMessageWaitStrategy().withRegEx(
             ".*KafkaExchangeManager.ProcessRoutingTopicRule>Completed.*kafka[.]hdr.*"))
-        .withEnv("LOG4J2_IO_CONFLUENT_AMQ_EXCHANGE", "INFO")
+        .withEnv("LOG_IO_CONFLUENT_AMQ_EXCHANGE", "INFO")
         .withEnv("JMSBRIDGE_ID", "junit-test")
         .withEnv("JMSBRIDGE_KAFKA_BOOTSTRAP_SERVERS", "kafka:9092")
         .withEnv("JMSBRIDGE_JOURNALS_TOPIC_REPLICATION", "1")

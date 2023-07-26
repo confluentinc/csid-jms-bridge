@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ~ Copyright 2021 Confluent Inc.
+  -->
+
+<configuration>
+    <appender name="stdout" class="ch.qos.logback.core.ConsoleAppender">
+      <!-- encoders are assigned the type
+           ch.qos.logback.classic.encoder.PatternLayoutEncoder by default -->
+      <encoder>
+        <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} -%kvp- %msg%n</pattern>
+      </encoder>
+    </appender>
+
+    {% set log_props = env_to_props('LOG_', '') -%}
+    {% for name, value in log_props.items() -%}
+    <logger name="{{name}}" level="{{value}}" additivity="false">
+      <appender-ref ref="stdout"/>
+    </logger>
+    {% endfor -%}
+
+    <root level="${env:LOGROOT:-WARN}">
+      <appender-ref ref="stdout" />
+    </root>
+
+</configuration>

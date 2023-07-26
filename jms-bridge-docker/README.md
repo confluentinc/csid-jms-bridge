@@ -71,14 +71,14 @@ Logging can be adjusted via environmental variables.
 Logging can be configured via environmental variables in the following way.
 
 To set the logging level for a paticular logger (say `io.confluent`) set the corresponding environment variable.
-```LOG4J2_IO_CONFLUENT=INFO```
+```LOG_IO_CONFLUENT=INFO```
 
-The prefix `LOG4J2_` combined with the logger name (capitilized with dots replaced by underscores).
+The prefix `LOG_` combined with the logger name (capitilized with dots replaced by underscores).
 
 #### Root Logger Level
 
-To change this from the default of `WARN` set the environmental variable `LOG4J2ROOT` to the level desired.
-```LOG4J2ROOT=INFO```
+To change this from the default of `WARN` set the environmental variable `LOGROOT` to the level desired.
+```LOGROOT=INFO```
 
 
 

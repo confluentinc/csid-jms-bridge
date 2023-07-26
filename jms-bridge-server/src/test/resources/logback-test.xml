@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ~ Copyright 2020 Confluent Inc.
+  -->
+
+<configuration>
+    <appender name="stdout" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} -%kvp- %msg%n</pattern>
+        </encoder>
+    </appender>
+
+
+    <logger name="org.apache.activemq.artemis.core" level="ERROR" additivity="false">
+        <appender-ref ref="stdout"/>
+    </logger>
+
+    <!-- Prevent kafka configuration from printing out all the time -->
+    <logger name="io.confluent.connect.avro.AvroConverterConfig" level="ERROR"
+            additivity="false">
+        <appender-ref ref="stdout"/>
+    </logger>
+
+    <logger name="io.confluent.connect.avro.AvroDataConfig" level="ERROR" additivity="false">
+        <appender-ref ref="stdout"/>
+    </logger>
+
+    <logger name="io.confluent.kafka.serializers.KafkaAvroDeserializerConfig" level="ERROR"
+            additivity="false">
+        <appender-ref ref="stdout"/>
+    </logger>
+
+    <logger name="io.confluent.kafka.serializers.KafkaAvroSerializerConfig" level="ERROR"
+            additivity="false">
+        <appender-ref ref="stdout"/>
+    </logger>
+
+    <logger name="io.confluent.kafka.serializers.KafkaJsonDeserializerConfig" level="ERROR"
+            additivity="false">
+        <appender-ref ref="stdout"/>
+    </logger>
+
+    <logger name="io.confluent.kafka.serializers.KafkaJsonSerializerConfig" level="ERROR"
+            additivity="false">
+        <appender-ref ref="stdout"/>
+    </logger>
+
+    <logger name="io.confluent.kafka.serializers.json.KafkaJsonSchemaSerializerConfig"
+            level="ERROR"
+            additivity="false">
+        <appender-ref ref="stdout"/>
+    </logger>
+
+    <logger name="io.confluent.kafka.serializers.json.KafkaJsonSchemaDeserializerConfig"
+            level="ERROR" additivity="false">
+        <appender-ref ref="stdout"/>
+    </logger>
+
+    <logger name="io.confluent.kafka.serializers.protobuf.KafkaProtobufSerializerConfig"
+            level="ERROR" additivity="false">
+        <appender-ref ref="stdout"/>
+    </logger>
+
+    <logger name="io.confluent.kafka.serializers.protobuf.KafkaProtobufDeserializerConfig"
+            level="ERROR" additivity="false">
+        <appender-ref ref="stdout"/>
+    </logger>
+
+    <logger name="kafka.server.KafkaConfig" level="ERROR" additivity="false">
+        <appender-ref ref="stdout"/>
+    </logger>
+
+    <logger name="org.apache.kafka.clients.admin.AdminClientConfig" level="ERROR"
+            additivity="false">
+        <appender-ref ref="stdout"/>
+    </logger>
+
+    <logger name="org.apache.kafka.clients.consumer.ConsumerConfig" level="ERROR"
+            additivity="false">
+        <appender-ref ref="stdout"/>
+    </logger>
+
+    <logger name="org.apache.kafka.clients.consumer.StreamsConfig" level="ERROR"
+            additivity="false">
+        <appender-ref ref="stdout"/>
+    </logger>
+
+    <logger name="org.apache.kafka.clients.producer.ProducerConfig" level="ERROR"
+            additivity="false">
+        <appender-ref ref="stdout"/>
+    </logger>
+
+    <logger name="org.apache.kafka.connect.json.JsonConverterConfig" level="WARN"
+            additivity="false">
+        <appender-ref ref="stdout"/>
+    </logger>
+
+    <logger name="io.confluent.connect.json.JsonSchemaConverterConfig" level="WARN"
+            additivity="false">
+        <appender-ref ref="stdout"/>
+    </logger>
+
+    <logger name="io.confluent.connect.json.JsonSchemaDataConfig" level="WARN"
+            additivity="false">
+        <appender-ref ref="stdout"/>
+    </logger>
+
+    <logger name="io.confluent.connect.protobuf.ProtobufDataConfig" level="WARN"
+            additivity="false">
+        <appender-ref ref="stdout"/>
+    </logger>
+
+    <logger name="io.confluent.connect.protobuf.ProtobufConverterConfig" level="WARN"
+            additivity="false">
+        <appender-ref ref="stdout"/>
+    </logger>
+
+    <root level="ERROR">
+        <appender-ref ref="stdout"/>
+    </root>
+</configuration>

@@ -16,16 +16,9 @@
   <dependencies>
     <!-- Logging -->
     <dependency>
-      <artifactId>log4j-core</artifactId>
-      <groupId>org.apache.logging.log4j</groupId>
-    </dependency>
-    <dependency>
-      <artifactId>log4j-slf4j-impl</artifactId>
-      <groupId>org.apache.logging.log4j</groupId>
-    </dependency>
-    <dependency>
-      <artifactId>slf4j-api</artifactId>
-      <groupId>org.slf4j</groupId>
+      <groupId>ch.qos.logback</groupId>
+      <artifactId>logback-classic</artifactId>
+      <version>${logback.version}</version>
     </dependency>
 
     <!-- Test dependencies -->

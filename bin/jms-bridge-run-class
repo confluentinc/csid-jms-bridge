@@ -50,7 +50,7 @@ if [ ! -d "$LOG_DIR" ]; then
 fi
 
 : "${JMS_BRIDGE_CLASSPATH:=""}"
-: "${JMS_BRIDGE_LOG4J_OPTS:=""}"
+: "${JMS_BRIDGE_LOG_OPTS:=""}"
 : "${JMS_BRIDGE_JMX_OPTS:=""}"
 : "${JMS_BRIDGE_OPTS:=""}"
 : "${JMS_BRIDGE_HEAP_OPTS:=""}"
@@ -80,17 +80,17 @@ else
 fi
 
 # logj4 settings
-if [ -z "$JMS_BRIDGE_LOG4J_OPTS" ]; then
+if [ -z "$JMS_BRIDGE_LOG_OPTS" ]; then
   # Test for files from dev -> packages so this will work as expected in dev if you have packages
   # installed
-  if [ -e "$base_dir/etc/jms-bridge/log4j2.xml" ]; then # Dev environment or Simple zip
-    JMS_BRIDGE_LOG4J_OPTS="-Dlog4j2.configurationFile=file:$base_dir/etc/jms-bridge/log4j2.xml"
-  elif [ -e "/etc/jms-bridge/log4j2.xml" ]; then # Normal install layout
-    JMS_BRIDGE_LOG4J_OPTS="-Dlog4j2.configurationFile=file:/etc/jms-bridge/log4j2.xml"
+  if [ -e "$base_dir/etc/jms-bridge/logback.xml" ]; then # Dev environment or Simple zip
+    JMS_BRIDGE_LOG_OPTS="-Dlogback.configurationFile=file:$base_dir/etc/jms-bridge/logback.xml"
+  elif [ -e "/etc/jms-bridge/logback.xml" ]; then # Normal install layout
+    JMS_BRIDGE_LOG_OPTS="-Dlogback.configurationFile=file:/etc/jms-bridge/logback.xml"
   fi
 fi
 
- JMS_BRIDGE_LOG4J_OPTS="-Djms-bridge.log.dir=$LOG_DIR ${JMS_BRIDGE_LOG4J_OPTS}"
+ JMS_BRIDGE_LOG_OPTS="-Djms-bridge.log.dir=$LOG_DIR ${JMS_BRIDGE_LOG_OPTS}"
 
 # JMX settings
 if [ -z "$JMS_BRIDGE_JMX_OPTS" ]; then
@@ -150,7 +150,7 @@ fi
 OPTIONS=($JMS_BRIDGE_HEAP_OPTS)
 OPTIONS+=($JMS_BRIDGE_JVM_PERFORMANCE_OPTS)
 OPTIONS+=($JMS_BRIDGE_JMX_OPTS)
-OPTIONS+=($JMS_BRIDGE_LOG4J_OPTS)
+OPTIONS+=($JMS_BRIDGE_LOG_OPTS)
 OPTIONS+=($JMS_BRIDGE_OPTS)
 OPTIONS+=($JMS_BRIDGE_GC_LOG_OPTS)
 

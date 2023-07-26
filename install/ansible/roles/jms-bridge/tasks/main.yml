@@ -49,10 +49,10 @@
     mode: 0644
     owner: "{{ jms_bridge_user }}"
 
-- name: Copy over log4j2 configuration
+- name: Copy over logback configuration
   ansible.builtin.template:
-    src: log4j2.xml
-    dest: "{{ jms_bridge_home }}/etc/jms-bridge/log4j2.xml"
+    src: logback.xml
+    dest: "{{ jms_bridge_home }}/etc/jms-bridge/logback.xml"
     mode: 0644
     owner: "{{ jms_bridge_user }}"
 

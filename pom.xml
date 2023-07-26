@@ -36,7 +36,7 @@
     <git-commit-id-plugin.version>2.2.6</git-commit-id-plugin.version>
     <guava.version>32.0.0-jre</guava.version>
     <kafka.version>3.4.0</kafka.version>
-    <log4j.version>2.17.1</log4j.version>
+    <logback.version>1.4.8</logback.version>
     <maven.deploy.skip>true</maven.deploy.skip>
     <maven-compiler-plugin.version>3.10.0</maven-compiler-plugin.version>
     <maven-release-plugin.version>3.0.0-M6</maven-release-plugin.version>
@@ -251,24 +251,9 @@
 
       <!-- Logging -->
       <dependency>
-        <artifactId>slf4j-api</artifactId>
-        <groupId>org.slf4j</groupId>
-        <version>${slf4j.api.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>org.apache.logging.log4j</groupId>
-        <artifactId>log4j-core</artifactId>
-        <version>${log4j.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>org.apache.logging.log4j</groupId>
-        <artifactId>log4j-api</artifactId>
-        <version>${log4j.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>org.apache.logging.log4j</groupId>
-        <artifactId>log4j-slf4j-impl</artifactId>
-        <version>${log4j.version}</version>
+        <groupId>ch.qos.logback</groupId>
+        <artifactId>logback-classic</artifactId>
+        <version>${logback.version}</version>
       </dependency>
 
 
