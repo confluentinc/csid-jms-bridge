@@ -106,7 +106,43 @@ linters-settings:
     # Put imports beginning with prefix after 3rd-party packages.
     # It's a comma-separated list of prefixes.
     local-prefixes: github.com/confluentinc/cc-structs,github.com/confluentinc
-
+  gocritic:
+    enabled-checks:
+      - appendAssign
+      - argOrder
+      - assignOp
+      - badCall
+      - badCond
+      - captLocal
+      - caseOrder
+      - codegenComment
+      - commentFormatting
+      - defaultCaseOrder
+      - deferInLoop
+      - deprecatedComment
+      - dupArg
+      - dupBranchBody
+      - dupCase
+      - dupSubExpr
+      - elseif
+      - exitAfterDefer
+      - flagDeref
+      - flagName
+      - ifElseChain
+      - mapKey
+      - newDeref
+      - offBy1
+      - regexpMust
+      - singleCaseSwitch
+      - sloppyLen
+      - sloppyTypeAssert
+      - switchTrue
+      - typeSwitchVar
+      - underef
+      - unlambda
+      - unslice
+      - valSwap
+      - wrapperFunc
 
 issues:
   max-same-issues: 50

@@ -30,5 +30,8 @@ go-docker-build-test:
 	source go-docker-build-test/bin/activate && \
 	pip3 install \
 	    pytest=="$(PYTEST_VERSION)" \
+		pytest-timeout \
+		pytest-cov \
 	    structlog=="${STRUCTLOG_VERSION}" && \
-	pytest test.py -s --log-level="${PYTEST_LOG_LEVEL}"
+	pytest test.py --timeout=600 --log-level="${PYTEST_LOG_LEVEL}" \
+	    --cov-report=xml --cov-report=html --cov-report=term --cov-report=annotate:textcov

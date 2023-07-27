@@ -2,6 +2,7 @@ DOCKER_GO_TEST_LOCATION := tests/go-docker-build-test/
 DOCKER_MULTIARCH_TEST_LOCATION := tests/multiarch-docker-build-test/
 MK_INCLUDE_AUTO_UPDATE_TEST_LOCATION := tests/mk-include-auto-update-test/
 MAVEN_DOCKER_BUILD_TEST := tests/maven-docker-build-test/
+MK_INCLUDE_SANITY_IMPORT_TEST_LOCATION := tests/sanity-import-test/
 MK_INCLUDE := mk-include/
 UPDATE_MK_INCLUDE := false
 CC_MK_INCLUDE := cc-mk-include
@@ -10,8 +11,14 @@ include ./cc-begin.mk
 include ./cc-vault.mk
 include ./cc-semver.mk
 include ./cc-ci-metrics.mk
+include ./cc-pact.mk
+include ./cc-sonarqube.mk
 include ./cc-testbreak.mk
 include ./cc-end.mk
+
+.PHONY: copy-mk-include-install-pact-tools-script
+copy-mk-include-install-pact-tools-script:
+	cp ./bin/install-pact-tools.sh ${MK_INCLUDE}bin
 
 .PHONY: copy-mk-include-multiarch-docker-build-test
 copy-mk-include-multiarch-docker-build-test:
@@ -35,6 +42,12 @@ copy-mk-include-mk-include-auto-update-test:
 copy-mk-include-maven-docker-build-test:
 	find . -name '*.mk' | cpio -pdm "${MAVEN_DOCKER_BUILD_TEST}""${MK_INCLUDE}"
 	cp -R bin "${MAVEN_DOCKER_BUILD_TEST}""${MK_INCLUDE}"
+
+.PHONY: copy-mk-include-sanity-import-test
+copy-mk-include-sanity-import-test:
+	find . -name '*.mk' | cpio -pdm "${MK_INCLUDE_SANITY_IMPORT_TEST_LOCATION}""${MK_INCLUDE}"
+	cp -R bin "${MK_INCLUDE_SANITY_IMPORT_TEST_LOCATION}""${MK_INCLUDE}"
+	cp .gitignore "${MK_INCLUDE_SANITY_IMPORT_TEST_LOCATION}"
 
 .PHONY: copy-parent-mk-include
 copy-parent-mk-include:

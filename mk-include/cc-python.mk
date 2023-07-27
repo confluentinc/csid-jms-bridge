@@ -9,6 +9,10 @@ PYTEST_ARGS ?=
 PYTEST_IGNORE_DIR = mk-include
  # You can also use pytest.ini to ignore if you overwrite pytest cmds
 PYTEST_ARGS += --ignore=$(PYTEST_IGNORE_DIR)
+ # include arguments to generate coverage 
+ifeq ($(RUN_COVERAGE), true)
+PYTEST_ARGS += --cov --cov-report=xml --cov-report=html --cov-report=term --cov-report=annotate:textcov
+endif
  # If we don't specify this, fails on any suggestions, even conventions (lower than warnings)
 PYLINT_ARGS ?= --fail-under 9.0 --fail-on F,E
 
@@ -21,7 +25,7 @@ export PIPENV_IGNORE_VIRTUALENVS
 .PHONY: python-install-linters
 ## Add and Install Python linters to Pipfile
 python-install-linters:
-	pipenv install --python $(PYTHON_VERSION) yapf flake8 isort pytest pylint --dev
+	pipenv install --python $(PYTHON_VERSION) yapf flake8 isort pytest pylint pytest-cov --dev
 
 .PHONY: python-resources
 python-resources:

@@ -12,6 +12,6 @@ require (
 	golang.org/x/sys v0.0.0-20220412211240-33da011f77ad // indirect
 )
 
-replace golang.org/x/sys => golang.org/x/sys v0.0.0-20180810173357-98c5dad5d1a0
+replace golang.org/x/sys => golang.org/x/sys v0.0.0-20220412211240-33da011f77ad
 
 go 1.18

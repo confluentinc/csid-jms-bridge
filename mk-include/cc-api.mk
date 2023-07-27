@@ -4,14 +4,14 @@ TEST_TARGETS += api-lint
 CLEAN_TARGETS += api-clean
 
 REDOC_VERSION ?= v2.0.0-rc.77
-REDOC_CLI_VERSION ?= v0.13.0
+REDOC_CLI_VERSION ?= v0.24.0
 PRISM_VERSION ?= 3.1.1
 OPENAPI_LINTER_VERSION ?= v0.86.0
 SPECCY_VERSION ?= 0.11.0
 YAMLLINT_VERSION ?= 1.20
  # no tags in dockerhub for this one, but latest in github is v0.2.8
 OPENAPI_SPEC_VALIDATOR_VERSION ?= latest
-OPENAPI_GENERATOR_VERSION ?= v5.6.2
+OPENAPI_GENERATOR_VERSION ?= v5.6.6
 MINISPEC_VERSION ?= v0.3.0
  # or "editable" to not use docker, looks for MINISPEC_HOME
 MINISPEC_HOME ?= .
@@ -32,7 +32,7 @@ SPECCY = docker run $(_docker_opts) --workdir /local wework/speccy:$(SPECCY_VERS
 OPENAPI_LINTER = docker run $(_docker_opts) --workdir /local $(DEVPROD_PROD_ECR_REPO)/confluentinc/openapi-linter:$(OPENAPI_LINTER_VERSION)
 OPENAPI_LINTER_CONF ?= .spectral.yaml
 
-REDOC = docker run $(_docker_opts) $(DEVPROD_NONPROD_GAR_REPO)/confluentinc/redoc-cli:$(REDOC_CLI_VERSION)
+REDOC = docker run $(_docker_opts) $(DEVPROD_PROD_ECR_REPO)/confluentinc/redoc-cli:$(REDOC_CLI_VERSION)
 REDOC_THEME_OPTIONS ?= \
 	--options.theme.colors.primary.main='\#191924' \
 	--options.theme.typography.fontSize='16px' \
@@ -62,7 +62,7 @@ REDOC_THEME_OPTIONS ?= \
 	--options.theme.spacing.sectionVertical=20
 API_DOC_TITLE ?= API Reference Documentation
 REDOC_TEMPLATE ?= mk-include/resources/redoc.hbs
-REDOC_OPTIONS ?= --title "$(API_DOC_TITLE)" --template /local/$(REDOC_TEMPLATE) --templateOptions.segmentWriteKey "$(REDOC_SEGMENT_KEY)" $(REDOC_THEME_OPTIONS) 
+REDOC_OPTIONS ?= --title "$(API_DOC_TITLE)" --template /local/$(REDOC_TEMPLATE) --templateOptions.segmentWriteKey "$(REDOC_SEGMENT_KEY)" --templateOptions.googleTagManagerContainerId "$(REDOC_GOOGLE_TAG_MANAGER_CONTAINER_ID)" $(REDOC_THEME_OPTIONS)
 API_SPEC_FILENAME ?= openapi.yaml
 API_NAME ?= $(shell basename $(CURDIR))
 
@@ -206,7 +206,7 @@ endif
 .PHONY: linter-metrics-deps
 linter-metrics-deps:
 	pip3 install datadog==0.42.0
-	pip3 install pyyaml==5.4.1
+	pip3 install pyyaml==6.0.1
 
 .PHONY: post-openapi-linter-warnings
 post-openapi-linter-warnings:
@@ -274,7 +274,7 @@ api-redoc-serve: $$(addsuffix /redoc-serve,$$(lastword $$(API_SPEC_DIRS)))
 .PHONY: %/redoc-stop
 ## Stop the ReDoc server for an API (in the background)
 %/redoc-stop:
-	@docker stop $(shell docker ps -q -f "ancestor=$(DEVPROD_NONPROD_GAR_REPO)/confluentinc/redoc-cli:$(REDOC_CLI_VERSION)")
+	@docker stop $(shell docker ps -q -f "ancestor=$(DEVPROD_PROD_ECR_REPO)/confluentinc/redoc-cli:$(REDOC_CLI_VERSION)")
 
  #####################################################
  ## GO TEMPLATE SERVICE / RUNTIME GLUE FOR GO (POC) ##

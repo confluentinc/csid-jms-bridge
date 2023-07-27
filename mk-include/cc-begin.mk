@@ -1,3 +1,6 @@
+# Enable secondary expansion
+.SECONDEXPANSION:
+
 # Set shell to bash
 SHELL := /bin/bash
 
@@ -7,6 +10,12 @@ MAKE ?= make
 # Include this file first
 _empty :=
 _space := $(_empty) $(empty)
+_comma := ,
+
+# Joins elements of a space separated list with the given separator.
+#   first arg: separator.
+#   second arg: list.
+join-list = $(subst $(_space),$1,$(strip $2))
 
 # Master branch
 MASTER_BRANCH ?= master
@@ -21,6 +30,7 @@ UPDATE_MK_INCLUDE_AUTO_MERGE ?= true
 # DevprodProd docker registries hostname
 DEVPROD_PROD_AWS_ACCOUNT := 519856050701
 DEVPROD_PROD_ECR := $(DEVPROD_PROD_AWS_ACCOUNT).dkr.ecr.us-west-2.amazonaws.com
+DEVPROD_PROD_ECR_PROFILE := cc-internal-devprod-prod-1/developer-writer
 DEVPROD_PROD_ECR_PREFIX := docker/prod
 DEVPROD_PROD_ECR_REPO := $(DEVPROD_PROD_ECR)/$(DEVPROD_PROD_ECR_PREFIX)
 DEVPROD_PROD_ECR_HELM_REPO_PREFIX ?= helm/prod/confluentinc/
@@ -32,8 +42,11 @@ ifeq (true, $(UPDATE_MK_INCLUDE))
 INIT_CI_TARGETS += diff-mk-include
 endif
 RELEASE_TARGETS += $(_empty)
+GENERATE_TARGETS += $(_empty)
 BUILD_TARGETS += $(_empty)
+PRE_TEST_TARGETS += $(_empty)
 TEST_TARGETS += $(_empty)
+POST_TEST_TARGETS += $(_empty)
 CLEAN_TARGETS += $(_empty)
 
 # If this variable is set, release will run $(MAKE) $(RELEASE_MAKE_TARGETS)
@@ -133,9 +146,10 @@ endif
 
 # Git stuff
 BRANCH_NAME ?= $(shell git rev-parse --abbrev-ref HEAD || true)
+GIT_COMMIT ?= $(shell git rev-parse HEAD || true)
 # Set RELEASE_BRANCH if we're on master or vN.N.x
 # special case for ce-kafka: v0.NNNN.x-N.N.N-ce-SNAPSHOT, v0.NNNN.x-N.N.N-N-ce
-RELEASE_BRANCH := $(shell echo $(BRANCH_NAME) | grep -E '^($(MASTER_BRANCH)|v[0-9]+\.[0-9]+\.x(-[0-9]+\.[0-9]+\.[0-9](-[0-9])?(-ce)?(-SNAPSHOT)?)?)$$')
+RELEASE_BRANCH := $(shell echo $(BRANCH_NAME) | grep -E '^($(MASTER_BRANCH)|v[0-9]+\.[0-9]+\.x(-[0-9]+\.[0-9]+\.[0-9](-[0-9])?(-ce)?(-SNAPSHOT)?)?)$$|^release-[0-9]+\.[0-9]+-confluent$$')
 # assume the remote name is origin by default
 GIT_REMOTE_NAME ?= origin
 
@@ -209,6 +223,15 @@ ifeq ($(DOCKER_LOGIN), true)
 INIT_CI_TARGETS += docker-login-ci
 endif
 
+ARCH ?= $(shell uname -m)
+ifeq ($(ARCH),x86_64)
+ARCH := amd64
+else ifeq ($(ARCH),aarch64)
+ARCH := arm64
+endif
+
+RUN_COVERAGE ?= true
+
 .PHONY: update-mk-include
 update-mk-include:
 	set -e ;\
@@ -258,17 +281,6 @@ install-github-cli:
 	$(MK_INCLUDE_BIN)/install-github-cli.sh
 	$(GH) config set prompt disabled
 
-.PHONY: trigger-mk-include-update-pr
-## trigger a mk-include update PR if mk-include is behind pinned version
-trigger-mk-include-update-pr:
-ifeq (true, $(UPDATE_MK_INCLUDE))
-	@$(MAKE) update-mk-include
-	$(GIT) push -f $(GIT_REMOTE_NAME) $(MK_INCLUDE_UPDATE_BRANCH)
-	@echo "update cc-mk-include finished, open update PR"
-	$(GH) pr create -B $(MASTER_BRANCH) -b "update mk-include" -t $(MK_INCLUDE_UPDATE_COMMIT_MESSAGE) -H $(MK_INCLUDE_UPDATE_BRANCH)
-endif
-	@:
-
 .PHONY: github-cli-auth
 github-cli-auth:
 ## login to gh cli with semaphore ci token
@@ -277,7 +289,7 @@ ifeq ($(CI),true)
 # .githubtoken is a file contains github token and loaded form vault
 # gh auth login will fail when there is a GITHUB_TOKEN env variable
 	$(GH) auth login --with-token < $(HOME)/.githubtoken || true
-	rm $(HOME)/.githubtoken
+	rm $(HOME)/.githubtoken || true
 endif
 	@:
 
@@ -323,22 +335,6 @@ add-paas-github-templates:
 	@echo "Template added."
 	@echo "Create PR with 'git push && git log --format=%B -n 1 | hub pull-request -F -'"
 
-.PHONY: add-auto-merge-templates
-add-auto-merge-templates:
-	$(eval project_root := $(shell git rev-parse --show-toplevel))
-	$(eval mk_include_relative_path := $(project_root)/mk-include)
-	$(if $(wildcard $(project_root)/.github/bulldozer.yml),$(an error ".github/bulldozer.yml already exists, try deleting it"),)
-	$(if $(filter $(BRANCH_NAME),$(MASTER_BRANCH)),$(error "You must run this command from a branch: 'git checkout -b add-github-pr-template'"),)
-
-	@mkdir -p $(project_root)/.github
-	@cp $(mk_include_relative_path)/resources/bulldozer-template.yml $(project_root)/.github/bulldozer.yml
-	@git add $(project_root)/.github/bulldozer.yml
-	@git commit \
-		-m "Add bulldozer automerge template for PRs $(CI_SKIP)"
-	@git show
-	@echo "Auto merge template added."
-	@echo "Create PR with 'git push && git log --format=%B -n 1 | hub pull-request -F -'"
-
 .PHONY: docker-login-ci
 docker-login-ci:
 ifeq ($(CI),true)
@@ -369,11 +365,8 @@ endif
 
 .PHONY: docker-login-local
 docker-login-local:
-## an easy command to login ECR
-## follow set up on https://confluentinc.atlassian.net/wiki/spaces/TOOLS/pages/2799441996/Setup+AWS+ECR+Credentials
-	@gimme-aws-creds --profile DevprodProd
-	@aws ecr get-login-password --region us-west-2 --profile devprod-prod |\
-		docker login --username AWS --password-stdin $(DEVPROD_PROD_ECR)
+## an easy command to login to ECR
+	@echo "$(DEVPROD_PROD_ECR)" | docker-credential-cc-ecr-login.sh get >/dev/null
 
 .PHONY: bats
 bats:

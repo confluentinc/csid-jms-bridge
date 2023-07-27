@@ -26,7 +26,13 @@ def test_version_filter():
 def test_make_show_args():
     output = run_cmd("make show-args")
     assert_in_output(output, [
-        "docker-login-ci install-vault vault-bash-functions deps cache-docker-base-images gcloud-install cpd-update helm-setup-ci"
+        "cache-docker-base-images",
+        "deps",
+        "docker-login-ci",
+        "gcloud-install",
+        "helm-setup-ci",
+        "install-vault",
+        "vault-bash-functions",
     ])
 
 def test_make_init_ci():
@@ -34,7 +40,6 @@ def test_make_init_ci():
     assert_in_output(output, [
         "all modules verified",
         "cache restore 519856050701.dkr.ecr.us-west-2.amazonaws.com/docker/prod/confluentinc/cc-built-base:v1.1.0",
-        "## Updating CPD binary to latest"
     ])
     assert_file(["/home/semaphore/.docker/config.json"])
 

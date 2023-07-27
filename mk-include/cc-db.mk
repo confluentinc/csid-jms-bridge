@@ -1,11 +1,3 @@
-# READ_CONFIG_CMD should point to a server executable with a "config <name>" command to return the resolved
-# config value for <name>. The normal approach here is to setup your service to use service-runtime-for-go
-# (currently at https://github.com/confluentinc/cc-go-template-service/pkg/runtime).
-ifndef READ_CONFIG_CMD
-$(error READ_CONFIG_CMD must be set to an executable exposing a "config <name>" command to return resolved configurations)
-endif
-READ_CONFIG = $(READ_CONFIG_CMD) config
-
 # We use https://github.com/golang-migrate/migrate
 MIGRATE ?= migrate
 
@@ -15,12 +7,15 @@ DB_SCHEMA_FILE ?= ./db/schema.sql
 DB_SEED_FILE ?= ./db/seeds.sql
 ADMIN_DB_URL ?= postgres://
 
-INIT_CI_TARGETS += install-migrate db-local-reset
+# Only need to reset db before CI runs tests
+ifeq ($(CI),true)
+PRE_TEST_TARGETS += install-migrate db-local-reset
+endif
 
 .PHONY: install-migrate
 install-migrate:
 	# This tag makes it install only the postgres DB driver to avoid extra dependency bloat
-	go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@v4.15.1
+	go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@84009cf2ab468c0d7610385c23484dbbba9b5237
 
 .PHONY: show-db-migrate
 ## Show DB migrate variables
@@ -36,6 +31,10 @@ show-db: _db-vars
 	@echo "MIGRATION_DIR_URL: $(MIGRATION_DIR_URL)"
 	@echo "MIGRATION_DB_URL: $(MIGRATION_DB_URL)"
 	@echo "ADMIN_DB_URL: $(ADMIN_DB_URL)"
+
+.PHONY: psql
+psql: _db-vars
+	psql -P pager=off "$(DATABASE_URL)"
 
 .PHONY: db-migrate-create
 ## Create a new DB migration. Usage: make db-migrate-create NAME=migration_name_here
@@ -100,6 +99,10 @@ db-seed-dump: _db-vars
 .PHONY: db-local-reset
 ## Reset the local database from the schema, migrations, and seeds
 db-local-reset: _db-vars
+ifdef CC_DOTFILES_DB_TUNNEL
+	@echo "Unsafe operation, unsupported over SSH tunnel, abort. (CC_DOTFILES_DB_TUNNEL is set)."
+	@exit 1
+endif
 	psql -P pager=off "${ADMIN_DB_URL}/postgres" -c 'DROP DATABASE IF EXISTS $(DATABASE_NAME)'
 	psql -P pager=off "${ADMIN_DB_URL}/postgres" -c 'CREATE DATABASE $(DATABASE_NAME)'
 	psql -P pager=off "${ADMIN_DB_URL}/postgres" -c 'DROP ROLE IF EXISTS $(DATABASE_USER)'
@@ -114,20 +117,40 @@ _db-migrate-with-dump: _db-vars
 ifndef COMMAND
 	$(error COMMAND is not set. Usage: _db-migrate-with-dump COMMAND="up $$(N)")
 endif
-	@OUTPUT=$$($(MIGRATE) -source "$(MIGRATION_DIR_URL)" -database "$(MIGRATION_DB_URL)" $(COMMAND) 2>&1); \
+	@if [ -z "$(MIGRATION_DIR)" ]; then  \
+        	echo "Skipping db migrate $(COMMAND) because MIGRATION_DIR is empty"; \
+    		exit 0; \
+    	else \
+ 		OUTPUT=$$($(MIGRATE) -source "$(MIGRATION_DIR_URL)" -database "$(MIGRATION_DB_URL)" $(COMMAND) 2>&1); \
 		if [ $$? -eq 1 ]; then echo "$${OUTPUT}"; exit 1; else echo "$${OUTPUT}"; fi; \
 		echo "$${OUTPUT}" | grep -q -v "no change"; \
-		if [ $$? -eq 0 ]; then $(MAKE) db-dump-schema; else exit 0; fi
+		if [ $$? -eq 0 ]; then $(MAKE) db-dump-schema; else exit 0; fi; \
+    	fi; \
 
 .PHONY: _db-migrate-with-nodump
 _db-migrate-with-nodump: _db-vars
 ifndef COMMAND
 	$(error COMMAND is not set. Usage: _db-migrate-with-nodump COMMAND="force $$(VER)")
 endif
-	@$(MIGRATE) -source "$(MIGRATION_DIR_URL)" -database "$(MIGRATION_DB_URL)" $(COMMAND) 2>&1
+	@if [ -z "$(MIGRATION_DIR)" ]; then  \
+        	echo "$(MIGRATION_DIR)"; \
+        	echo "Skipping db migrate $(COMMAND) because MIGRATION_DIR is empty"; \
+    		exit 0; \
+  	else \
+		$(MIGRATE) -source "$(MIGRATION_DIR_URL)" -database "$(MIGRATION_DB_URL)" $(COMMAND) 2>&1; \
+	fi; \
 
+# User should add a make target in their Makefile with name $(READ_CONFIG_CMD) to build the executable which will output the db config
 .PHONY: _db-vars
 _db-vars: $(READ_CONFIG_CMD)
+# READ_CONFIG_CMD should point to a server executable with a "config <name>" command to return the resolved
+# config value for <name>. The normal approach here is to setup your service to use service-runtime-for-go
+# (currently at https://github.com/confluentinc/cc-go-template-service/pkg/runtime).
+ifndef READ_CONFIG_CMD
+	@echo 'READ_CONFIG_CMD must be set to an executable exposing a "config <name>" command to return resolved configurations'
+	@exit 1
+endif
+	$(eval READ_CONFIG=$(READ_CONFIG_CMD) config)
 	$(eval DATABASE_URL=$(shell $(READ_CONFIG) db.url))
 	$(eval DATABASE_NAME=$(shell $(READ_CONFIG) db.name))
 	$(eval DATABASE_USER=$(shell $(READ_CONFIG) db.username))

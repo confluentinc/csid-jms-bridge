@@ -6,7 +6,6 @@ GCLOUD_INSTALL ?= true
 ifeq ($(GCLOUD_INSTALL),true)
 INIT_CI_TARGETS += gcloud-install
 endif
-INIT_CI_TARGETS += cpd-update
 CLEAN_TARGETS += clean-cc-system-tests
 
 # Set path for cpd binary

@@ -29,5 +29,7 @@ maven-docker-build-test:
 	source maven-docker-build-test/bin/activate && \
 	pip3 install \
 	    pytest=="$(PYTEST_VERSION)" \
+        pytest-cov \
 	    structlog=="${STRUCTLOG_VERSION}" && \
-	pytest test.py -s --log-level="${PYTEST_LOG_LEVEL}"
+	pytest test.py -s --log-level="${PYTEST_LOG_LEVEL}" \
+	    --cov-report=xml --cov-report=html --cov-report=term --cov-report=annotate:textcov

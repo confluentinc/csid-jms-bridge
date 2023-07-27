@@ -27,7 +27,13 @@ def test_version_filter():
 def test_make_show_args():
     output = run_cmd("make show-args")
     assert_in_output(output, [
-        "docker-login-ci install-vault vault-bash-functions cache-docker-base-images gcloud-install cpd-update ci-bin-sem-cache-restore helm-setup-ci"
+        "cache-docker-base-images",
+        "deps",
+        "docker-login-ci",
+        "gcloud-install",
+        "helm-setup-ci",
+        "install-vault",
+        "vault-bash-functions",
     ])
 
 
@@ -35,7 +41,6 @@ def test_make_init_ci():
     output = run_cmd("make init-ci")
     assert_in_output(output, [
         "cache restore 519856050701.dkr.ecr.us-west-2.amazonaws.com/docker/prod/confluentinc/cc-base:v18.6.0",
-        "## Updating CPD binary to latest"
     ])
     assert_file(["/home/semaphore/.docker/config.json"])
 
@@ -55,7 +60,7 @@ def test_build_docker_override_two():
     output = run_cmd("make -f Makefile_test_BUILD_DOCKER_OVERRIDE build")
     assert_not_in_output(output, ["mvnw"])
     assert_in_output(output, [
-        "mvn --no-transfer-progress --batch-mode", "BUILD SUCCESS",
+        "mvn --no-transfer-progress  --batch-mode", "BUILD SUCCESS",
         "docker image save"
     ])
 

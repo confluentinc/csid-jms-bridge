@@ -75,6 +75,11 @@ case "${BRANCH_NAME}" in
       # automatically push code changes to devel-canary branch
       promote master devel-canary
 
+      # Running tests on master branch targeting an arbitrary environment. Prod not allowed
+      if [ "${RUN_TESTS_ON_MASTER}" = "true" ] && [ "${TEST_ENVIRONMENT}" != "prod" ]; then
+        run_tests "${TEST_ENVIRONMENT}"
+      fi
+
       if [ "${ENABLE_MASTER_TO_STAG_PROMOTION}" = "true" ]; then
         # optionally push code changes to stag branch
         promote master stag

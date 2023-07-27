@@ -11,7 +11,7 @@ ifeq ($(SEMAPHORE_2),true)
 #   https://docs.semaphoreci.com/article/54-toolbox-reference#cache
 
 INIT_CI_TARGETS += ci-bin-sem-cache-restore
-EPILOGUE_TARGETS += ci-bin-sem-cache-store
+EPILOGUE_TARGETS += ci-bin-sem-cache-store store-test-results-to-semaphore
 DEB_CACHE_DIR ?= $(SEMAPHORE_CACHE_DIR)/.deb-cache
 PIP_CACHE_DIR ?= $(shell pip3 cache dir)
 CI_BIN_OVERRIDE ?= ci-bin
