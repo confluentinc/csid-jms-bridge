@@ -10,3 +10,6 @@ github:
     repo_name: confluentinc/csid-jms-bridge
 semaphore:
     enable: true
+make:
+  enable: false
+  enable_updates: true
