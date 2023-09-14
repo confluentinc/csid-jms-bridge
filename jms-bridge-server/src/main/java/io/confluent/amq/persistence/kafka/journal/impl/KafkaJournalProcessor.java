@@ -68,7 +68,7 @@ public class KafkaJournalProcessor implements StateListener {
       .with(b -> b.loggerClass(KafkaJournalProcessor.class));
 
   private final String bridgeId;
-  private final BridgeClientId clientId;
+  private final BridgeClientId bridgeClientId;
   private final String applicationId;
   private final Map<String, String> streamsConfig;
   private final KafkaIO kafkaIO;
@@ -113,7 +113,7 @@ public class KafkaJournalProcessor implements StateListener {
       EpochCoordinator epochCoordinator) {
 
     this.bridgeId = bridgeId;
-    this.clientId = clientId;
+    this.bridgeClientId = bridgeClientId;
     this.applicationId = applicationId;
     this.loadTimeout = loadTimeOut;
     this.streamsConfig = streamsConfig;
