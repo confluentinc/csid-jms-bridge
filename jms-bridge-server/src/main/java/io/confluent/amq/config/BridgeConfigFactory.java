@@ -94,6 +94,11 @@ public final class BridgeConfigFactory {
     return loadConfiguration(theirConfig);
   }
 
+  public static String getBridgeVersion() {
+    String versionFromManifest = BridgeConfigFactory.class.getPackage().getImplementationVersion();
+    return versionFromManifest == null ? "unknown" : versionFromManifest;
+  }
+
   private static BridgeConfig.Builder loadConfiguration(Config appConfig) {
     Config config = appConfig.withFallback(ConfigFactory.defaultReferenceUnresolved()).resolve();
 
@@ -102,5 +107,4 @@ public final class BridgeConfigFactory {
 
     return bridgeConfig;
   }
-
 }

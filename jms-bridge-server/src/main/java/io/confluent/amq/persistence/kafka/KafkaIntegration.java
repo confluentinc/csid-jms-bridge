@@ -4,6 +4,7 @@
 
 package io.confluent.amq.persistence.kafka;
 
+import io.confluent.amq.config.BridgeClientId;
 import org.apache.activemq.artemis.utils.UUID;
 import org.apache.activemq.artemis.utils.UUIDGenerator;
 import org.apache.kafka.common.config.TopicConfig;
@@ -58,7 +59,7 @@ public class KafkaIntegration {
             config.journals().messages(),
             true));
 
-    final String clientId = String.format("%s_%s", bridgeId, nodeUuid.toString());
+    final BridgeClientId clientId = config.clientId().withEvenMoreClientId(nodeUuid.toString());
     this.kafkaIO = new KafkaIO(clientId, BridgeConfigFactory.mapToProps(config.kafka()));
     this.journalProcessor = new KafkaJournalProcessor(
         bridgeId,

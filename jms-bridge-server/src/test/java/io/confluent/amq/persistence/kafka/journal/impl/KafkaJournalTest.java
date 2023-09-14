@@ -5,6 +5,7 @@
 package io.confluent.amq.persistence.kafka.journal.impl;
 
 import com.google.protobuf.ByteString;
+import io.confluent.amq.config.BridgeClientId;
 import org.apache.kafka.clients.admin.TopicDescription;
 import org.apache.kafka.clients.consumer.ConsumerGroupMetadata;
 import org.apache.kafka.common.TopicPartitionInfo;
@@ -402,7 +403,7 @@ public class KafkaJournalTest {
       this.processor = new KafkaJournalProcessor(
           bridgeConfig.id(),
           Collections.singletonList(journalSpec),
-          "testNode",
+          new BridgeClientId.Builder().bridgeId("testNode").buildPartial(),
           "testApp",
           Duration.ofSeconds(60),
           bridgeConfig.streams(), mockKafkaIo, epochCoordinator);

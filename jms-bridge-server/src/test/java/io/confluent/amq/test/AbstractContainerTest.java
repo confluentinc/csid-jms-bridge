@@ -34,6 +34,7 @@ public abstract class AbstractContainerTest {
     }
   }
 
+
   protected static Properties essentialProps() {
     synchronized (READY_LOCK) {
       Properties props = new Properties();
@@ -58,6 +59,10 @@ public abstract class AbstractContainerTest {
       containerHelper = new KafkaContainerHelper(KAFKA_CONTAINER, adminClient, SEQUENCE);
     }
     return containerHelper;
+  }
+
+  protected KafkaContainer getKafkaContainer() {
+    return KAFKA_CONTAINER;
   }
 
   @AfterEach

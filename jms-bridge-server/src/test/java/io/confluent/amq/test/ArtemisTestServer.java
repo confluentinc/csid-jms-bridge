@@ -409,13 +409,13 @@ public class ArtemisTestServer implements
   private Connection createJmsConnection(JmsCnxnSpec spec) {
     try {
       ActiveMQConnectionFactory cf = ActiveMQJMSClient
-          .createConnectionFactory(spec.url(), spec.name().orElse("junit"));
+          .createConnectionFactory(spec.url(), spec.name().orElse(safeId("junit")));
 
       cf.setConfirmationWindowSize(1024000);
       cf.setProducerWindowSize(-1);
       cf.setConsumerWindowSize(-1);
       ActiveMQConnection amqConnection = (ActiveMQConnection) cf.createConnection();
-      amqConnection.setClientID(spec.clientId().orElse("junit"));
+      amqConnection.setClientID(spec.clientId().orElse(safeId("junit")));
 
       return amqConnection;
 

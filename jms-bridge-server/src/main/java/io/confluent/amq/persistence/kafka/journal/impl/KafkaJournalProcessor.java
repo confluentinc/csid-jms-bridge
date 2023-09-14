@@ -4,6 +4,7 @@
 
 package io.confluent.amq.persistence.kafka.journal.impl;
 
+import io.confluent.amq.config.BridgeClientId;
 import org.apache.kafka.clients.admin.TopicDescription;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.streams.KafkaStreams;
@@ -67,7 +68,7 @@ public class KafkaJournalProcessor implements StateListener {
       .with(b -> b.loggerClass(KafkaJournalProcessor.class));
 
   private final String bridgeId;
-  private final String clientId;
+  private final BridgeClientId clientId;
   private final String applicationId;
   private final Map<String, String> streamsConfig;
   private final KafkaIO kafkaIO;
@@ -84,7 +85,7 @@ public class KafkaJournalProcessor implements StateListener {
   public KafkaJournalProcessor(
       String bridgeId,
       List<JournalSpec> journalSpecs,
-      String clientId,
+      BridgeClientId clientId,
       String applicationId,
       Duration loadTimeout,
       Map<String, String> streamsConfig,
@@ -104,7 +105,7 @@ public class KafkaJournalProcessor implements StateListener {
   protected KafkaJournalProcessor(
       String bridgeId,
       List<JournalSpec> journalSpecs,
-      String clientId,
+      BridgeClientId bridgeClientId,
       String applicationId,
       Duration loadTimeOut,
       Map<String, String> streamsConfig,
@@ -200,7 +201,7 @@ public class KafkaJournalProcessor implements StateListener {
     Properties kstreamProps = new Properties();
     kstreamProps.putAll(streamsConfig);
     kstreamProps.put(StreamsConfig.APPLICATION_ID_CONFIG, applicationId);
-    kstreamProps.put(StreamsConfig.CLIENT_ID_CONFIG, "jms-bridge_" + clientId);
+    kstreamProps.put(StreamsConfig.CLIENT_ID_CONFIG, bridgeClientId.clientId("jms-bridge"));
 
     //ensure our custom partitioner is used since it should depend on partial key values only
     kstreamProps.put(

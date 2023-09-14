@@ -6,6 +6,8 @@ package io.confluent.amq.persistence.kafka;
 
 import com.google.protobuf.Message;
 import javax.annotation.Nullable;
+
+import io.confluent.amq.config.BridgeClientId;
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.ConsumerGroupDescription;
@@ -50,7 +52,7 @@ public class KafkaIO {
   private static final AtomicInteger ID_SEQ = new AtomicInteger(0);
 
   private final Properties kafkaProps;
-  private final String baseClientId;
+  private final BridgeClientId baseClientId;
 
 
   private final ReadWriteLock rwlock = new ReentrantReadWriteLock();
@@ -59,7 +61,7 @@ public class KafkaIO {
   private volatile KafkaProducer<byte[], byte[]> externalProducer;
   private volatile AdminClient adminClient;
 
-  public KafkaIO(String baseClientId, Map<?, ?> kafkaProps) {
+  public KafkaIO(BridgeClientId baseClientId, Map<?, ?> kafkaProps) {
     this.baseClientId = baseClientId;
     this.kafkaProps = new Properties();
     this.kafkaProps.putAll(kafkaProps);
@@ -252,7 +254,7 @@ public class KafkaIO {
     lprops.putAll(BridgeConfigFactory.propsToMap(kafkaProps));
     lprops.put(
         ProducerConfig.CLIENT_ID_CONFIG,
-        String.format("%s_%s_%s", baseClientId, clientSuffix, ID_SEQ.getAndIncrement()));
+        baseClientId.clientId(String.format("%s_%s", clientSuffix, ID_SEQ.getAndIncrement())));
     KafkaProducer<K, V> producer = new KafkaProducer<>(lprops, keySer, valSer);
     Runtime.getRuntime().addShutdownHook(new Thread(producer::close));
     return producer;

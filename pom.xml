@@ -32,6 +32,7 @@
     <airline.version>2.8.0</airline.version>
     <aws-maven.version>5.0.0.RELEASE</aws-maven.version>
     <compile.warnings-flag>-Werror</compile.warnings-flag>
+    <csid.common.version>1.0.16</csid.common.version>
     <freebuilder.version>2.6.0</freebuilder.version>
     <git-commit-id-plugin.version>2.2.6</git-commit-id-plugin.version>
     <guava.version>32.0.0-jre</guava.version>
@@ -43,7 +44,7 @@
     <maven-dependency-plugin.version>3.3.0</maven-dependency-plugin.version>
     <maven-surefire-plugin.version>3.0.0</maven-surefire-plugin.version>
     <mockito.version>5.2.0</mockito.version>
-    <myjunit.version>5.6.2</myjunit.version>
+    <myjunit.version>5.7.2</myjunit.version>
     <protobuf.version>3.22.2</protobuf.version>
     <release.artifact>
       ${project.build.directory}/${project.artifactId}-${project.version}-package.zip
@@ -307,6 +308,11 @@
         <version>${protobuf.version}</version>
       </dependency>
 
+      <dependency>
+        <groupId>io.confluent.csid.common</groupId>
+        <artifactId>utils</artifactId>
+        <version>${csid.common.version}</version>
+      </dependency>
 
       <!-- Test dependencies -->
       <dependency>

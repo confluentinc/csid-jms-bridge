@@ -13,6 +13,9 @@ import com.typesafe.config.ConfigException;
 import io.confluent.amq.config.RoutingConfig.RoutedTopic;
 import java.net.URL;
 import java.time.Duration;
+
+import io.confluent.csid.common.utils.accelerator.Accelerator;
+import io.confluent.csid.common.utils.accelerator.Owner;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -96,6 +99,13 @@ class BridgeConfigFactoryTest {
     assertEquals("TEXT", routedTopic2.messageType());
     assertTrue(routedTopic2.consumeAlways());
 
+  }
+
+  @Test
+  public void testGetBridgeVersion() {
+    String version = BridgeConfigFactory.getBridgeVersion();
+    System.out.println("version: " + version);
+    assertEquals("unknown", version);
   }
 
   private BridgeConfig getConfig(String configName) {

@@ -5,6 +5,9 @@
 package io.confluent.amq.config;
 
 import com.typesafe.config.Config;
+import io.confluent.csid.common.utils.accelerator.Accelerator;
+import io.confluent.csid.common.utils.accelerator.ClientId;
+import io.confluent.csid.common.utils.accelerator.Owner;
 import org.inferred.freebuilder.FreeBuilder;
 
 import java.time.Duration;
@@ -12,11 +15,16 @@ import java.util.Map;
 import java.util.Optional;
 
 import static io.confluent.amq.config.BridgeConfigFactory.flattenConfig;
+import static io.confluent.amq.config.BridgeConfigFactory.getBridgeVersion;
 
 @FreeBuilder
 public interface BridgeConfig {
 
   String id();
+
+  Optional<String> partnerSFDCId();
+
+  BridgeClientId clientId();
 
   Map<String, String> kafka();
 
@@ -52,6 +60,14 @@ public interface BridgeConfig {
       if (bridgeConfig.hasPath("security")) {
         this.security(new SecurityConfig.Builder(bridgeConfig.getConfig("security")).build());
       }
+
+      if (bridgeConfig.hasPath(("partner_sfdc_id"))) {
+        this.partnerSFDCId(bridgeConfig.getString("partner_sfdc_id"));
+      }
+      this.clientId(new BridgeClientId.Builder()
+                      .partnerSFDCId(this.partnerSFDCId())
+                      .bridgeId(this.id())
+                      .build());
     }
 
   }

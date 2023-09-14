@@ -5,6 +5,7 @@
 package io.confluent.amq;
 
 import io.confluent.amq.config.BridgeConfig;
+import io.confluent.csid.common.utils.accelerator.Accelerator;
 import org.apache.activemq.artemis.api.core.BroadcastGroupConfiguration;
 import org.apache.activemq.artemis.api.core.DiscoveryGroupConfiguration;
 import org.apache.activemq.artemis.api.core.QueueConfiguration;

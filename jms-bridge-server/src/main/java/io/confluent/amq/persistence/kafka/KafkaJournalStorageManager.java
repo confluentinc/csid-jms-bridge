@@ -17,6 +17,7 @@ import org.apache.activemq.artemis.core.persistence.impl.journal.JournalStorageM
 import org.apache.activemq.artemis.core.postoffice.Binding;
 import org.apache.activemq.artemis.core.server.LargeServerMessage;
 import org.apache.activemq.artemis.core.server.impl.AddressInfo;
+import org.apache.activemq.artemis.utils.ArtemisCloseable;
 import org.apache.activemq.artemis.utils.ExecutorFactory;
 import org.apache.activemq.artemis.utils.critical.CriticalAnalyzer;
 
@@ -40,6 +41,11 @@ public class KafkaJournalStorageManager extends JournalStorageManager {
 
   private KafkaIO kafkaIO;
   private KafkaIntegration kafkaIntegration;
+
+  @Override
+  public ArtemisCloseable closeableReadLock() {
+    return super.closeableReadLock();
+  }
 
   public KafkaJournalStorageManager(
       KafkaIntegration kafkaIntegration,

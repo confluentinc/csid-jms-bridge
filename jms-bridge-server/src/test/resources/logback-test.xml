@@ -75,18 +75,18 @@
         <appender-ref ref="stdout"/>
     </logger>
 
-    <logger name="org.apache.kafka.clients.consumer.ConsumerConfig" level="ERROR"
-            additivity="false">
+    <logger name="org.apache.kafka.clients.consumer.ConsumerConfig" level="INFO"
+            additivity="true">
         <appender-ref ref="stdout"/>
     </logger>
 
-    <logger name="org.apache.kafka.clients.consumer.StreamsConfig" level="ERROR"
-            additivity="false">
+    <logger name="org.apache.kafka.clients.consumer.StreamsConfig" level="INFO"
+            additivity="true">
         <appender-ref ref="stdout"/>
     </logger>
 
-    <logger name="org.apache.kafka.clients.producer.ProducerConfig" level="ERROR"
-            additivity="false">
+    <logger name="org.apache.kafka.clients.producer.ProducerConfig" level="INFO"
+            additivity="true">
         <appender-ref ref="stdout"/>
     </logger>
 
