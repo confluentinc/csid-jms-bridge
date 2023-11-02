@@ -11,5 +11,6 @@ github:
 semaphore:
     enable: true
 make:
-  enable: false
+  enable: true
+  update_makefile: false
   enable_updates: true
