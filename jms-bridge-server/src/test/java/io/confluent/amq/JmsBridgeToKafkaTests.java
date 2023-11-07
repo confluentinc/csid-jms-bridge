@@ -236,8 +236,13 @@ public class JmsBridgeToKafkaTests extends AbstractContainerTest {
                 Message jmsMessage2 = consumer.receive(1000);
 
                 assertNull(jmsMessage2);
-                assertEquals(messagePayload, jmsMessage.getBody(String.class));
                 assertNotNull(jmsMessage);
+                assertEquals(messagePayload, jmsMessage.getBody(String.class));
+
+                producerHelper.publish(kafkaCustomerTopic, "key", messagePayload);
+                jmsMessage = consumer.receive(1000);
+                assertNotNull(jmsMessage);
+                assertEquals(messagePayload, jmsMessage.getBody(String.class));
 
             }
 
@@ -288,6 +293,9 @@ public class JmsBridgeToKafkaTests extends AbstractContainerTest {
 
     @Test
     public void testKafkaClientIdsAreCorrect() throws Exception {
+        String clientIdPrefix =
+                "PIE_LABS | partner_sfdc_id | 01956412-5721-46ba-9673-4a84b48200b2 | unknown | client_test_bridge";
+
         String kafkaCustomerTopic = adminHelper.safeCreateTopic("customer-topic", 1);
         Factory amqf = ArtemisTestServer.factory();
         String bridgeId = "client_test_bridge";
@@ -295,7 +303,7 @@ public class JmsBridgeToKafkaTests extends AbstractContainerTest {
         amqf.prepare(bridgeKafkaProps, b -> b
                 .mutateJmsBridgeConfig(bridge -> bridge
                         .mergeFrom(baseConfig)
-                        .id("test")
+                        .id("test-kafka-client-ids")
                         .clientId(new BridgeClientId.Builder()
                                 .bridgeId(bridgeId)
                                 .partnerSFDCId(sfcdId))
@@ -324,31 +332,27 @@ public class JmsBridgeToKafkaTests extends AbstractContainerTest {
                 producer.send(message);
                 session.commit();
 
+                //now publish to kafka to trigger the exchange consumer
+                producerHelper.publish(kafkaCustomerTopic, "key", "Message 2");
+
                 MBeanServer mBeanServer = ManagementFactory.getPlatformMBeanServer();
                 Set<ObjectInstance> objectInstanceSet = mBeanServer.queryMBeans(null, null);
                 Long bridgeCount = objectInstanceSet.stream()
                         .map(ObjectInstance::toString)
-                        .filter(n -> n.contains(bridgeId))
+                        .filter(s -> s.contains("client-id=\"client_test_bridge"))
+                        .peek(System.err::println)
                         .count();
 
-                Long sfdcCount = objectInstanceSet.stream()
+                Long properIdCount = mBeanServer.queryMBeans(null, null).stream()
                         .map(ObjectInstance::toString)
-                        .filter(n -> n.contains(sfcdId))
+                        .filter(s -> s.contains("client-id"))
+                        .filter(s -> s.contains(clientIdPrefix))
                         .count();
 
-                Long accIdCount = objectInstanceSet.stream()
-                        .map(ObjectInstance::toString)
-                        .filter(n -> n.contains(Accelerator.JMS_BRIDGE.getAcceleratorId()))
-                        .count();
 
-                Long ownerIdCount = objectInstanceSet.stream()
-                        .map(ObjectInstance::toString)
-                        .filter(n -> n.contains(Owner.PIE_LABS.name()))
-                        .count();
-
-                assertTrue(bridgeCount <= sfdcCount, "bridge client ids should include partner sfdc id");
-                assertTrue(bridgeCount <= accIdCount, "bridge client ids should include accelerator id");
-                assertTrue(bridgeCount <= ownerIdCount, "bridge client ids should include owner id");
+                assertEquals(
+                        0, bridgeCount, "one or more bridge client ids do not follow the correct pattern");
+                assertTrue(properIdCount > 0);
             }
         }
     }

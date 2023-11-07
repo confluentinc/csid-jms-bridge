@@ -8,6 +8,7 @@ import com.google.common.base.Stopwatch;
 import io.confluent.amq.persistence.kafka.KafkaIO;
 import org.apache.commons.lang3.RandomUtils;
 import org.apache.kafka.clients.admin.AdminClient;
+import org.apache.kafka.clients.admin.AdminClientConfig;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -39,6 +40,8 @@ import java.util.stream.Collectors;
 
 @SuppressWarnings("checkstyle:ClassDataAbstractionCoupling")
 public class KafkaContainerHelper {
+  public static final String CLIENT_ID_PREFIX = "unit-test";
+  private static final AtomicInteger CLIENT_ID_COUNTER = new AtomicInteger();
   private static final Logger LOGGER = LoggerFactory.getLogger(KafkaContainerHelper.class);
 
   private final AtomicInteger sequence;
@@ -79,6 +82,14 @@ public class KafkaContainerHelper {
     kafkaContainer.start();
   }
 
+  private Properties addClientId(String suffix) {
+    Properties extProps = new Properties();
+    extProps.putAll(this.baseProps);
+    String clientId =  CLIENT_ID_PREFIX + "-" + suffix + "-" + CLIENT_ID_COUNTER.getAndIncrement();
+    extProps.put(AdminClientConfig.CLIENT_ID_CONFIG, clientId);
+    return extProps;
+  }
+
   private synchronized void init() {
     if (!initComplete) {
       this.addBaseProp(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaContainer.getBootstrapServers())
@@ -88,7 +99,7 @@ public class KafkaContainerHelper {
           .addBaseProp(ConsumerConfig.EXCLUDE_INTERNAL_TOPICS_CONFIG, "false");
 
       if (adminClient == null) {
-        AdminClient client = AdminClient.create(baseProps);
+        AdminClient client = AdminClient.create(addClientId("admin"));
         Runtime.getRuntime().addShutdownHook(new Thread(client::close));
         this.adminClient = client;
       }
@@ -115,7 +126,7 @@ public class KafkaContainerHelper {
   public <K, V> ProducerHelper<K, V> producerHelper(Serializer<K> keySer, Serializer<V> valSer) {
 
     init();
-    KafkaProducer<K, V> producer = new KafkaProducer<>(this.baseProps, keySer, valSer);
+    KafkaProducer<K, V> producer = new KafkaProducer<>(addClientId("producer"), keySer, valSer);
     ProducerHelper<K, V> helper = new ProducerHelper<>(producer);
     clients.add(helper);
     return helper;
@@ -125,7 +136,7 @@ public class KafkaContainerHelper {
       Deserializer<K> keyDeser, Deserializer<V> valDeser) {
 
     init();
-    KafkaConsumer<K, V> kafkaConsumer = new KafkaConsumer<>(this.baseProps, keyDeser, valDeser);
+    KafkaConsumer<K, V> kafkaConsumer = new KafkaConsumer<>(addClientId("consumer"), keyDeser, valDeser);
     ConsumerHelper<K, V> helper = new ConsumerHelper<>(kafkaConsumer);
     clients.add(helper);
     return helper;

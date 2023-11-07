@@ -8,11 +8,8 @@ import com.google.protobuf.Message;
 import javax.annotation.Nullable;
 
 import io.confluent.amq.config.BridgeClientId;
-import org.apache.kafka.clients.admin.Admin;
-import org.apache.kafka.clients.admin.AdminClient;
-import org.apache.kafka.clients.admin.ConsumerGroupDescription;
-import org.apache.kafka.clients.admin.NewTopic;
-import org.apache.kafka.clients.admin.TopicDescription;
+import org.apache.kafka.clients.admin.*;
+import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerConfig;
@@ -82,7 +79,12 @@ public class KafkaIO {
         externalProducer = createProducer("external",
             new ByteArraySerializer(), new ByteArraySerializer());
 
-        adminClient = AdminClient.create(kafkaProps);
+        Properties adminProps = new Properties();
+        adminProps.putAll(kafkaProps);
+        adminProps.put(
+                AdminClientConfig.CLIENT_ID_CONFIG,
+                baseClientId.clientId("admin-" + ID_SEQ.getAndIncrement()));
+        adminClient = AdminClient.create(adminProps);
         Runtime.getRuntime().addShutdownHook(new Thread(this::stop));
         state = STARTED;
       }
@@ -112,6 +114,8 @@ public class KafkaIO {
       Consumer<? super ConsumerThread.Builder<K, V>> spec) {
     ConsumerThread.Builder<K, V> builder = ConsumerThread.newBuilder();
     kafkaProps.forEach((k, v) -> builder.putConsumerProps(k.toString(), v));
+    builder.putConsumerProps(
+            ConsumerConfig.CLIENT_ID_CONFIG, baseClientId.clientId("admin-" + ID_SEQ.getAndIncrement()));
     spec.accept(builder);
 
     ConsumerThread<K, V> consumerThread = builder.build();
