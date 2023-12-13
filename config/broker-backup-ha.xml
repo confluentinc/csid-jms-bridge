@@ -26,7 +26,7 @@
     <!-- Connectors -->
     <connectors>
       <connector name="live-netty-connector">tcp://live-jms-bridge:61616</connector>
-      <connector name="backup-netty-connector">tcp://backup-jms-bridge:61617/connector>
+      <connector name="backup-netty-connector">tcp://backup-jms-bridge:61617</connector>
     </connectors>
 
     <!-- Acceptors -->
