@@ -2,7 +2,7 @@
 # Copyright (C) 2021-2022 Confluent, Inc.
 #
 version: v1.0
-name: JMS Bridge
+name: build-test-release
 agent:
   machine:
     type: s1-prod-ubuntu20-04-amd64-1
@@ -12,18 +12,19 @@ auto_cancel:
     when: "branch != 'main'"
 
 global_job_config:
-  env_vars:
-    - name: MAVEN_OPTS
-      value: "-Dmaven.repo.local=.m2"
   prologue:
     commands:
+      - sem-version java 17
       - checkout
+      - make show-args
       - . vault-setup
-      # - . vault-sem-get-secret csid-bundles # this might be for csm plugin publishes
-      - chmod 700 ~/.m2/settings.xml
-      - chmod 700 ~/.netrc
-      - make docker-login-ci
-      - sem-version java 11
+      - . vault-sem-get-secret ci-reporting
+      - . vault-sem-get-secret v1/ci/kv/service-foundations/cc-mk-include
+      - make init-ci
+  epilogue:
+    always:
+      commands:
+        - make epilogue-ci
 
 blocks:
   - name: Setup
@@ -84,3 +85,10 @@ promotions:
   #   pipeline_file: publish_docs.yml
   #   auto_promote:
   #     when: "result = 'passed' and tag =~ '.*'"
+execution_time_limit:
+  hours: 1
+
+queue:
+  - when: "branch != 'master'"
+    processing: parallel
+
