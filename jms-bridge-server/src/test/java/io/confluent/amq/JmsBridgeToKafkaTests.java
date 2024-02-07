@@ -293,20 +293,19 @@ public class JmsBridgeToKafkaTests extends AbstractContainerTest {
 
     @Test
     public void testKafkaClientIdsAreCorrect() throws Exception {
-        String clientIdPrefix =
-                "PIE_LABS | partner_sfdc_id | 01956412-5721-46ba-9673-4a84b48200b2 | unknown | client_test_bridge";
 
         String kafkaCustomerTopic = adminHelper.safeCreateTopic("customer-topic", 1);
         Factory amqf = ArtemisTestServer.factory();
-        String bridgeId = "client_test_bridge";
-        String sfcdId = "partner_sfdc_id";
+        String bridgeId = "my_client_test_bridge";
+        String sfcdId = "my_partner_sfdc_id";
+        String clientIdPrefix =
+                String.format("PIE_LABS | %s | 01956412-5721-46ba-9673-4a84b48200b2 | unknown | %s", sfcdId, bridgeId);
+        BridgeConfig.Builder idConfig = BridgeConfigFactory
+                .loadConfiguration(Resources.getResource("config/partner-sfdc-id-test-config.conf"));
+
         amqf.prepare(bridgeKafkaProps, b -> b
                 .mutateJmsBridgeConfig(bridge -> bridge
-                        .mergeFrom(baseConfig)
-                        .id("test-kafka-client-ids")
-                        .clientId(new BridgeClientId.Builder()
-                                .bridgeId(bridgeId)
-                                .partnerSFDCId(sfcdId))
+                        .mergeFrom(idConfig)
                         .routing(new RoutingConfig.Builder()
                                 .addTopics(new Builder()
                                         .addressTemplate("test.${topic}")
@@ -339,7 +338,7 @@ public class JmsBridgeToKafkaTests extends AbstractContainerTest {
                 Set<ObjectInstance> objectInstanceSet = mBeanServer.queryMBeans(null, null);
                 Long bridgeCount = objectInstanceSet.stream()
                         .map(ObjectInstance::toString)
-                        .filter(s -> s.contains("client-id=\"client_test_bridge"))
+                        .filter(s -> s.contains("client-id=\"" + bridgeId))
                         .peek(System.err::println)
                         .count();
 

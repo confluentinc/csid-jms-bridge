@@ -196,7 +196,19 @@
         <dependency>
             <artifactId>artemis-commons</artifactId>
             <groupId>org.apache.activemq</groupId>
+            <exclusions>
+                <exclusion>
+                    <groupId>commons-collections</groupId>
+                    <artifactId>commons-collections</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
+        <!-- add version without CVEs -->
+        <dependency>
+            <groupId>commons-collections</groupId>
+            <artifactId>commons-collections</artifactId>
+        </dependency>
+
         <dependency>
             <artifactId>artemis-core-client</artifactId>
             <groupId>org.apache.activemq</groupId>
@@ -247,6 +259,10 @@
             <groupId>org.apache.activemq</groupId>
             <scope>test</scope>
             <type>test-jar</type>
+        </dependency>
+        <dependency>
+            <groupId>commons-collections</groupId>
+            <artifactId>commons-collections</artifactId>
         </dependency>
         <dependency>
             <artifactId>junit-jupiter-api</artifactId>
