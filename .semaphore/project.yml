@@ -11,7 +11,7 @@ metadata:
 spec:
   visibility: private
   repository:
-    url: git@github.com:confluentinc/csid-jms-bridge.git
+    url: git@github.com:confluent-partners/csid-jms-bridge.git
     run_on:
     - branches
     - tags

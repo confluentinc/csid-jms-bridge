@@ -9,6 +9,41 @@
 
   <modelVersion>4.0.0</modelVersion>
 
+  <repositories>
+    <repository>
+      <id>cflt</id>
+      <url>https://packages.confluent.io/maven/</url>
+    </repository>
+    <repository>
+      <id>confluent-csid-releases</id>
+      <url>https://d2ccl1b59si11a.cloudfront.net/releases/</url>
+    </repository>
+
+    <!--
+    This repo is for snapshot releases.
+    Snapshots are NOT to be used in production!!
+    -->
+    <!--
+    <repository>
+            <id>confluent-csid-snapshots</id>
+            <url>https://d2ccl1b59si11a.cloudfront.net/snapshots/</url>
+        </repository>
+    -->
+  </repositories>
+
+<!--  <repositories>-->
+<!--    <repository>-->
+<!--      <id>confluent-codeartifact-central</id>-->
+<!--      <url>https://confluent-519856050701.dp.confluent.io/maven/maven-public/</url>-->
+<!--      <releases>-->
+<!--        <enabled>true</enabled>-->
+<!--      </releases>-->
+<!--      <snapshots>-->
+<!--        <enabled>true</enabled>-->
+<!--      </snapshots>-->
+<!--    </repository>-->
+<!--  </repositories>-->
+
   <scm>
     <connection>scm:git:git://github.com:confluentinc/csid-jms-bridge.git</connection>
     <developerConnection>scm:git:git@github.com:confluentinc/csid-jms-bridge.git

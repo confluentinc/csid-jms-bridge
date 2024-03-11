@@ -11,24 +11,21 @@ auto_cancel:
   running:
     when: "branch != 'main'"
 
+
 global_job_config:
   prologue:
     commands:
       - sem-version java 17
       - checkout
-      - make show-args
-      - . vault-setup
-      - . vault-sem-get-secret ci-reporting
-      - . vault-sem-get-secret v1/ci/kv/service-foundations/cc-mk-include
-      - make init-ci
-  epilogue:
-    always:
-      commands:
-        - make epilogue-ci
+  env_vars:
+    - name: MAVEN_OPTS
+      value: "-Dmaven.repo.local=.m2"
 
+
+      
 blocks:
   - name: Setup
-    dependencies: []
+    dependencies: [ ]
     task:
       jobs:
         - name: Dependencies
@@ -36,7 +33,7 @@ blocks:
             - cache restore
             # Download all JARs possible and compile as much as possible
             # Use -q to reduce output spam
-            - ./mvnw -q dependency:go-offline clean test-compile
+            - ./mvnw clean test-compile
             - cache store
   - name: Tests
     execution_time_limit:
@@ -63,32 +60,3 @@ blocks:
         always:
           commands:
             - test-results publish **/target/surefire-reports/*.xml
-
-after_pipeline:
-  task:
-    jobs:
-      - name: Publish Results
-        commands:
-          - test-results gen-pipeline-report
-promotions:
-  - name: Publish to S3
-    pipeline_file: publish_to_s3.yml
-    auto_promote:
-      when: "result = 'passed' and tag =~ '.*'"
-
-  - name: Publish to CodeArtifact
-    pipeline_file: publish_to_codeartifact.yml
-    auto_promote:
-      when: "result = 'passed' and tag =~ '.*'"
-
-  # - name: Publish docs
-  #   pipeline_file: publish_docs.yml
-  #   auto_promote:
-  #     when: "result = 'passed' and tag =~ '.*'"
-execution_time_limit:
-  hours: 1
-
-queue:
-  - when: "branch != 'master'"
-    processing: parallel
-
