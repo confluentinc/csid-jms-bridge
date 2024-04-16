@@ -286,6 +286,23 @@
         <optional>true</optional>
       </dependency>
 
+      <!-- Jackson -->
+      <dependency>
+        <groupId>com.fasterxml.jackson</groupId>
+        <artifactId>jackson-bom</artifactId>
+        <version>2.17.0</version>
+        <scope>import</scope>
+        <type>pom</type>
+      </dependency>
+
+      <!-- Lombok version -->
+      <dependency>
+        <groupId>org.projectlombok</groupId>
+        <artifactId>lombok</artifactId>
+        <version>1.18.32</version>
+        <scope>provided</scope>
+      </dependency>
+
       <!-- Logging -->
       <dependency>
         <groupId>ch.qos.logback</groupId>
