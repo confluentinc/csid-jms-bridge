@@ -40,28 +40,29 @@ class Producer implements Callable<Integer> {
 
         InitialContext initialContext = new InitialContext(properties);
         ConnectionFactory cf = (ConnectionFactory) initialContext.lookup("ConnectionFactory");
-        Topic jmsTopic = (Topic) initialContext.lookup(topic);
-        try (JMSContext context = cf.createContext()) {
-            JMSProducer producer = context.createProducer().setDeliveryMode(DeliveryMode.PERSISTENT);
-            JMSConsumer consumer = context.createConsumer(context.createTemporaryQueue());
-            // keep sending messages until keyboard interrupt
+        try (Session session = cf.createConnection().createSession()) {
+            Topic requestTopic = session.createTopic(topic);
+            TopicSession topicSession = (TopicSession) session;
+            TopicRequestor requestor = new TopicRequestor(topicSession, requestTopic);
+
             var numMessages = 0;
             while (true) {
                 try {
                     numMessages++;
-                    System.out.println(String.format("Sending message: %s %d", message, numMessages));
-                    producer.send(jmsTopic, String.format("%s %d", message, numMessages));
-                    // receive acknowledgement
-                    String acknowledgement = consumer.receiveBody(String.class, 1000);
-                    if (acknowledgement != null) {
-                        System.out.println("Received acknowledgement: " + acknowledgement);
-                    }
+                    System.out.println(String.format("Sending message: %s %d ", message, numMessages));
+                    TextMessage tmsg = topicSession.createTextMessage(String.format("%s %d", message, numMessages));
+                    Message response = requestor.request(tmsg);
+                    System.out.println("Received response: " + response);
                     Thread.sleep(1000);
-                } catch (InterruptedException e) {
+                } catch (InterruptedException interruptedException) {
+                    System.out.println("Interrupted!");
+                } catch (JMSException e) {
+                    e.printStackTrace();
+                } finally {
+                    System.out.println("Closing connection");
                     break;
                 }
             }
-            // send and get response
         }
         return 0;
     }
