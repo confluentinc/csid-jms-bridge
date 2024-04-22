@@ -32,4 +32,23 @@ storage. We will have a client producing messages and a client consuming message
 based on sequence (they may be consumed out of order). We will simulate a failover by shutting down the live server and
 observing the backup server take over, and verify messages are still flowing through without any messages being lost.
 
-### Step 1.
+### Step 1. Start the docker containers
+
+```bash
+./set-env.sh
+
+docker compose up -d
+```
+
+### Step 2. Start the producer
+
+This producer will continue to send messages to jms bridge. These messages will be sent in a request-reply manner.
+
+```bash
+jbang Producer.java -t test hello
+```
+
+### Step 3. Start the consumer
+
+### Step 4. Shut down the live server
+
