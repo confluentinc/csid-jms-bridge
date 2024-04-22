@@ -7,10 +7,7 @@ import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Parameters;
 
-import javax.jms.ConnectionFactory;
-import javax.jms.JMSProducer;
-import javax.jms.Topic;
-import javax.jms.JMSContext;
+import javax.jms.*;
 import javax.naming.InitialContext;
 import java.util.Properties;
 import java.util.concurrent.Callable;
@@ -45,8 +42,26 @@ class Producer implements Callable<Integer> {
         ConnectionFactory cf = (ConnectionFactory) initialContext.lookup("ConnectionFactory");
         Topic jmsTopic = (Topic) initialContext.lookup(topic);
         try (JMSContext context = cf.createContext()) {
-            JMSProducer producer = context.createProducer();
-            producer.send(jmsTopic, message);
+            JMSProducer producer = context.createProducer().setDeliveryMode(DeliveryMode.PERSISTENT);
+            JMSConsumer consumer = context.createConsumer(context.createTemporaryQueue());
+            // keep sending messages until keyboard interrupt
+            var numMessages = 0;
+            while (true) {
+                try {
+                    numMessages++;
+                    System.out.println(String.format("Sending message: %s %d", message, numMessages));
+                    producer.send(jmsTopic, String.format("%s %d", message, numMessages));
+                    // receive acknowledgement
+                    String acknowledgement = consumer.receiveBody(String.class, 1000);
+                    if (acknowledgement != null) {
+                        System.out.println("Received acknowledgement: " + acknowledgement);
+                    }
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {
+                    break;
+                }
+            }
+            // send and get response
         }
         return 0;
     }
