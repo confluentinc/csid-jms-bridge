@@ -1,11 +1,10 @@
 ///usr/bin/env jbang "$0" "$@" ; exit $?
 //DEPS info.picocli:picocli:4.7.5
 //DEPS org.apache.activemq:artemis-jms-client-all:2.13.0
-
+//JAVA 11
 
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
-import picocli.CommandLine.Parameters;
 
 import javax.jms.*;
 import javax.naming.InitialContext;
@@ -18,8 +17,7 @@ class Producer implements Callable<Integer> {
 
     @CommandLine.Option(names = {"-t", "--topic"}, description = "The topic to send the text message to", required = true)
     private String topic;
-
-    @CommandLine.Option(names = {"-d", "--destination"}, description = "Where to produce messages to", defaultValue = "tcp://localhost:61616", required = true)
+    @CommandLine.Option(names = {"-d", "--destination"}, description = "Where to produce messages to", defaultValue = "(tcp://localhost:61616,tcp://localhost:61617)?ha=true&retryInterval=1000&retryIntervalMultiplier=1.0&reconnectAttempts=-1;", required = true)
     private String destination;
 
     @CommandLine.Parameters
@@ -36,14 +34,14 @@ class Producer implements Callable<Integer> {
         Properties properties = new Properties();
         properties.put("java.naming.factory.initial", "org.apache.activemq.artemis.jndi.ActiveMQInitialContextFactory");
         properties.put("connectionFactory.ConnectionFactory", destination);
-        properties.put("topic." + topic, topic);
 
         InitialContext initialContext = new InitialContext(properties);
         ConnectionFactory cf = (ConnectionFactory) initialContext.lookup("ConnectionFactory");
         try (Session session = cf.createConnection().createSession()) {
-            Topic requestTopic = session.createTopic(topic);
+            Topic requestTopic = session.createTopic("kafka." + topic);
             TopicSession topicSession = (TopicSession) session;
-            TopicRequestor requestor = new TopicRequestor(topicSession, requestTopic);
+            MessageProducer producer = session.createProducer(requestTopic);
+            producer.setDeliveryMode(DeliveryMode.PERSISTENT);
 
             var numMessages = 0;
             while (true) {
@@ -51,15 +49,13 @@ class Producer implements Callable<Integer> {
                     numMessages++;
                     System.out.println(String.format("Sending message: %s %d ", message, numMessages));
                     TextMessage tmsg = topicSession.createTextMessage(String.format("%s %d", message, numMessages));
-                    Message response = requestor.request(tmsg);
-                    System.out.println("Received response: " + response);
+                    producer.send(tmsg);
                     Thread.sleep(1000);
                 } catch (InterruptedException interruptedException) {
                     System.out.println("Interrupted!");
+                    break;
                 } catch (JMSException e) {
-                    e.printStackTrace();
-                } finally {
-                    System.out.println("Closing connection");
+                    System.out.println(e.getMessage());
                     break;
                 }
             }

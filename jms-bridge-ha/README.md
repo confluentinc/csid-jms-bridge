@@ -27,10 +27,19 @@ the live server coming back up and automatically stop.
 
 ## What's included
 
-This exercise will showcase how to setup a live - backup group with 1 live server and 1 backup servers using shared
-storage. We will have a client producing messages and a client consuming messages (persistent) that will be validated
-based on sequence (they may be consumed out of order). We will simulate a failover by shutting down the live server and
-observing the backup server take over, and verify messages are still flowing through without any messages being lost.
+The docker compose file will stand up the following:
+
+1. A single node kafka and zookeeper cluster
+    - kafka exponsed on: `localhost:29092`, `kafka:9092`
+    - On startup, a topic `test` will be pre-created and made available for use.
+2. A jms bridge cluster with 1 live server and 1 backup server.
+    - live server exposed on: `localhost:61616`
+    - backup server exposed on: `localhost:61617`
+3. A sample jms producer and consumer client that will produce and consume messages from the jms bridge.
+    - **NOTE** the topic `test` we will use is pre-created on the kafka cluster as part of docker compose startup
+    - The producer and consumer clients are written in Java and use the `jbang` tool to run them (wrapper included).
+    - jms topics are prefixed with `kafka.`. To avoid confusion, the clients have been modified to already include this
+      prefix when specifying topic names.
 
 ### Step 1. Start the docker containers
 
@@ -40,15 +49,36 @@ observing the backup server take over, and verify messages are still flowing thr
 docker compose up -d
 ```
 
-### Step 2. Start the producer
+### Step 2. Start the consumer
 
-This producer will continue to send messages to jms bridge. These messages will be sent in a request-reply manner.
+This consumer will consume messages from the jms bridge.
+
+```bash
+jbang Consumer.java -t test
+```
+
+### Step 3. Start a kafka consumer
+
+In a new terminal, start a kafka consumer (this example uses kcat) to consume
+messages from the kafka topic.
+
+```bash
+kcat -C -b localhost:29092 -t test
+```
+
+### Step 4. Start the producer
+
+In a new terminal, start the producer. This producer will send messages to jms bridge.
 
 ```bash
 jbang Producer.java -t test hello
 ```
 
-### Step 3. Start the consumer
+### Step 5. Shut down the live server
 
-### Step 4. Shut down the live server
+In a new terminal, shut down the live server.
 
+```bash
+# a way to kill the broker without removing the host
+docker compose pause live-jms-bridge
+```

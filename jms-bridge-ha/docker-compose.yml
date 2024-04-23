@@ -1,5 +1,4 @@
 ---
-version: '2'
 services:
   zookeeper:
     image: confluentinc/cp-zookeeper:${CP_VERSION}
@@ -23,16 +22,17 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 100
-
-  schema-registry:
-    image: confluentinc/cp-schema-registry:${CP_VERSION}
-    depends_on:
-      - zookeeper
-      - kafka
-    environment:
-      SCHEMA_REGISTRY_HOST_NAME: schema-registry
-      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: 'kafka:9092'
-      SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
+    entrypoint:
+      - bash
+      - -c
+      - |
+        /etc/confluent/docker/run &
+        # wait for kafka to be ready
+        echo "Waiting for Kafka to be ready..."
+        cub kafka-ready -b  kafka:9092 1 60
+        # Create topics
+        kafka-topics --create --if-not-exists --topic test --partitions 1 --replication-factor 1  --bootstrap-server kafka:9092
+        sleep infinity
 
   live-jms-bridge:
     image: ${JMSBRIDGE_IMAGE_BASE}confluentinc/jms-bridge-docker:${JMSBRIDGE_VERSION}
@@ -40,7 +40,6 @@ services:
     container_name: live-jms-bridge
     depends_on:
       - kafka
-      - schema-registry
     ports:
       - "61616:61616"
     environment:
@@ -58,7 +57,7 @@ services:
     hostname: backup-jms-bridge
     container_name: backup-jms-bridge
     depends_on:
-      - live-jms-bridge
+      - kafka
     ports:
       - "61617:61616"
     environment:
