@@ -98,3 +98,8 @@ ansible-playbook \
     --extra-vars "@jms-bridge-vars.json" \
     bridge-playbook.yml
 ```
+
+### PSY CC PUSH TEST
+```shell
+echo "Testing 1 2 3"
+```
