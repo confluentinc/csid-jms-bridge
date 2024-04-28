@@ -10,7 +10,9 @@ import java.time.Duration;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
@@ -106,6 +108,99 @@ public class LeaderClientExecutorTest {
 
     working.close();
   }
+
+
+  @Test
+  public void testMasterSlave() throws Exception {
+    String consumer = String.format("consumer-%s", UUID.randomUUID());
+    AtomicInteger leaderInc = new AtomicInteger(0);
+    AtomicInteger standbyInc = new AtomicInteger(0);
+    CountDownLatch leaderKillSwitch = new CountDownLatch(1);
+    CountDownLatch standbyKillSwitch = new CountDownLatch(1);
+
+    KafkaLeaderProperties properties =
+            KafkaLeaderProperties.builder()
+                    .consumerConfigs(configs())
+                    .groupId(consumer)
+                    .initTimeout(Duration.ofSeconds(30))
+                    .build();
+
+    JsonLeaderProtocol<TaskAssignment, HostMemberIdentity> protocol =
+            new JsonLeaderProtocol<>(
+                    new ObjectMapper(), HostMemberIdentity.class, TaskAssignment.class);
+
+    final KafkaLeaderElector<TaskAssignment, HostMemberIdentity> leader =
+            new KafkaLeaderElector<>(
+                    wrap(createTask("leader", leaderInc, leaderKillSwitch)),
+                    protocol,
+                    properties,
+                    HostMemberIdentity.builder().host("host1").build());
+
+    final KafkaLeaderElector<TaskAssignment, HostMemberIdentity> standby =
+            new KafkaLeaderElector<>(
+                    wrap(createTask("standby", standbyInc, standbyKillSwitch)),
+                    protocol,
+                    properties,
+                    HostMemberIdentity.builder().host("host2").build());
+
+    standby.init();
+    leader.init();
+
+    standby.await();
+    leader.await();
+
+    //wait for the leader to start
+    await().atMost(30, TimeUnit.SECONDS).until(() -> leaderInc.get() > 0 && standbyInc.get() == 0);
+
+    //kill the leader
+    leaderKillSwitch.countDown();
+
+    //wait for standby to start
+    await().atMost(30, TimeUnit.SECONDS).until(() -> leaderInc.get() > 0 && standbyInc.get() == 0);
+
+    //finish by killing standby
+    standbyKillSwitch.countDown();
+
+    leader.close();
+    standby.close();
+  }
+
+  Task createTask(String name, AtomicInteger inc, CountDownLatch latch) {
+    return new Task() {
+
+      private volatile boolean inited = false;
+
+      @Override
+      public void close() {}
+
+      @Override
+      public boolean isAlive() {
+        return true;
+      }
+
+      @Override
+      public boolean isStarted() {
+        return inited;
+      }
+
+      @Override
+      public void run() {
+        this.inited = true;
+        System.err.println("Started " + name);
+        try {
+          inc.getAndIncrement();
+          latch.await();
+        } catch (InterruptedException e) {
+          Thread.currentThread().interrupt();
+        } finally {
+          System.err.println("Ended " +  name);
+        }
+      }
+    };
+
+  }
+
+
 
   @Test
   public void testLeader() throws LeaderTimeoutException, LeaderException {

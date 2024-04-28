@@ -26,6 +26,8 @@ public interface BridgeConfig {
 
   BridgeClientId clientId();
 
+  HaConfig haConfig();
+
   Map<String, String> kafka();
 
   Map<String, String> streams();
@@ -50,6 +52,11 @@ public interface BridgeConfig {
           .putAllStreams(flattenConfig(
               bridgeConfig.getConfig("streams")
                   .withFallback(bridgeConfig.getConfig("kafka"))));
+
+      if (bridgeConfig.hasPath("ha")) {
+        Config haConfig = bridgeConfig.getConfig("ha");
+        this.haConfig(new HaConfig.Builder(bridgeConfig, haConfig));
+      }
 
       if (bridgeConfig.hasPath("routing")) {
         this.routing(new RoutingConfig.Builder(

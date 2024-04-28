@@ -14,6 +14,7 @@ import io.confluent.amq.ConfluentEmbeddedAmqImpl;
 import io.confluent.amq.JmsBridgeConfiguration;
 import io.confluent.amq.config.BridgeConfig;
 import io.confluent.amq.config.BridgeConfigFactory;
+import io.confluent.amq.config.HaConfig;
 import io.confluent.amq.config.RoutingConfig;
 import io.confluent.amq.logging.StructuredLogger;
 import io.confluent.amq.persistence.kafka.KafkaIntegration;
@@ -480,6 +481,10 @@ public class ArtemisTestServer implements
                 .putAllStreams(Maps.transformValues(
                     BridgeConfigFactory.propsToMap(kafkaProps),
                     Object::toString))
+                    .haConfig(new HaConfig.Builder()
+                            .putAllConsumerConfig(BridgeConfigFactory.propsToMap(kafkaProps))
+                            .groupId("test_ha")
+                            .initTimeoutMs(30_000))
                 .mapRouting(rb -> new RoutingConfig.Builder().mergeFrom(rb)
                     .putAllProducer(
                         Maps.transformValues(

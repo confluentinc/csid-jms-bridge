@@ -17,6 +17,9 @@ public class HostMemberIdentity implements MemberIdentity {
   @Builder.Default
   private boolean leaderEligibility = true;
 
+  @Builder.Default
+  private boolean preferredLeader = true;
+
   @JsonIgnore
   public String getId() {
     return host;
@@ -25,5 +28,8 @@ public class HostMemberIdentity implements MemberIdentity {
   @Override
   public boolean getLeaderEligibility() {
     return leaderEligibility;
+  }
+  public boolean preferredLeader() {
+    return preferredLeader;
   }
 }
