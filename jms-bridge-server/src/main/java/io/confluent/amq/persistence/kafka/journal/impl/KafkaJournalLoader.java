@@ -22,6 +22,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.activemq.artemis.core.journal.PreparedTransactionInfo;
 import org.apache.activemq.artemis.core.journal.RecordInfo;
 import org.apache.kafka.streams.KeyValue;
+import org.apache.kafka.streams.errors.InvalidStateStoreException;
 import org.apache.kafka.streams.state.KeyValueIterator;
 import org.apache.kafka.streams.state.ReadOnlyKeyValueStore;
 
@@ -179,16 +180,29 @@ public class KafkaJournalLoader {
 
     List<JournalEntry> txRefList = new LinkedList<>();
 
-    try (KeyValueIterator<JournalEntryKey, JournalEntry> kvIter = store.all()) {
-      while (kvIter.hasNext()) {
+    while (true) {
+      try {
+        try (KeyValueIterator<JournalEntryKey, JournalEntry> kvIter = store.all()) {
+          while (kvIter.hasNext()) {
 
-        KeyValue<JournalEntryKey, JournalEntry> kv = kvIter.next();
-        JournalEntry entry = kv.value;
-        if (entry.hasTransactionReference()) {
-          txRefList.add(entry);
+            KeyValue<JournalEntryKey, JournalEntry> kv = kvIter.next();
+            JournalEntry entry = kv.value;
+            if (entry.hasTransactionReference()) {
+              txRefList.add(entry);
+            }
+          }
+        }
+        break;
+      } catch (InvalidStateStoreException ignored) {
+        // store not yet ready for querying
+        try {
+          Thread.sleep(100);
+        } catch (InterruptedException e) {
+          throw new RuntimeException(e);
         }
       }
     }
+
 
     for (JournalEntry txRefEntry : txRefList) {
       TransactionReference txref = txRefEntry.getTransactionReference();
