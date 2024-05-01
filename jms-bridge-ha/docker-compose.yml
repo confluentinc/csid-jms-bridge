@@ -59,7 +59,7 @@ services:
     depends_on:
       - kafka
     ports:
-      - "61617:61616"
+      - "61617:61617"
     environment:
       BROKER_XML: "broker-backup-ha.xml"
       LOG_IO_CONFLUENT_AMQ_EXCHANGE: INFO

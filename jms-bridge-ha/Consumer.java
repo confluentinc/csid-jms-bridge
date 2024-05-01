@@ -19,7 +19,7 @@ class Consumer implements Callable<Integer> {
     @CommandLine.Option(names = {"-t", "--topic"}, description = "The topic to receive text messages from", required = true)
     private String topic;
 
-    @CommandLine.Option(names = {"-s", "--source"}, description = "Where to consume messages from", defaultValue = "(tcp://localhost:61616,tcp://localhost:61617)?ha=true&retryInterval=1000&retryIntervalMultiplier=1.0&reconnectAttempts=-1;", required = true)
+    @CommandLine.Option(names = {"-s", "--source"}, description = "Where to consume messages from", defaultValue = "(tcp://localhost:61616?name=live-netty-connector,tcp://localhost:61617?name=backup-netty-connector)?ha=true&reconnectAttempts=-1&failoverAttempts=-1;", required = true)
     private String source;
 
 
