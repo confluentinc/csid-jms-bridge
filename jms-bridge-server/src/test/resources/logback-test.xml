@@ -10,6 +10,9 @@
         </encoder>
     </appender>
 
+    <logger name="io.confluent.amq" level="INFO" additivity="false">
+        <appender-ref ref="stdout"/>
+    </logger>
 
     <logger name="org.apache.activemq.artemis.core" level="ERROR" additivity="false">
         <appender-ref ref="stdout"/>
@@ -75,17 +78,17 @@
         <appender-ref ref="stdout"/>
     </logger>
 
-    <logger name="org.apache.kafka.clients.consumer.ConsumerConfig" level="INFO"
+    <logger name="org.apache.kafka.clients.consumer.ConsumerConfig" level="ERROR"
             additivity="true">
         <appender-ref ref="stdout"/>
     </logger>
 
-    <logger name="org.apache.kafka.clients.consumer.StreamsConfig" level="INFO"
+    <logger name="org.apache.kafka.clients.consumer.StreamsConfig" level="ERROR"
             additivity="true">
         <appender-ref ref="stdout"/>
     </logger>
 
-    <logger name="org.apache.kafka.clients.producer.ProducerConfig" level="INFO"
+    <logger name="org.apache.kafka.clients.producer.ProducerConfig" level="ERROR"
             additivity="true">
         <appender-ref ref="stdout"/>
     </logger>
