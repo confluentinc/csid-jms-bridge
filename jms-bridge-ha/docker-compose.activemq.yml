@@ -1,5 +1,16 @@
 ---
 services:
+  producer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        JAVA_FILE_NAME: Producer
+    depends_on:
+      - live
+      - backup
+    volumes:
+      - .:/app
   live:
     image: apache/activemq-artemis:latest
     environment:
