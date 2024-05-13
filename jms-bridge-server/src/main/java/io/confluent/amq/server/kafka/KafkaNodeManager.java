@@ -239,8 +239,8 @@ public class KafkaNodeManager extends NodeManager implements AssignmentManager<L
     @Override
     public boolean isAwaitingFailback() throws NodeManagerException {
         log.debug("isAwaitingFailback >>>>>>>> {}", getNodeId());
-        return (isPreferredLeader && currentLock != NodeLocks.LIVE)
-                || (!isPreferredLeader && currentLock == NodeLocks.LIVE);
+        return currentLock == NodeLocks.BACKUP;
+
     }
 
     @Override

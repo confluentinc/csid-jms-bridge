@@ -89,16 +89,13 @@ public class GlobalStoreProcessor implements Processor<JournalEntryKey, JournalE
   public List<KeyValue<JournalEntryKey, JournalEntry>> doUpsert(
       JournalEntryKey key, JournalEntry value) {
 
+    List<KeyValue<JournalEntryKey, JournalEntry>> results = new LinkedList<>();
     if (value.hasEpochEvent()) {
       //don't add these to the store, they are for loading only
       journal.loader().maybeComplete(value.getEpochEvent());
-      return Collections.emptyList();
-    }
-
-    List<KeyValue<JournalEntryKey, JournalEntry>> results = new LinkedList<>();
-
-    //need to update the annotation reference if this is what it is
-    if (value.hasAnnotationReference()) {
+      results.add(KeyValue.pair(key, value));
+    } else if (value.hasAnnotationReference()) {
+      //need to update the annotation reference if this is what it is
       JournalEntry annRefVal = this.store.get(key);
 
       if (annRefVal != null && annRefVal.hasAnnotationReference()) {

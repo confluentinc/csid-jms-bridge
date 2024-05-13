@@ -38,6 +38,7 @@ public class EpochPuntcuator implements
   @Override
   public void init(ProcessorContext context) {
     this.context = context;
+    SLOG.logger().debug("Epoch Punctuator init >>>>>>> {}", journal.name());
 
     //create a punctuation that immediately fires generating an epoch event
     punchJob = context
