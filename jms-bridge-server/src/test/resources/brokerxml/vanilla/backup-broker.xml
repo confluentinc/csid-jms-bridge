@@ -33,21 +33,22 @@
         <page-sync-timeout>168000</page-sync-timeout>
         <global-max-messages>-1</global-max-messages>
 
-        <security-settings>
-            <security-setting match="#">
-                <permission type="createNonDurableQueue" roles="amq"/>
-                <permission type="deleteNonDurableQueue" roles="amq"/>
-                <permission type="createDurableQueue" roles="amq"/>
-                <permission type="deleteDurableQueue" roles="amq"/>
-                <permission type="createAddress" roles="amq"/>
-                <permission type="deleteAddress" roles="amq"/>
-                <permission type="consume" roles="amq"/>
-                <permission type="browse" roles="amq"/>
-                <permission type="send" roles="amq"/>
-                <!-- we need this otherwise ./artemis data imp wouldn't work -->
-                <permission type="manage" roles="amq"/>
-            </security-setting>
-        </security-settings>
+        <security-enabled>false</security-enabled>
+<!--        <security-settings>-->
+<!--            <security-setting match="#">-->
+<!--                <permission type="createNonDurableQueue" roles="amq"/>-->
+<!--                <permission type="deleteNonDurableQueue" roles="amq"/>-->
+<!--                <permission type="createDurableQueue" roles="amq"/>-->
+<!--                <permission type="deleteDurableQueue" roles="amq"/>-->
+<!--                <permission type="createAddress" roles="amq"/>-->
+<!--                <permission type="deleteAddress" roles="amq"/>-->
+<!--                <permission type="consume" roles="amq"/>-->
+<!--                <permission type="browse" roles="amq"/>-->
+<!--                <permission type="send" roles="amq"/>-->
+<!--                &lt;!&ndash; we need this otherwise ./artemis data imp wouldn't work &ndash;&gt;-->
+<!--                <permission type="manage" roles="amq"/>-->
+<!--            </security-setting>-->
+<!--        </security-settings>-->
 
         <address-settings>
             <!-- if you define auto-create on certain queues, management has to be auto-create -->
@@ -111,46 +112,33 @@
 
         <ha-policy>
             <shared-store>
-                <primary>
-                    <failover-on-shutdown>true</failover-on-shutdown>
-                </primary>
+                <slave>
+                    <allow-failback>true</allow-failback>
+                </slave>
             </shared-store>
         </ha-policy>
 
         <!-- Connectors -->
         <connectors>
-            <connector name="live-netty-connector">tcp://live:61616</connector>
-            <connector name="backup-netty-connector">tcp://backup:61617</connector>
+            <connector name="live-netty-connector">tcp://localhost:61612</connector>
+            <connector name="backup-netty-connector">tcp://localhost:61613</connector>
         </connectors>
 
         <!-- Acceptors -->
         <acceptors>
             <acceptor name="netty-acceptor">
-                tcp://0.0.0.0:61616?tcpSendBufferSize=1048576;tcpReceiveBufferSize=1048576;protocols=CORE,AMQP,STOMP,HORNETQ,MQTT,OPENWIRE;useEpoll=true;amqpCredits=1000;amqpLowCredits=300
+                tcp://0.0.0.0:61613?tcpSendBufferSize=1048576;tcpReceiveBufferSize=1048576;protocols=CORE,AMQP,STOMP,HORNETQ,MQTT,OPENWIRE;useEpoll=true;amqpCredits=1000;amqpLowCredits=300
             </acceptor>
         </acceptors>
 
         <cluster-connections>
             <cluster-connection name="my-cluster">
-                <connector-ref>live-netty-connector</connector-ref>
+                <connector-ref>backup-netty-connector</connector-ref>
                 <static-connectors>
-                    <connector-ref>backup-netty-connector</connector-ref>
+                    <connector-ref>live-netty-connector</connector-ref>
                 </static-connectors>
             </cluster-connection>
         </cluster-connections>
-        <!-- Uncomment the following if you want to use the Standard LoggingActiveMQServerPlugin pluging to log in events
-        <broker-plugins>
-           <broker-plugin class-name="org.apache.activemq.artemis.core.server.plugin.impl.LoggingActiveMQServerPlugin">
-              <property key="LOG_ALL_EVENTS" value="true"/>
-              <property key="LOG_CONNECTION_EVENTS" value="true"/>
-              <property key="LOG_SESSION_EVENTS" value="true"/>
-              <property key="LOG_CONSUMER_EVENTS" value="true"/>
-              <property key="LOG_DELIVERING_EVENTS" value="true"/>
-              <property key="LOG_SENDING_EVENTS" value="true"/>
-              <property key="LOG_INTERNAL_EVENTS" value="true"/>
-           </broker-plugin>
-        </broker-plugins>
-        -->
 
     </core>
 </configuration>

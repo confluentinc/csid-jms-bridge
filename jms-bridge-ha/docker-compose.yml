@@ -44,7 +44,8 @@ services:
       - "61616:61616"
     environment:
       BROKER_XML: "broker-live-ha.xml"
-      LOG_IO_CONFLUENT_AMQ_EXCHANGE: INFO
+      LOG_IO_CONFLUENT_AMQ: INFO
+      LOG_ORG_APACHE_ACTIVEMQ: INFO
       JMSBRIDGE_ID: local-docker # must be the same as the backup bridge to cluster together
       JMSBRIDGE_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       JMSBRIDGE_JOURNALS_TOPIC_REPLICATION: 1
@@ -62,7 +63,8 @@ services:
       - "61617:61617"
     environment:
       BROKER_XML: "broker-backup-ha.xml"
-      LOG_IO_CONFLUENT_AMQ_EXCHANGE: INFO
+      LOG_IO_CONFLUENT_AMQ: INFO
+      LOG_ORG_APACHE_ACTIVEMQ: INFO
       JMSBRIDGE_ID: local-docker # must be the same as the live bridge to cluster together
       JMSBRIDGE_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       JMSBRIDGE_JOURNALS_TOPIC_REPLICATION: 1

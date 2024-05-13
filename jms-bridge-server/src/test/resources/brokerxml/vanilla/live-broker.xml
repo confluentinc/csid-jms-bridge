@@ -33,21 +33,22 @@
         <page-sync-timeout>168000</page-sync-timeout>
         <global-max-messages>-1</global-max-messages>
 
-        <security-settings>
-            <security-setting match="#">
-                <permission type="createNonDurableQueue" roles="amq"/>
-                <permission type="deleteNonDurableQueue" roles="amq"/>
-                <permission type="createDurableQueue" roles="amq"/>
-                <permission type="deleteDurableQueue" roles="amq"/>
-                <permission type="createAddress" roles="amq"/>
-                <permission type="deleteAddress" roles="amq"/>
-                <permission type="consume" roles="amq"/>
-                <permission type="browse" roles="amq"/>
-                <permission type="send" roles="amq"/>
-                <!-- we need this otherwise ./artemis data imp wouldn't work -->
-                <permission type="manage" roles="amq"/>
-            </security-setting>
-        </security-settings>
+        <security-enabled>false</security-enabled>
+<!--        <security-settings>-->
+<!--            <security-setting match="#">-->
+<!--                <permission type="createNonDurableQueue" roles="amq"/>-->
+<!--                <permission type="deleteNonDurableQueue" roles="amq"/>-->
+<!--                <permission type="createDurableQueue" roles="amq"/>-->
+<!--                <permission type="deleteDurableQueue" roles="amq"/>-->
+<!--                <permission type="createAddress" roles="amq"/>-->
+<!--                <permission type="deleteAddress" roles="amq"/>-->
+<!--                <permission type="consume" roles="amq"/>-->
+<!--                <permission type="browse" roles="amq"/>-->
+<!--                <permission type="send" roles="amq"/>-->
+<!--                &lt;!&ndash; we need this otherwise ./artemis data imp wouldn't work &ndash;&gt;-->
+<!--                <permission type="manage" roles="amq"/>-->
+<!--            </security-setting>-->
+<!--        </security-settings>-->
 
         <address-settings>
             <!-- if you define auto-create on certain queues, management has to be auto-create -->
@@ -111,22 +112,22 @@
 
         <ha-policy>
             <shared-store>
-                <primary>
+                <master>
                     <failover-on-shutdown>true</failover-on-shutdown>
-                </primary>
+                </master>
             </shared-store>
         </ha-policy>
 
         <!-- Connectors -->
         <connectors>
-            <connector name="live-netty-connector">tcp://live:61616</connector>
-            <connector name="backup-netty-connector">tcp://backup:61617</connector>
+            <connector name="live-netty-connector">tcp://localhost:61612</connector>
+            <connector name="backup-netty-connector">tcp://localhost:61613</connector>
         </connectors>
 
         <!-- Acceptors -->
         <acceptors>
             <acceptor name="netty-acceptor">
-                tcp://0.0.0.0:61616?tcpSendBufferSize=1048576;tcpReceiveBufferSize=1048576;protocols=CORE,AMQP,STOMP,HORNETQ,MQTT,OPENWIRE;useEpoll=true;amqpCredits=1000;amqpLowCredits=300
+                tcp://0.0.0.0:61612?tcpSendBufferSize=1048576;tcpReceiveBufferSize=1048576;protocols=CORE,AMQP,STOMP,HORNETQ,MQTT,OPENWIRE;useEpoll=true;amqpCredits=1000;amqpLowCredits=300
             </acceptor>
         </acceptors>
 

@@ -89,6 +89,10 @@ public class ArtemisTestServer implements
     public static ArtemisTestServer embedded(
             Properties kafkaProps, Consumer<Builder> serverSpecBuilder) {
 
+        Consumer<JmsCnxnSpec.Builder> cnxnSpecBuider = spec -> {
+
+        };
+
         return new Factory(TEST_SEQ.getAndIncrement()).embedded(kafkaProps, serverSpecBuilder, null);
     }
 
@@ -212,16 +216,18 @@ public class ArtemisTestServer implements
             }
 
             // 1GB
-            embeddedAmq.getAmq().getConfiguration().setGlobalMaxSize(1024L * 1024L * 128);
-            //embeddedAmq.getAmq().getConfiguration().setThreadPoolMaxSize(-1);
-            embeddedAmq.getAmq().getConfiguration().addAddressesSetting(
-                    "/test/perf/jms2jmsVolume-0-1", new AddressSettings()
-                            .setAutoCreateAddresses(true)
-                            .setAutoCreateQueues(true)
-                            .setMaxSizeBytes(1024 * 1024 * 64));
-            SimpleMetricsPlugin metricsPlugin = new SimpleMetricsPlugin();
-            metricsPlugin.init(Collections.emptyMap());
-            embeddedAmq.getAmq().getConfiguration().setMetricsPlugin(metricsPlugin);
+            if (embeddedAmq.getAmq() != null) {
+                embeddedAmq.getAmq().getConfiguration().setGlobalMaxSize(1024L * 1024L * 128);
+                //embeddedAmq.getAmq().getConfiguration().setThreadPoolMaxSize(-1);
+                embeddedAmq.getAmq().getConfiguration().addAddressesSetting(
+                        "/test/perf/jms2jmsVolume-0-1", new AddressSettings()
+                                .setAutoCreateAddresses(true)
+                                .setAutoCreateQueues(true)
+                                .setMaxSizeBytes(1024 * 1024 * 64));
+                SimpleMetricsPlugin metricsPlugin = new SimpleMetricsPlugin();
+                metricsPlugin.init(Collections.emptyMap());
+                embeddedAmq.getAmq().getConfiguration().setMetricsPlugin(metricsPlugin);
+            }
             embeddedAmq.start();
 
         } else {
@@ -511,8 +517,13 @@ public class ArtemisTestServer implements
                                 )));
             }
 
+            Consumer<JmsCnxnSpec.Builder> cnxnSpecBuilderFinal = cnxnSpecBuilder;
+            if (cnxnSpecBuilderFinal == null) {
+                cnxnSpecBuilderFinal = spec -> { };
+            }
+
             return new ArtemisTestServer(
-                    testNumber, nameSeq, specConsumer, cnxnSpecBuilder);
+                    testNumber, nameSeq, specConsumer, cnxnSpecBuilderFinal);
 
         }
     }

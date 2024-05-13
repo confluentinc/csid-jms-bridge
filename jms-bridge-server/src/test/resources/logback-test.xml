@@ -14,7 +14,7 @@
         <appender-ref ref="stdout"/>
     </logger>
 
-    <logger name="org.apache.activemq.artemis.core" level="ERROR" additivity="false">
+    <logger name="org.apache.activemq" level="INFO" additivity="false">
         <appender-ref ref="stdout"/>
     </logger>
 

@@ -43,6 +43,9 @@ public class JsonLeaderProtocol<A extends Assignment, M extends MemberIdentity>
   @SneakyThrows
   public A deserializeAssignment(ByteBuffer buffer) {
     byte[] jsonBytes = new byte[buffer.remaining()];
+    if (jsonBytes.length == 0) {
+      return null;
+    }
     buffer.get(jsonBytes);
     return mapper.readValue(jsonBytes, this.assignmentClass);
   }

@@ -121,7 +121,7 @@ fi
 
 # JVM performance options
 if [ -z "$JMS_BRIDGE_JVM_PERFORMANCE_OPTS" ]; then
-  JMS_BRIDGE_JVM_PERFORMANCE_OPTS="-server -XX:+UseConcMarkSweepGC -XX:+CMSClassUnloadingEnabled -XX:+CMSScavengeBeforeRemark -XX:+ExplicitGCInvokesConcurrent -XX:NewRatio=1 -Djava.awt.headless=true"
+  JMS_BRIDGE_JVM_PERFORMANCE_OPTS="-server -Djava.awt.headless=true"
 fi
 
 

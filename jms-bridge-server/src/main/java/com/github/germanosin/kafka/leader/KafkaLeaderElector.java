@@ -44,6 +44,7 @@ public class KafkaLeaderElector<A extends Assignment, M extends MemberIdentity>
   private final Metrics metrics;
   private final AtomicBoolean stopped = new AtomicBoolean(false);
   private final AtomicInteger restarts = new AtomicInteger(0);
+  private final AtomicBoolean forceRejoin = new AtomicBoolean(false);
   private final AssignmentManager<A, M> assignmentManager;
   private final M identity;
   private final LeaderProtocol<A, M> leaderProtocol;
@@ -189,6 +190,10 @@ public class KafkaLeaderElector<A extends Assignment, M extends MemberIdentity>
       while (!stopped.get()) {
         try (LeaderCoordinator<A, M> coordinator = createCoordinator()) {
           while (!stopped.get()) {
+            if (forceRejoin.get()) {
+              coordinator.requestRejoin("Rejoin requested");
+              forceRejoin.set(false);
+            }
             coordinator.poll(500);
             Timer timer = Time.SYSTEM.timer(this.rebalanceTimeout.toMillis());
             if (!assignmentManager.isInitialisation() && !this.stopped.get()) {
@@ -286,5 +291,9 @@ public class KafkaLeaderElector<A extends Assignment, M extends MemberIdentity>
 
   public int getRestarts() {
     return this.restarts.get();
+  }
+
+  public void forceRejoin() {
+    this.forceRejoin.set(true);
   }
 }

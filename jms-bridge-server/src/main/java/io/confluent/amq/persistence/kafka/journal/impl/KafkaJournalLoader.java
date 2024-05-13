@@ -195,6 +195,7 @@ public class KafkaJournalLoader {
         break;
       } catch (InvalidStateStoreException ignored) {
         // store not yet ready for querying
+        SLOG.logger().warn("State store not ready yet.", ignored);
         try {
           Thread.sleep(100);
         } catch (InterruptedException e) {
