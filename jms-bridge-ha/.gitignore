@@ -1,3 +1,4 @@
 .env
 out
 shared-store
+lib

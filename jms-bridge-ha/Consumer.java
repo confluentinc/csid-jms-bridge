@@ -19,7 +19,7 @@ class Consumer implements Callable<Integer> {
     @CommandLine.Option(names = {"-t", "--topic"}, description = "The topic to receive text messages from", required = true)
     private String topic;
 
-    @CommandLine.Option(names = {"-s", "--source"}, description = "Where to consume messages from", defaultValue = "(tcp://localhost:61616?name=live-netty-connector,tcp://localhost:61617?name=backup-netty-connector)?ha=true&reconnectAttempts=-1&failoverAttempts=-1;", required = true)
+    @CommandLine.Option(names = {"-s", "--source"}, description = "Where to consume messages from", defaultValue = "(tcp://localhost:61617?name=live-netty-connector,tcp://localhost:61616?name=backup-netty-connector)?ha=true&reconnectAttempts=-1&failoverAttempts=-1;", required = true)
     private String source;
 
 
@@ -41,7 +41,7 @@ class Consumer implements Callable<Integer> {
             connection.start();
             Session session = connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
             Topic consumeTopic = session.createTopic("kafka." + topic);
-            MessageConsumer consumer = session.createConsumer(consumeTopic);
+            MessageConsumer consumer = session.createDurableSubscriber(consumeTopic, "jbangConsumer");
 
             while (true) {
                 try {

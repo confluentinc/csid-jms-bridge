@@ -180,28 +180,40 @@ public class KafkaJournalLoader {
 
     List<JournalEntry> txRefList = new LinkedList<>();
 
+    int retryAttempt = 0;
+    int maxRetries = 5;
     while (true) {
-      try {
-        try (KeyValueIterator<JournalEntryKey, JournalEntry> kvIter = store.all()) {
-          while (kvIter.hasNext()) {
-
-            KeyValue<JournalEntryKey, JournalEntry> kv = kvIter.next();
-            JournalEntry entry = kv.value;
-            if (entry.hasTransactionReference()) {
-              txRefList.add(entry);
-            }
-          }
-        }
-        break;
-      } catch (InvalidStateStoreException ignored) {
-        // store not yet ready for querying
-        SLOG.logger().warn("State store not ready yet.", ignored);
         try {
-          Thread.sleep(100);
-        } catch (InterruptedException e) {
-          throw new RuntimeException(e);
+            try (KeyValueIterator<JournalEntryKey, JournalEntry> kvIter = store.all()) {
+                while (kvIter.hasNext()) {
+
+                    KeyValue<JournalEntryKey, JournalEntry> kv = kvIter.next();
+                    JournalEntry entry = kv.value;
+                    if (entry.hasTransactionReference()) {
+                        txRefList.add(entry);
+                    }
+                }
+            }
+            break;
+        } catch (InvalidStateStoreException ignored) {
+            // store not yet ready for querying
+            if (ignored.getMessage().contains("migrated to another instance")) {
+                SLOG.logger().warn("State store is not being processed by this this instance.", ignored);
+                return;
+            } else {
+                if (retryAttempt < maxRetries) {
+                    SLOG.logger().warn("State store may not be ready, will retry", ignored);
+                    retryAttempt++;
+                    try {
+                        Thread.sleep(1000);
+                    } catch (InterruptedException e) {
+                        throw new RuntimeException(e);
+                    }
+                } else {
+                   throw new RuntimeException(ignored);
+                }
+            }
         }
-      }
     }
 
 

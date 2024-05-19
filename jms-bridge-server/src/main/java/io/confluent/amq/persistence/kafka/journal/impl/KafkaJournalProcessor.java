@@ -220,12 +220,12 @@ public class KafkaJournalProcessor implements StateListener {
   synchronized void load(KJournalImpl kjournal, KafkaJournalLoaderCallback callback) {
     if (streams != null && journalState.isRunningState()) {
 
-      try {
-        //todo: make this timeout configurable
-        kjournal.loader().onLoadComplete().get(loadTimeout.toMillis(), TimeUnit.MILLISECONDS);
-      } catch (Exception e) {
-        throw new RuntimeException(e);
-      }
+//      try {
+//        //todo: make this timeout configurable
+//        kjournal.loader().onLoadComplete().get(loadTimeout.toMillis(), TimeUnit.MILLISECONDS);
+//      } catch (Exception e) {
+//        throw new RuntimeException(e);
+//      }
 
       StoreQueryParameters<ReadOnlyKeyValueStore<JournalEntryKey, JournalEntry>>
           storeQueryParameters = StoreQueryParameters

@@ -1,0 +1,10 @@
+FROM eclipse-temurin:17-jdk-jammy
+
+COPY . /app
+
+# make sure the jar is executable
+RUN chmod -R 777 /app
+
+WORKDIR /app
+
+CMD java -jar /app/Consumer.jar -t test -d "(tcp://live:61616,tcp://backup:61617)?ha=true&retryInterval=100&retryIntervalMultiplier=1.0&reconnectAttempts=-1&failoverOnServerShutdown=true;" hello
