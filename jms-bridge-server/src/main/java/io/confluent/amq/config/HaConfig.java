@@ -10,13 +10,18 @@ import static io.confluent.amq.config.BridgeConfigFactory.flattenConfig;
 
 @FreeBuilder
 public interface HaConfig {
-    int DEFAULT_INIT_TIMEOUT_MS = 30_000;
+    int DEFAULT_INIT_TIMEOUT_MS = 5000;
     String DEFAULT_GROUP_ID = "ha_consumer_group";
 
     String groupId();
 
     Map<String, Object> consumerConfig();
 
+    /**
+     *  This is the amount of time the backup server will wait for the live server to update the cluster statues
+     *  before becoming live and bootstrapping.
+     *
+     */
     int initTimeoutMs();
 
     class Builder extends HaConfig_Builder {

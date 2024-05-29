@@ -19,8 +19,7 @@ public class HostMemberIdentity implements MemberIdentity {
   private String host;
   @Builder.Default
   private boolean leaderEligibility = true;
-  @Builder.Default
-  private Set<String> eligibleTasks = new HashSet<>();
+  private boolean preferredLive;
 
   @JsonIgnore
   public String getId() {

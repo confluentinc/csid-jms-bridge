@@ -45,8 +45,9 @@ public class KafkaLeaderElector<A extends Assignment, M extends MemberIdentity>
   private final AtomicBoolean stopped = new AtomicBoolean(false);
   private final AtomicInteger restarts = new AtomicInteger(0);
   private final AtomicBoolean forceRejoin = new AtomicBoolean(false);
+  private final AtomicReference<String> maybeLeave = new AtomicReference<>(null);
   private final AssignmentManager<A, M> assignmentManager;
-  private final M identity;
+  private M identity;
   private final LeaderProtocol<A, M> leaderProtocol;
   private final LogContext logContext;
   private final Time time;
@@ -160,6 +161,10 @@ public class KafkaLeaderElector<A extends Assignment, M extends MemberIdentity>
     log.debug("Group member created");
   }
 
+  public void maybeLeaveCluster(String reason) {
+    this.maybeLeave.set(reason);
+  }
+
   private LeaderCoordinator<A, M> createCoordinator() {
     return new LeaderCoordinator<>(
         this.logContext,
@@ -191,8 +196,12 @@ public class KafkaLeaderElector<A extends Assignment, M extends MemberIdentity>
         try (LeaderCoordinator<A, M> coordinator = createCoordinator()) {
           while (!stopped.get()) {
             if (forceRejoin.get()) {
+              coordinator.updateIdentity(this.identity);
               coordinator.requestRejoin("Rejoin requested");
               forceRejoin.set(false);
+            } else if(maybeLeave.get() != null) {
+              coordinator.maybeLeaveGroup(maybeLeave.get());
+              maybeLeave.set(null);
             }
             coordinator.poll(500);
             Timer timer = Time.SYSTEM.timer(this.rebalanceTimeout.toMillis());
@@ -293,7 +302,10 @@ public class KafkaLeaderElector<A extends Assignment, M extends MemberIdentity>
     return this.restarts.get();
   }
 
-  public void forceRejoin() {
+  public void forceRejoin(M updatedIdentity) {
+    if (updatedIdentity != null) {
+      identity = updatedIdentity;
+    }
     this.forceRejoin.set(true);
   }
 }

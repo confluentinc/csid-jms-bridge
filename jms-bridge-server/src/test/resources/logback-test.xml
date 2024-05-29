@@ -10,7 +10,7 @@
         </encoder>
     </appender>
 
-    <logger name="io.confluent.amq" level="INFO" additivity="false">
+    <logger name="io.confluent.amq.server.kafka.KafkaNodeManager" level="INFO" additivity="false">
         <appender-ref ref="stdout"/>
     </logger>
 

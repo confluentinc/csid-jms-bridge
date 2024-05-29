@@ -7,29 +7,20 @@ package io.confluent.amq.server.kafka;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.germanosin.kafka.leader.*;
 import com.github.germanosin.kafka.leader.tasks.DefaultLeaderTasksManager;
-import com.github.germanosin.kafka.leader.tasks.PreferredLeaderTaskManager;
 import com.github.germanosin.kafka.leader.tasks.Task;
 import com.github.germanosin.kafka.leader.tasks.TaskAssignment;
-import io.confluent.amq.JmsBridgeConfiguration;
 import io.confluent.amq.config.HaConfig;
 import io.confluent.amq.logging.StructuredLogger;
-import io.confluent.amq.persistence.kafka.KafkaIntegration;
 import org.apache.activemq.artemis.api.core.SimpleString;
-import org.apache.activemq.artemis.core.config.ConfigurationUtils;
 import org.apache.activemq.artemis.core.server.ActivateCallback;
 import org.apache.activemq.artemis.core.server.NodeManager;
 import org.apache.activemq.artemis.core.server.impl.CleaningActivateCallback;
 import org.apache.activemq.artemis.utils.UUID;
-import org.apache.kafka.clients.admin.ConsumerGroupDescription;
 
 import java.time.Duration;
-import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Semaphore;
-
-import static org.apache.activemq.artemis.core.server.impl.InVMNodeManager.State.*;
 
 public class KNodeManager extends NodeManager {
     public enum State {

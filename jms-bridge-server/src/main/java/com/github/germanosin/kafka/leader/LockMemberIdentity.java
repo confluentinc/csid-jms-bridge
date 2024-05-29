@@ -20,7 +20,8 @@ public class LockMemberIdentity implements MemberIdentity {
     private String id;
     @Builder.Default
     private boolean leaderEligibility = true;
-    private String preferredLock;
+    private boolean preferredLive;
+    private String clusterState;
 
     @Override
     public boolean getLeaderEligibility() {

@@ -24,9 +24,10 @@ import org.apache.kafka.common.utils.Timer;
 public class LeaderCoordinator<A extends Assignment, M extends MemberIdentity>
     extends AbstractCoordinator implements Closeable {
 
+
   public static final String BD_SUBPROTOCOL_V0 = "v0";
 
-  private final M identity;
+  private M identity;
   private final Metrics metrics;
   private A assignmentSnapshot;
   private final AssignmentManager<A, M> assignmentManager;
@@ -173,4 +174,10 @@ public class LeaderCoordinator<A extends Assignment, M extends MemberIdentity>
     super.close(timer);
     this.metrics.close();
   }
+
+  public void updateIdentity(M updatedIdentity) {
+    this.identity = updatedIdentity;
+  }
+
+
 }

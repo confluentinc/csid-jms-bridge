@@ -5,6 +5,7 @@
 package io.confluent.amq.persistence.kafka.journal.impl;
 
 import io.confluent.amq.config.BridgeClientId;
+import io.confluent.amq.persistence.kafka.LoadInitializer;
 import org.apache.kafka.clients.admin.TopicDescription;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.streams.KafkaStreams;
@@ -30,13 +31,7 @@ import io.confluent.amq.persistence.kafka.journal.serde.JournalValueSerde;
 import io.confluent.amq.util.Retry;
 
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -46,6 +41,13 @@ import static io.confluent.amq.persistence.kafka.journal.KJournalState.CREATED;
 import static io.confluent.amq.persistence.kafka.journal.KJournalState.STARTED;
 
 /**
+ * The journal processor executes outside of the normal flow of Artemis's runtime. It is primarily responsible for
+ * processing the WAL topic, in the background, to maintain the global state store.
+ *
+ * There is one place that the kafka streams application does interact directly with Artemis and that is during startup.
+ * Part of startup includes the loading step which requires that most up to date state is retreived from the state
+ * store.
+ *
  * Built on Kafka Streams, this class is responsible for processing a journal topic.
  * <p>
  * Flows like this:
@@ -217,15 +219,29 @@ public class KafkaJournalProcessor implements StateListener {
     return kstreamProps;
   }
 
+  /**
+   * This load is called from the KafkaJournal which was invoked during startup of Artemis via the
+   * JournalStorageManager. In order to gather the current state we need access the global state store and the
+   * transaction store. The transaction store is needed because there may be unprocessed, yet completed, transactions
+   * in the log, it is also where JTA transactions live.
+   *
+   * The initial onLoadComplete() call blocks until the WAL topic has been completely processed and the global state
+   * store is up to date. It uses a sentinel message to achieve this,
+   *  see {@link io.confluent.amq.persistence.domain.proto.EpochEvent}. The sentinal message is produced by
+   *  kafka streams when it starts up. This done via a timed message as part of the {@link EpochPuntcuator}
+   *  initialization.
+   *
+   */
   synchronized void load(KJournalImpl kjournal, KafkaJournalLoaderCallback callback) {
     if (streams != null && journalState.isRunningState()) {
 
-//      try {
-//        //todo: make this timeout configurable
-//        kjournal.loader().onLoadComplete().get(loadTimeout.toMillis(), TimeUnit.MILLISECONDS);
-//      } catch (Exception e) {
-//        throw new RuntimeException(e);
-//      }
+
+      try {
+        //todo: make this timeout configurable
+        kjournal.loader().onLoadComplete().get(loadTimeout.toMillis(), TimeUnit.MILLISECONDS);
+      } catch (Exception e) {
+        throw new RuntimeException(e);
+      }
 
       StoreQueryParameters<ReadOnlyKeyValueStore<JournalEntryKey, JournalEntry>>
           storeQueryParameters = StoreQueryParameters
@@ -358,6 +374,12 @@ public class KafkaJournalProcessor implements StateListener {
         transitionState(KJournalState.RUNNING);
       }
     });
+
+    List<String> journalTopics = journalSpecs
+            .stream()
+            .map(j -> j.journalWalTopic().name())
+            .collect(Collectors.toList());
+    LoadInitializer.fireEpochs(epochCoordinator, kafkaIO, journalTopics);
   }
 
   @SuppressWarnings("checkstyle:CyclomaticComplexity")

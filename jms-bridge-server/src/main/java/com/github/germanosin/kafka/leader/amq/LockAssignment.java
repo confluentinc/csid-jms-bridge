@@ -1,7 +1,7 @@
-package com.github.germanosin.kafka.leader.tasks;
+package com.github.germanosin.kafka.leader.amq;
 
 import com.github.germanosin.kafka.leader.Assignment;
-import com.github.germanosin.kafka.leader.LockMemberIdentity;
+import com.github.germanosin.kafka.leader.MemberIdentity;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -19,7 +19,9 @@ import java.util.Set;
 public class LockAssignment implements Assignment {
     private int version;
     private short error;
-    private Set<String> acquiredLocks;
-    private String updatedState;
-    private boolean backupLive;
+    private MemberIdentity liveLock;
+    private MemberIdentity backupLock;
+    private String clusterState;
+    private String clusterId;
+    private String assignedLock;
 }
