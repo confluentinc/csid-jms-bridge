@@ -40,6 +40,7 @@ services:
     container_name: live-jms-bridge
     depends_on:
       - kafka
+      - splunk
     ports:
       - "61616:61616"
     environment:
@@ -70,3 +71,18 @@ services:
       JMSBRIDGE_JOURNALS_TOPIC_REPLICATION: 1
       JMSBRIDGE_ROUTING_TOPICS_0_MATCH: ".*"
       JMSBRIDGE_ROUTING_TOPICS_0_MESSAGE_TYPE: BYTES
+
+  splunk:
+    image: ${SPLUNK_IMAGE:-splunk/splunk:latest}
+    container_name: splunk
+    hostname: splunk
+    environment:
+      SPLUNK_START_ARGS: --accept-license
+      SPLUNK_LICENSE_URI: Free
+      SPLUNK_HEC_TOKEN: splunk-token
+      SPLUNK_PASSWORD: splunkpwd
+      SPLUNK_ADD: tcp 1514
+    ports:
+      - 8000:8000
+      - 8088:8088
+      - 1514:1514

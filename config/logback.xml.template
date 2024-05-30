@@ -11,16 +11,24 @@
         <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} -%kvp- %msg%n</pattern>
       </encoder>
     </appender>
-
+    <appender name="splunk" class="com.splunk.logging.TcpAppender">
+      <RemoteHost>splunk</RemoteHost>
+      <Port>1514</Port>
+      <encoder>
+         <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} -%kvp- %msg%n</pattern>
+      </encoder>
+    </appender>
     {% set log_props = env_to_props('LOG_', '') -%}
     {% for name, value in log_props.items() -%}
     <logger name="{{name}}" level="{{value}}" additivity="false">
       <appender-ref ref="stdout"/>
+      <appender-ref ref="splunk"/>
     </logger>
     {% endfor -%}
 
     <root level="${env:LOGROOT:-WARN}">
       <appender-ref ref="stdout" />
+      <appender-ref ref="splunk" />
     </root>
 
 </configuration>

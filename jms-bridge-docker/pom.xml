@@ -45,7 +45,13 @@
         <!-- Pull the latest base image or use a local image. -->
         <docker.pull-image>false</docker.pull-image>
     </properties>
-
+    <repositories>
+        <repository>
+            <id>splunk-artifactory</id>
+            <name>Splunk Releases</name>
+            <url>https://splunk.jfrog.io/splunk/ext-releases-local</url>
+        </repository>
+    </repositories>
     <dependencies>
         <dependency>
             <groupId>io.confluent</groupId>
@@ -56,6 +62,11 @@
             <groupId>io.prometheus.jmx</groupId>
             <artifactId>jmx_prometheus_javaagent</artifactId>
             <version>${jmx_prometheus_javaagent.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.splunk.logging</groupId>
+            <artifactId>splunk-library-javalogging</artifactId>
+            <version>1.11.8</version>
         </dependency>
     </dependencies>
 
