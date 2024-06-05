@@ -19,7 +19,7 @@ class Producer implements Callable<Integer> {
 
     @CommandLine.Option(names = {"-t", "--topic"}, description = "The topic to send the text message to", required = true)
     private String topic;
-    @CommandLine.Option(names = {"-d", "--destination"}, description = "Where to produce messages to", defaultValue = "(tcp://localhost:61616,tcp://localhost:61617)?ha=true&retryInterval=100&retryIntervalMultiplier=1.0&reconnectAttempts=5&failoverOnServerShutdown=true;", required = true)
+    @CommandLine.Option(names = {"-d", "--destination"}, description = "Where to produce messages to", defaultValue = "(tcp://localhost:61617,tcp://localhost:61616)?ha=true&retryInterval=100&retryIntervalMultiplier=1.0&reconnectAttempts=-1&failoverOnServerShutdown=true;", required = true)
     private String destination;
 
     @CommandLine.Parameters

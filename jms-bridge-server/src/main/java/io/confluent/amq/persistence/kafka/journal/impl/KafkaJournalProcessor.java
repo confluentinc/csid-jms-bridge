@@ -234,7 +234,11 @@ public class KafkaJournalProcessor implements StateListener {
    */
   synchronized void load(KJournalImpl kjournal, KafkaJournalLoaderCallback callback) {
     if (streams != null && journalState.isRunningState()) {
-
+      List<String> journalTopics = journalSpecs
+              .stream()
+              .map(j -> j.journalWalTopic().name())
+              .collect(Collectors.toList());
+      LoadInitializer.fireEpochs(epochCoordinator, kafkaIO, journalTopics);
 
       try {
         //todo: make this timeout configurable
@@ -375,11 +379,7 @@ public class KafkaJournalProcessor implements StateListener {
       }
     });
 
-    List<String> journalTopics = journalSpecs
-            .stream()
-            .map(j -> j.journalWalTopic().name())
-            .collect(Collectors.toList());
-    LoadInitializer.fireEpochs(epochCoordinator, kafkaIO, journalTopics);
+
   }
 
   @SuppressWarnings("checkstyle:CyclomaticComplexity")

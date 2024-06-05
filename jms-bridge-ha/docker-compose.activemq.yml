@@ -1,14 +1,11 @@
 ---
 services:
-  consumer:
-    image: jms-bridge-ha-consumer:latest
-    depends_on:
-      - live
-      - backup
-    volumes:
-      - .:/app
   producer:
-    image: jms-bridge-ha-producer:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        JAVA_FILE_NAME: Producer
     depends_on:
       - live
       - backup
