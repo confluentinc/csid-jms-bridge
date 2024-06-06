@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.germanosin.kafka.leader.*;
 import com.github.germanosin.kafka.leader.amq.LockAssignment;
 import io.confluent.amq.config.HaConfig;
+import lombok.Getter;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.activemq.artemis.api.core.SimpleString;
@@ -50,9 +51,12 @@ public class KafkaNodeManager extends NodeManager implements AssignmentManager<L
     private final UUID nodeId;
     private final HaConfig haConfig;
     private Boolean isPreferredLeader;
+    @Getter
     private volatile NodeLocks currentLock = NodeLocks.NOT_ATTEMPTED;
+    @Getter
     private volatile ClusterStates currentState = ClusterStates.NOT_STARTED;
     private volatile boolean interrupt = false;
+    @Getter
     private volatile boolean isAlive = false;
 
     private final AtomicBoolean initialization = new AtomicBoolean(true);
