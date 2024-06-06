@@ -10,11 +10,11 @@
         </encoder>
     </appender>
 
-    <logger name="io.confluent.amq.server.kafka.KafkaNodeManager" level="DEBUG" additivity="false">
+    <logger name="io.confluent.amq.server.kafka.KafkaNodeManager" level="INFO" additivity="false">
         <appender-ref ref="stdout"/>
     </logger>
 
-    <logger name="org.apache.activemq" level="DEBUG" additivity="false">
+    <logger name="org.apache.activemq" level="INFO" additivity="false">
         <appender-ref ref="stdout"/>
     </logger>
 
