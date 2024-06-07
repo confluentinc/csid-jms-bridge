@@ -4,6 +4,7 @@
 
 package io.confluent.amq;
 
+import io.confluent.amq.cli.AutoKillSwitch;
 import io.confluent.amq.config.BridgeConfig;
 import io.confluent.amq.exchange.KafkaExchangeManager;
 import io.confluent.amq.logging.StructuredLogger;
@@ -21,14 +22,17 @@ import org.apache.activemq.artemis.spi.core.security.ActiveMQSecurityManager;
 
 import javax.management.MBeanServer;
 import java.io.File;
+import java.time.Duration;
 
 public class ConfluentAmqServerImpl extends ActiveMQServerImpl implements ConfluentAmqServer {
-
+  private static final String DEFAULT_KILL_DURATION_MINUTES = String.valueOf(60 * 8);
   private static final StructuredLogger SLOG = StructuredLogger.with(b -> b
       .loggerClass(DelegatingConfluentAmqServer.class));
 
   private final KafkaIntegration kafkaIntegration;
   private final KafkaExchangeManager kafkaExchangeManager;
+
+  private final AutoKillSwitch killSwitch;
 
   public ConfluentAmqServerImpl() {
     throw new IllegalStateException("Configuration required.");
@@ -71,6 +75,11 @@ public class ConfluentAmqServerImpl extends ActiveMQServerImpl implements Conflu
       final ServiceRegistry serviceRegistry) {
 
     super(configuration, mbeanServer, securityManager, parentServer, serviceRegistry);
+
+    String killHours = System
+            .getenv().getOrDefault("AUTO_KILL_SWITCH_TIME_MINUTES", DEFAULT_KILL_DURATION_MINUTES);
+    killSwitch = new AutoKillSwitch("ActiveMQ Server Shutdown",
+            Duration.ofMinutes(Integer.parseInt(killHours)), () ->  this.stop(true));
     kafkaIntegration = new KafkaIntegration(configuration);
     kafkaExchangeManager = new KafkaExchangeManager(
         configuration.getBridgeConfig(), kafkaIntegration.getKafkaIO());
@@ -122,6 +131,8 @@ public class ConfluentAmqServerImpl extends ActiveMQServerImpl implements Conflu
     thread.start();
   }
 
+
+
   public void doFail(boolean failoverOnServerShutdown) throws Exception {
     super.fail(failoverOnServerShutdown);
     afterStop();
@@ -149,6 +160,7 @@ public class ConfluentAmqServerImpl extends ActiveMQServerImpl implements Conflu
 
   private void beforeStart() {
     try {
+      killSwitch.start();
       kafkaIntegration.start();
     } catch (Exception e) {
       throw new RuntimeException(e);

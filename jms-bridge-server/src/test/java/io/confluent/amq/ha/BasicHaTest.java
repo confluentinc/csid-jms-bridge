@@ -1,6 +1,7 @@
 package io.confluent.amq.ha;
 
 import com.google.common.io.Resources;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import io.confluent.amq.config.RoutingConfig;
 import io.confluent.amq.test.AbstractContainerTest;
 import io.confluent.amq.test.ArtemisTestServer;
@@ -18,6 +19,7 @@ import java.nio.file.Path;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 @Disabled
+@SuppressFBWarnings("MS_SHOULD_BE_FINAL")
 public class BasicHaTest extends AbstractContainerTest {
     static final String backupBrokerXml = "brokerxml/broker-backup-ha.xml";
     static final String liveBrokerXml = "brokerxml/broker-live-ha.xml";

@@ -299,7 +299,7 @@ public class JmsBridgeToKafkaTests extends AbstractContainerTest {
         String bridgeId = "my_client_test_bridge";
         String sfcdId = "my_partner_sfdc_id";
         String clientIdPrefix =
-                String.format("PIE_LABS | %s | 01956412-5721-46ba-9673-4a84b48200b2 | unknown | %s", sfcdId, bridgeId);
+                String.format("BWC | %s | 01956412-5721-46ba-9673-4a84b48200b2 | unknown | %s", sfcdId, bridgeId);
         BridgeConfig.Builder idConfig = BridgeConfigFactory
                 .loadConfiguration(Resources.getResource("config/partner-sfdc-id-test-config.conf"));
 
