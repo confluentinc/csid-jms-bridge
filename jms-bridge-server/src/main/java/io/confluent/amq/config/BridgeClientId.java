@@ -49,7 +49,6 @@ public interface BridgeClientId {
             acceleratorId(Accelerator.JMS_BRIDGE.getAcceleratorId());
             acceleratorOwner("BWC");
             acceleratorVersion(BridgeConfigFactory.getBridgeVersion());
-            partnerSFDCId("0013a00001ic0psAAA");
         }
     }
 }
