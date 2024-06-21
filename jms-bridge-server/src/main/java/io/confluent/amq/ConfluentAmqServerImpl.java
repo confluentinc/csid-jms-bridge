@@ -158,13 +158,7 @@ public class ConfluentAmqServerImpl extends ActiveMQServerImpl implements Conflu
   }
 
   private void beforeStart() {
-    try {
-      // Don't initiate the kill switch on this version of the code
-      //killSwitch.start();
-      kafkaIntegration.start();
-    } catch (Exception e) {
-      throw new RuntimeException(e);
-    }
+    //do nothing
   }
 
   private JmsBridgeConfiguration getJmsBridgeConfiguration() {

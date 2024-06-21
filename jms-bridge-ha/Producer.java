@@ -58,7 +58,6 @@ class Producer implements Callable<Integer> {
                     break;
                 } catch (JMSException e) {
                     System.out.println(e.getMessage());
-                    break;
                 }
             }
         }

@@ -103,6 +103,13 @@ public class KafkaExchangeManager implements ActiveMQServerPlugin, ActivateCallb
   public void registered(ActiveMQServer server) {
     SLOG.info(b -> b.event("Registered"));
     this.amqServerRef.set((ConfluentAmqServer) server);
+    //TODO: See if there is a better place to init the KafkaIntegration.
+    //needs to be runnable from ActiveMQServerImpl.start() as that is used by backup shared store activation on failover.
+    try {
+      getAmqServer().getKafkaIntegration().start();
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
     state.doPrepare(this::prepare);
     server.registerActivateCallback(this);
   }
@@ -168,7 +175,7 @@ public class KafkaExchangeManager implements ActiveMQServerPlugin, ActivateCallb
   }
 
   public void start() {
-    if (!isEnabled()) {
+      if (!isEnabled()) {
       return;
     }
 
