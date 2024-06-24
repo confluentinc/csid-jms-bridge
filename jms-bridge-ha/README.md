@@ -30,7 +30,7 @@ the live server coming back up and automatically stop.
 The docker compose file will stand up the following:
 
 1. A single node kafka and zookeeper cluster
-    - kafka exponsed on: `localhost:29092`, `kafka:9092`
+    - kafka exposed on: `localhost:29092`, `kafka:9092`
     - On startup, a topic `test` will be pre-created and made available for use.
 2. A jms bridge cluster with 1 live server and 1 backup server.
     - live server exposed on: `localhost:61616`
@@ -49,15 +49,7 @@ The docker compose file will stand up the following:
 docker compose up -d
 ```
 
-### Step 2. Start the consumer
-
-This consumer will consume messages from the jms bridge.
-
-```bash
-jbang Consumer.java -t test
-```
-
-### Step 3. Start a kafka consumer
+### Step 2. Start a kafka consumer
 
 In a new terminal, start a kafka consumer (this example uses kcat) to consume
 messages from the kafka topic.
@@ -66,19 +58,44 @@ messages from the kafka topic.
 kcat -C -b localhost:29092 -t test
 ```
 
-### Step 4. Start the producer
+You can use this to verify that kafka has persisted all messages passing through the bridge.
+
+### Step 3. Tail the producer logs
 
 In a new terminal, start the producer. This producer will send messages to jms bridge.
 
 ```bash
-jbang Producer.java -t test hello
+docker compose logs -f producer
 ```
 
-### Step 5. Shut down the live server
+### Step 4. Tail the consumer logs
+
+In a new terminal, start the consumer. This consumer will consume messages from jms bridge.
+
+```bash
+docker compose logs -f consumer
+```
+
+### Step 4. Shut down the live server
 
 In a new terminal, shut down the live server.
 
 ```bash
-# a way to kill the broker without removing the host
-docker compose pause live-jms-bridge
+docker compose stop live-jms-bridge
 ```
+
+If you look at the backup-jms-bridge logs, you'll see the
+log ` [AMQ229000: Activation for server ActiveMQServerImpl::name=localhost] INFO  o.a.activemq.artemis.core.server -- AMQ221010: Backup Server is now live`
+indicating that the backup server has taken over.
+
+### Step 5. Start the live server
+
+After you've observed clients failing over (typically indicated by the producer printing a message detecting a
+disconnect _"Trying again..."_), start the live server back up.
+
+```bash
+docker compose start live-jms-bridge
+```
+
+if you look at live-jms-bridge logs you'll see the log `AMQ221035: Live Server Obtained live lock` indicating that the
+live server has taken back over. and that the backup server logs has `AMQ221031: backup announced`.

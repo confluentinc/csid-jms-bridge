@@ -1,26 +1,19 @@
-ARG JAVA_FILE_NAME
+FROM eclipse-temurin:11-jre-jammy
 
-FROM jbangdev/jbang-action AS build
+ARG JAVA_FILE
 
-ARG JAVA_FILE_NAME
+# Install curl
+RUN apt-get update && apt-get install -y curl
 
-RUN mkdir /app
-WORKDIR /app
-COPY . /app
+# Install JBang and start a new shell. required for jbang to be found as entrypoint
+RUN curl -Ls https://sh.jbang.dev | bash -s - app setup
 
-RUN jbang export portable ${JAVA_FILE_NAME}.java
-# make sure the jar is executable
-RUN chmod +x /app/${JAVA_FILE_NAME}.jar
+ENV PATH="/root/.jbang/bin:${PATH}"
 
-FROM eclipse-temurin:17-jdk-jammy
+# Add your JBang script to the container
+COPY $JAVA_FILE /app/script.java
 
-ARG JAVA_FILE_NAME
-
-RUN mkdir /app/
-RUN mkdir /app/lib
-COPY --from=build ["/app/${JAVA_FILE_NAME}.jar", "/app/Producer.jar"]
-COPY --from=build /app/lib/* /app/lib/
 WORKDIR /app
 
-ARG JAVA_FILE_NAME
-CMD java -jar "${JAVA_FILE_NAME}.jar" -t test -d "(tcp://live:61616,tcp://backup:61617)?ha=true&retryInterval=100&retryIntervalMultiplier=1.0&reconnectAttempts=-1&failoverOnServerShutdown=true;" hello
+# Run the JBang script
+ENTRYPOINT ["jbang", "script.java"]
