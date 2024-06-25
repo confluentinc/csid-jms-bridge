@@ -6,6 +6,7 @@ package io.confluent.amq.persistence.kafka.journal.impl;
 
 import io.confluent.amq.config.BridgeClientId;
 import io.confluent.amq.persistence.kafka.LoadInitializer;
+import io.confluent.amq.persistence.kafka.journal.JournalSpec;
 import org.apache.kafka.clients.admin.TopicDescription;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.streams.KafkaStreams;
@@ -16,7 +17,6 @@ import org.apache.kafka.streams.StreamsConfig;
 import org.apache.kafka.streams.Topology;
 import org.apache.kafka.streams.state.QueryableStoreTypes;
 import org.apache.kafka.streams.state.ReadOnlyKeyValueStore;
-import org.inferred.freebuilder.FreeBuilder;
 
 import io.confluent.amq.logging.StructuredLogger;
 import io.confluent.amq.persistence.domain.proto.JournalEntry;
@@ -25,7 +25,6 @@ import io.confluent.amq.persistence.kafka.KafkaIO;
 import io.confluent.amq.persistence.kafka.journal.JournalEntryKeyPartitioner;
 import io.confluent.amq.persistence.kafka.journal.KJournal;
 import io.confluent.amq.persistence.kafka.journal.KJournalState;
-import io.confluent.amq.persistence.kafka.journal.impl.JournalTopology.TopologySpec.Builder;
 import io.confluent.amq.persistence.kafka.journal.serde.JournalKeySerde;
 import io.confluent.amq.persistence.kafka.journal.serde.JournalValueSerde;
 import io.confluent.amq.util.Retry;
@@ -421,41 +420,6 @@ public class KafkaJournalProcessor implements StateListener {
         .putTokens("newState", newState));
 
     journalState = newState;
-  }
-
-  @FreeBuilder
-  public interface JournalSpec {
-
-    String journalName();
-
-    TopicSpec journalWalTopic();
-
-    TopicSpec journalTableTopic();
-
-    boolean performRouting();
-
-    class Builder extends KafkaJournalProcessor_JournalSpec_Builder {
-
-      public Builder() {
-        this.performRouting(false);
-      }
-    }
-  }
-
-  @FreeBuilder
-  public interface TopicSpec {
-
-    String name();
-
-    int partitions();
-
-    int replication();
-
-    Map<String, String> configs();
-
-    class Builder extends KafkaJournalProcessor_TopicSpec_Builder {
-
-    }
   }
 
   static class KJournalImpl implements KJournal {

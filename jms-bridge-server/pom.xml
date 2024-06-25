@@ -244,6 +244,10 @@
             <artifactId>kafka-streams</artifactId>
             <groupId>org.apache.kafka</groupId>
         </dependency>
+        <dependency>
+            <groupId>io.kcache</groupId>
+            <artifactId>kcache</artifactId>
+        </dependency>
 
         <!-- Test dependencies -->
         <!--

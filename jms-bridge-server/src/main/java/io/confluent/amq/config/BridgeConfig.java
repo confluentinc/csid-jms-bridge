@@ -30,6 +30,12 @@ public interface BridgeConfig {
 
   Map<String, String> kafka();
 
+  Map<String, String> kcache();
+
+  Map<String, String> kcacheBindings();
+
+  Map<String, String> kcacheMessages();
+
   Map<String, String> streams();
 
   JournalsConfig journals();
@@ -40,18 +46,27 @@ public interface BridgeConfig {
 
   class Builder extends BridgeConfig_Builder {
 
-    public Builder() {
-
-    }
+    public Builder() {}
 
     public Builder(Config rootConfig) {
       Config bridgeConfig = rootConfig.getConfig("bridge");
       this.id(bridgeConfig.getString("id"))
           .journals(new JournalsConfig.Builder(bridgeConfig.getConfig("journals")))
           .putAllKafka(flattenConfig(bridgeConfig.getConfig("kafka")))
-          .putAllStreams(flattenConfig(
-              bridgeConfig.getConfig("streams")
-                  .withFallback(bridgeConfig.getConfig("kafka"))));
+          .putAllKcache(flattenConfig(bridgeConfig.getConfig("kcache")))
+          .putAllKcacheBindings(
+              flattenConfig(
+                  bridgeConfig
+                      .getConfig("kcache_bindings")
+                      .withFallback(bridgeConfig.getConfig("kcache"))))
+          .putAllKcacheMessages(
+              flattenConfig(
+                  bridgeConfig
+                      .getConfig("kcache_messages")
+                      .withFallback(bridgeConfig.getConfig("kcache"))))
+          .putAllStreams(
+              flattenConfig(
+                  bridgeConfig.getConfig("streams").withFallback(bridgeConfig.getConfig("kafka"))));
 
       if (bridgeConfig.hasPath("ha")) {
         Config haConfig = bridgeConfig.getConfig("ha");
@@ -59,9 +74,10 @@ public interface BridgeConfig {
       }
 
       if (bridgeConfig.hasPath("routing")) {
-        this.routing(new RoutingConfig.Builder(
-            bridgeConfig.getConfig("kafka"),
-            bridgeConfig.getConfig("routing")).build());
+        this.routing(
+            new RoutingConfig.Builder(
+                    bridgeConfig.getConfig("kafka"), bridgeConfig.getConfig("routing"))
+                .build());
       }
 
       if (bridgeConfig.hasPath("security")) {
@@ -71,12 +87,12 @@ public interface BridgeConfig {
       if (bridgeConfig.hasPath(("partner_sfdc_id"))) {
         this.partnerSFDCId(bridgeConfig.getString("partner_sfdc_id"));
       }
-      this.clientId(new BridgeClientId.Builder()
-                      .partnerSFDCId(this.partnerSFDCId())
-                      .bridgeId(this.id())
-                      .build());
+      this.clientId(
+          new BridgeClientId.Builder()
+              .partnerSFDCId(this.partnerSFDCId())
+              .bridgeId(this.id())
+              .build());
     }
-
   }
 
   @FreeBuilder
@@ -96,9 +112,7 @@ public interface BridgeConfig {
 
     class Builder extends BridgeConfig_JournalsConfig_Builder {
 
-      public Builder() {
-
-      }
+      public Builder() {}
 
       public Builder(Config journalsConfig) {
         this.bindings(new JournalConfig.Builder(journalsConfig.getConfig("bindings")))
@@ -120,15 +134,12 @@ public interface BridgeConfig {
 
     class Builder extends BridgeConfig_JournalConfig_Builder {
 
-      public Builder() {
-
-      }
+      public Builder() {}
 
       public Builder(Config journalConfig) {
         this.walTopic(new TopicConfig.Builder(journalConfig.getConfig("wal.topic")));
         this.tableTopic(new TopicConfig.Builder(journalConfig.getConfig("table.topic")));
       }
-
     }
   }
 
@@ -145,9 +156,7 @@ public interface BridgeConfig {
 
     class Builder extends BridgeConfig_TopicConfig_Builder {
 
-      public Builder() {
-
-      }
+      public Builder() {}
 
       public Builder(Config topicConfig) {
         this.replication(topicConfig.getInt("replication"))
@@ -157,7 +166,6 @@ public interface BridgeConfig {
         if (topicConfig.hasPath("name")) {
           this.name(topicConfig.getString("name"));
         }
-
       }
     }
   }

@@ -5,6 +5,7 @@
 package io.confluent.amq.persistence.kafka;
 
 import io.confluent.amq.config.BridgeClientId;
+import io.confluent.amq.persistence.kafka.journal.JournalSpec;
 import org.apache.activemq.artemis.utils.UUID;
 import org.apache.activemq.artemis.utils.UUIDGenerator;
 import org.apache.kafka.common.config.TopicConfig;
@@ -22,7 +23,6 @@ import io.confluent.amq.logging.StructuredLogger;
 import io.confluent.amq.persistence.kafka.journal.KJournal;
 import io.confluent.amq.persistence.kafka.journal.impl.KafkaJournal;
 import io.confluent.amq.persistence.kafka.journal.impl.KafkaJournalProcessor;
-import io.confluent.amq.persistence.kafka.journal.impl.KafkaJournalProcessor.JournalSpec;
 
 public class KafkaIntegration {
 

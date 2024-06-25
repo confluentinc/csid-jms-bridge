@@ -73,6 +73,7 @@
     <git-commit-id-plugin.version>2.2.6</git-commit-id-plugin.version>
     <guava.version>32.0.0-jre</guava.version>
     <kafka.version>3.4.0</kafka.version>
+    <kcache.version>5.0.0</kcache.version>
     <logback.version>1.4.8</logback.version>
     <maven.deploy.skip>true</maven.deploy.skip>
     <maven-compiler-plugin.version>3.10.0</maven-compiler-plugin.version>
@@ -360,6 +361,11 @@
         <groupId>org.apache.kafka</groupId>
         <artifactId>kafka-streams</artifactId>
         <version>${kafka.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>io.kcache</groupId>
+        <artifactId>kcache</artifactId>
+        <version>${kcache.version}</version>
       </dependency>
       <dependency>
         <groupId>com.google.protobuf</groupId>
