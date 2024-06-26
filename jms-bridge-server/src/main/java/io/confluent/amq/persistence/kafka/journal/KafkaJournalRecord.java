@@ -9,13 +9,12 @@ import io.confluent.amq.persistence.domain.proto.JournalRecord;
 import io.confluent.amq.persistence.kafka.KafkaRecordUtils;
 import org.apache.activemq.artemis.core.journal.IOCompletion;
 
-/**
- * A record that has been read from the kafka journal.
- */
+/** A record that has been read from the kafka journal. */
 public class KafkaJournalRecord {
 
   private final JournalRecord record;
   private IOCompletion ioCompletion;
+  // do we need sync, storelineup, dest topic?
   private boolean sync;
   private boolean storeLineUp = true;
   private String destTopic;
@@ -63,10 +62,8 @@ public class KafkaJournalRecord {
     return ioCompletion;
   }
 
-  public KafkaJournalRecord setIoCompletion(
-      IOCompletion ioCompletion) {
+  public KafkaJournalRecord setIoCompletion(IOCompletion ioCompletion) {
     this.ioCompletion = ioCompletion;
     return this;
   }
 }
-

@@ -14,6 +14,7 @@ import io.confluent.amq.persistence.kafka.KafkaIO;
 import io.confluent.amq.persistence.kafka.KafkaRecordUtils;
 import io.confluent.amq.persistence.kafka.journal.KJournal;
 import io.confluent.amq.persistence.kafka.journal.KafkaJournalRecord;
+import io.kcache.Cache;
 import org.apache.activemq.artemis.api.core.ActiveMQBuffer;
 import org.apache.activemq.artemis.api.core.ActiveMQBuffers;
 import org.apache.activemq.artemis.api.core.ActiveMQException;
