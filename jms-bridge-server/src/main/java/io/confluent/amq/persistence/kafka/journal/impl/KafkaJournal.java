@@ -192,6 +192,7 @@ public class KafkaJournal implements Journal {
         JournalEntry.newBuilder().setAppendedRecord(record.getRecord()).build());
     KafkaRecordUtils.addEpochHeader(producerRecord.headers());
 
+    //TODO replace with kcache?
     kafkaIO.<JournalEntryKey, JournalEntry>getInternalProducer()
         .send(producerRecord, (meta, err) -> {
 

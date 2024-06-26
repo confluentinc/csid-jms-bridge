@@ -5,6 +5,7 @@ import io.confluent.amq.logging.StructuredLogger;
 import io.confluent.amq.persistence.domain.proto.JournalEntry;
 import io.confluent.amq.persistence.domain.proto.JournalEntryKey;
 import io.confluent.amq.persistence.kafka.KafkaIO;
+import io.confluent.amq.persistence.kafka.journal.JournalEntryKeyPartitioner;
 import io.confluent.amq.persistence.kafka.journal.JournalSpec;
 import io.confluent.amq.persistence.kafka.journal.serde.JournalKeySerde;
 import io.confluent.amq.persistence.kafka.journal.serde.JournalValueSerde;
@@ -19,12 +20,13 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.experimental.FieldDefaults;
+import org.apache.kafka.clients.producer.ProducerConfig;
 
 @FieldDefaults(level = lombok.AccessLevel.PRIVATE)
-public class KafkaJournal implements AutoCloseable {
+public class JournalCache implements AutoCloseable {
 
   static final StructuredLogger SLOG =
-      StructuredLogger.with(b -> b.loggerClass(KafkaJournal.class));
+      StructuredLogger.with(b -> b.loggerClass(JournalCache.class));
 
   static final String TOPIC_FORMAT = "_jms.bridge_%s_%s_%s";
 
@@ -41,7 +43,7 @@ public class KafkaJournal implements AutoCloseable {
   volatile Cache<JournalEntryKey, JournalEntry> bindingsCache;
   volatile Cache<JournalEntryKey, JournalEntry> messagesCache;
 
-  public KafkaJournal(
+  public JournalCache(
       String bridgeId,
       List<JournalSpec> journalSpecs,
       BridgeClientId bridgeClientId,
@@ -64,17 +66,17 @@ public class KafkaJournal implements AutoCloseable {
 
   public synchronized void start() {
     CompletableFuture<Void> bindingsFuture =
-            CompletableFuture.runAsync(
-                    () -> this.bindingsCache = initBindingsCache(bindingsCacheConfig));
+        CompletableFuture.runAsync(
+            () -> this.bindingsCache = initBindingsCache(bindingsCacheConfig));
     CompletableFuture<Void> messagesFuture =
-            CompletableFuture.runAsync(
-                    () -> this.messagesCache = initMessagesCache(messagesCacheConfig));
+        CompletableFuture.runAsync(
+            () -> this.messagesCache = initMessagesCache(messagesCacheConfig));
     CompletableFuture.allOf(bindingsFuture, messagesFuture).join();
 
     boolean isInitialized = initialized.compareAndSet(false, true);
     if (!isInitialized) {
       throw new IllegalStateException(
-              "Illegal state while initializing KafkaJournal. Journal already initialized.");
+          "Illegal state while initializing KafkaJournal. Journal already initialized.");
     }
   }
 
@@ -121,6 +123,9 @@ public class KafkaJournal implements AutoCloseable {
     cacheConfig.put(KafkaCacheConfig.KAFKACACHE_TOPIC_CONFIG, topic);
     cacheConfig.put(KafkaCacheConfig.KAFKACACHE_GROUP_ID_CONFIG, groupId);
     cacheConfig.put(KafkaCacheConfig.KAFKACACHE_CLIENT_ID_CONFIG, clientId);
+    cacheConfig.put(
+        ProducerConfig.PARTITIONER_CLASS_CONFIG,
+        JournalEntryKeyPartitioner.class.getCanonicalName());
     cache =
         new KafkaCache<>(
             new KafkaCacheConfig(configs), JournalKeySerde.DEFAULT, JournalValueSerde.DEFAULT);

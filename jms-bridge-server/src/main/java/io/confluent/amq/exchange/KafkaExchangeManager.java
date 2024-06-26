@@ -401,6 +401,7 @@ public class KafkaExchangeManager implements ActiveMQServerPlugin, ActivateCallb
           .putTokens("topicRule", routedTopic));
 
       Pattern matcher = Pattern.compile("^" + routedTopic.match() + "$");
+      // TODO: exclude internal kcache topics here instead of streams wal topics
       Set<KafkaTopicExchange> exchanges = kafkaTopics.stream()
           .filter(t -> !t
               .contains(getAmqServer().getKafkaIntegration().getBindingsJournal().walTopic()))
