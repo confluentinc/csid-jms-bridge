@@ -112,9 +112,14 @@ public class JournalCache implements AutoCloseable {
     cacheConfig.put(
         ProducerConfig.PARTITIONER_CLASS_CONFIG,
         JournalEntryKeyPartitioner.class.getCanonicalName());
-    cache =
-        new KafkaCache<>(
-            new KafkaCacheConfig(configs), JournalKeySerde.DEFAULT, JournalValueSerde.DEFAULT);
+    JournalCacheUpdateHandler updateHandler = new JournalCacheUpdateHandler();
+
+    //local cache is used for sending in a custom cache.
+    cache = new KafkaCache<>(new KafkaCacheConfig(configs),
+            JournalKeySerde.DEFAULT,
+            JournalValueSerde.DEFAULT,
+            updateHandler,
+            null);
     cache.init();
     return cache;
   }
