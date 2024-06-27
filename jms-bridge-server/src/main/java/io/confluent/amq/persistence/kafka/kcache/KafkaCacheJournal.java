@@ -25,7 +25,10 @@ import org.apache.activemq.artemis.utils.collections.SparseArrayLinkedList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** A KafkaCacheJournal is a Journal implementation that uses Kafka as a cache. */
+/**
+ * A KafkaCacheJournal is an implementation of an artemis journal that uses Kafka as a cache. To
+ * help persist state.
+ */
 public class KafkaCacheJournal implements Journal {
 
   private static final StructuredLogger SLOG =
