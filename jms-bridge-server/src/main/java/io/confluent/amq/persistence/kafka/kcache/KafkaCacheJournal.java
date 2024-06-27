@@ -190,6 +190,10 @@ public class KafkaCacheJournal implements Journal {
     }
   }
 
+  public KafkaCacheJournal(String journalName) {
+    this.journalName = journalName;
+  }
+
   @Override
   public void appendAddRecord(long id, byte protocolRecordType, byte[] record, boolean sync)
       throws Exception {
