@@ -39,9 +39,9 @@ public class KafkaCacheJournal implements Journal {
   private final AtomicBoolean failed = new AtomicBoolean(false);
 
   private final String journalName;
-  private final ExecutorFactory executor;
-  private final IOCriticalErrorListener criticalIOErrorListener;
-  private final KafkaCache<JournalEntryKey, JournalEntry> journalCache;
+  private ExecutorFactory executor;
+  private IOCriticalErrorListener criticalIOErrorListener;
+  private KafkaCache<JournalEntryKey, JournalEntry> journalCache;
 
   private volatile JournalState state;
 

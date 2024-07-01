@@ -29,6 +29,8 @@ public class JournalCache implements AutoCloseable {
   final AtomicBoolean initialized = new AtomicBoolean(false);
   final Map<String, String> bindingsCacheConfig;
   final Map<String, String> messagesCacheConfig;
+  final WalResolver bindingsResolver;
+  final WalResolver messagesResolver;
 
   // both contain wal with transactions
   volatile KafkaCache<JournalEntryKey, JournalEntry> bindingsCache;
@@ -43,6 +45,8 @@ public class JournalCache implements AutoCloseable {
     this.bridgeClientId = bridgeClientId;
     this.bindingsCacheConfig = bindingsCacheConfig;
     this.messagesCacheConfig = messagesCacheConfig;
+    this.bindingsResolver = new WalResolver("bindings", this::getBindingsCache);
+    this.messagesResolver = new WalResolver("messages", this::getMessagesCache);
   }
 
   public boolean isInitialized() {
@@ -86,7 +90,7 @@ public class JournalCache implements AutoCloseable {
         configs.getOrDefault(
             KafkaCacheConfig.KAFKACACHE_TOPIC_CONFIG,
             String.format(TOPIC_FORMAT, bridgeId, "bindings", bridgeClientId, "cache"));
-    return getJournalEntryKeyJournalEntryCache(configs, topic);
+    return getJournalEntryKeyJournalEntryCache(configs, topic, bindingsResolver);
   }
 
   private KafkaCache<JournalEntryKey, JournalEntry> initMessagesCache(Map<String, String> configs) {
@@ -94,11 +98,11 @@ public class JournalCache implements AutoCloseable {
         configs.getOrDefault(
             KafkaCacheConfig.KAFKACACHE_TOPIC_CONFIG,
             String.format(TOPIC_FORMAT, bridgeId, "messages", bridgeClientId, "cache"));
-    return getJournalEntryKeyJournalEntryCache(configs, topic);
+    return getJournalEntryKeyJournalEntryCache(configs, topic, messagesResolver);
   }
 
   private KafkaCache<JournalEntryKey, JournalEntry> getJournalEntryKeyJournalEntryCache(
-      Map<String, String> configs, String topic) {
+      Map<String, String> configs, String topic, WalResolver resolver) {
     String groupId =
         configs.getOrDefault(KafkaCacheConfig.KAFKACACHE_GROUP_ID_CONFIG, bridgeId + "-" + topic);
     String clientId =
@@ -112,7 +116,7 @@ public class JournalCache implements AutoCloseable {
     cacheConfig.put(
         ProducerConfig.PARTITIONER_CLASS_CONFIG,
         JournalEntryKeyPartitioner.class.getCanonicalName());
-    JournalCacheUpdateHandler updateHandler = new JournalCacheUpdateHandler();
+    JournalCacheUpdateHandler updateHandler = new JournalCacheUpdateHandler(resolver);
 
     //local cache is used for sending in a custom cache.
     cache = new KafkaCache<>(new KafkaCacheConfig(configs),
@@ -122,6 +126,14 @@ public class JournalCache implements AutoCloseable {
             null);
     cache.init();
     return cache;
+  }
+
+  private KafkaCache<JournalEntryKey, JournalEntry> getMessagesCache() {
+    return messagesCache;
+  }
+
+  private KafkaCache<JournalEntryKey, JournalEntry> getBindingsCache() {
+    return bindingsCache;
   }
 
   @Override
