@@ -163,7 +163,7 @@ public class KafkaCacheJournal implements Journal {
         JournalEntry.newBuilder().setAppendedRecord(kjr.getRecord()).build();
     try {
       KafkaCache.Metadata metadata =
-          journalCache.put(null, kjr.getKafkaMessageKey(), journalEntry, true);
+          journalCache.put(null, kjr.getKafkaMessageKey(), journalEntry, false);
       SLOG.trace(
           b ->
               b.event("PublishJournalRecord")

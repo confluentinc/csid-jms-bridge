@@ -7,6 +7,7 @@ import io.kcache.KafkaCache;
 import lombok.SneakyThrows;
 import org.apache.kafka.streams.KeyValue;
 
+import java.time.Duration;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
@@ -17,39 +18,74 @@ import java.util.function.Supplier;
  * This class is responsible for reading a WAL topic and resolving it against the state cache.
  */
 public class WalResolver {
+    public static final Duration DEFAULT_TX_TTL = Duration.ofMinutes(5L);
     private static final StructuredLogger SLOG = StructuredLogger
             .with(b -> b.loggerClass(WalResolver.class));
+
     private final ConcurrentHashMap<JournalEntryKey, TransactionReference> txCache = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<JournalEntryKey, AnnotationReference> annCache = new ConcurrentHashMap<>();
     private final LinkedBlockingQueue<JournalKeyValue> walSource = new LinkedBlockingQueue<>();
+    private final LinkedList<JournalEntryKey> expiredTransactions = new LinkedList<>();
     private final Supplier<KafkaCache<JournalEntryKey, JournalEntry>> cacheSupplier;
+
+    private final Duration txTTL;
 
     private String journalName;
     private volatile boolean isProcessing = false;
+    private volatile boolean isReading = false;
 
     private volatile ForkJoinTask<?> processingThread;
 
     public WalResolver(String journalName,
+                       Duration txTTL,
                        Supplier<KafkaCache<JournalEntryKey, JournalEntry>> cacheSupplier) {
 
         this.cacheSupplier = cacheSupplier;
         this.journalName = journalName;
+        this.txTTL = txTTL;
+    }
+    public WalResolver(String journalName,
+                       Supplier<KafkaCache<JournalEntryKey, JournalEntry>> cacheSupplier) {
+        this(journalName, DEFAULT_TX_TTL, cacheSupplier);
     }
 
+    /**
+     * This will begin the resolution of the WAL in read only mode. Internal caches will be maintained to properly
+     * perform resolution when processing is started.
+     * A prerequisite of this method is that the KafkaCache is available via the suppliers.
+     */
+    public void startReadOnlyProcessing() {
+        startWorkThread();
+    }
+
+    /**
+     * Begins processing and writing the results to the WAL.
+     * This can be invoked after {@link #startReadOnlyProcessing()} or on its own.
+     */
     public void startProcessing() {
+        isProcessing = true;
+        startWorkThread();
+    }
+
+    /**
+     * Stops all processing including read-only.
+     */
+    public void stop() {
+        if (isProcessing) {
+            isReading = false;
+            isProcessing = false;
+            processingThread.join();
+        }
+    }
+
+    private synchronized void startWorkThread() {
         if (getCache() == null) {
             throw new IllegalStateException("Cannot start processing without the cache being available.");
         }
-        if (!isProcessing) {
-            isProcessing = true;
-            processingThread = ForkJoinPool.commonPool().submit(this::processLog);
-        }
-    }
 
-    public void stopProcessing() {
-        if (isProcessing) {
-            isProcessing = false;
-            processingThread.join();
+        this.isReading = true;
+        if (this.processingThread == null) {
+            this.processingThread = ForkJoinPool.commonPool().submit(this::processLog);
         }
     }
 
@@ -59,7 +95,7 @@ public class WalResolver {
 
     @SneakyThrows
     protected void processLog() {
-        while (isProcessing) {
+        while (isReading) {
             JournalKeyValue keyVal = walSource.poll(100, TimeUnit.MILLISECONDS);
             if (keyVal != null) {
                 JournalEntry entry = keyVal.getValue();
@@ -111,20 +147,23 @@ public class WalResolver {
 
         //delete all related annotations and the key
         AnnotationReference annRef = annCache.remove(annRefKey);
-        if (annRef != null) {
-            annRef.getEntryReferencesList().forEach(getCache()::remove);
-        }
 
-        //delete main record
-        getCache().remove(key);
+        if (isProcessing) {
+            if (annRef != null) {
+                annRef.getEntryReferencesList().forEach(getCache()::remove);
+            }
+
+            //delete main record
+            getCache().remove(key);
+        }
     }
 
     protected void handleTxRecord(JournalEntryKey key, JournalEntry entry) {
         List<KeyValue<JournalEntryKey, JournalEntry>> results = Collections.emptyList();
         long txId = entry.getAppendedRecord().getTxId();
+        JournalEntryKey txKey = KafkaRecordUtils.transactionReferenceKeyFromTxId(txId);
 
-        TransactionReference txReference = txCache.computeIfAbsent(
-                KafkaRecordUtils.transactionReferenceKeyFromTxId(txId), id -> TransactionReference
+        TransactionReference txReference = txCache.computeIfAbsent(txKey, id -> TransactionReference
                         .newBuilder()
                         .setTxId(txId)
                         .build());
@@ -133,10 +172,12 @@ public class WalResolver {
             case COMMIT_TX:
                 //tombstones the commit record
                 commit(txReference);
+                txCache.remove(txKey);
                 break;
             case ROLLBACK_TX:
                 //tombstones all tx records
                 rollback(txReference);
+                txCache.remove(txKey);
                 break;
             case PREPARE_TX:
             case ADD_RECORD_TX:
@@ -169,7 +210,9 @@ public class WalResolver {
     private void updateTxReferences(
             JournalEntryKey newRecordKey, JournalEntry entry, TransactionReference txReference) {
 
-        getCache().put(newRecordKey, entry);
+        if (isProcessing) {
+            getCache().put(newRecordKey, entry);
+        }
 
         JournalEntryKey txRefKey =
                 KafkaRecordUtils.transactionReferenceKeyFromTxId(txReference.getTxId());
@@ -187,6 +230,9 @@ public class WalResolver {
 
     @SuppressWarnings("checkstyle:CyclomaticComplexity")
     private void commit(TransactionReference txReference) {
+        if (!isProcessing) {
+            return;
+        }
 
         for (JournalEntryKey key : txReference.getEntryReferencesList()) {
             JournalEntry value = getCache().get(key);
@@ -253,7 +299,9 @@ public class WalResolver {
     private void rollback(
             TransactionReference txReference) {
 
-        cleanupTx(txReference);
+        if (isProcessing) {
+            cleanupTx(txReference);
+        }
 
     }
 
