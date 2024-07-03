@@ -39,7 +39,6 @@ public class KafkaCacheJournal implements Journal {
   private final AtomicBoolean failed = new AtomicBoolean(false);
 
   private final String journalName;
-  private ExecutorFactory executor;
   private IOCriticalErrorListener criticalIOErrorListener;
   private KafkaCache<JournalEntryKey, JournalEntry> journalCache;
 
@@ -48,10 +47,8 @@ public class KafkaCacheJournal implements Journal {
   public KafkaCacheJournal(
       String journalName,
       KafkaCache<JournalEntryKey, JournalEntry> journalCache,
-      ExecutorFactory executor,
       IOCriticalErrorListener criticalIOErrorListener) {
     this.journalName = journalName;
-    this.executor = executor;
     this.criticalIOErrorListener = criticalIOErrorListener;
     this.journalCache = journalCache;
   }
@@ -188,10 +185,6 @@ public class KafkaCacheJournal implements Journal {
         kjr.getIoCompletion().onError(ActiveMQExceptionType.IO_ERROR.getCode(), e.getMessage());
       }
     }
-  }
-
-  public KafkaCacheJournal(String journalName) {
-    this.journalName = journalName;
   }
 
   @Override

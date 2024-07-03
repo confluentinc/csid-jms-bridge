@@ -4,6 +4,7 @@ import io.confluent.amq.config.BridgeClientId;
 import io.confluent.amq.logging.StructuredLogger;
 import io.confluent.amq.persistence.domain.proto.JournalEntry;
 import io.confluent.amq.persistence.domain.proto.JournalEntryKey;
+import io.confluent.amq.persistence.kafka.KafkaJournalStorageManager;
 import io.confluent.amq.persistence.kafka.journal.JournalEntryKeyPartitioner;
 import io.confluent.amq.persistence.kafka.journal.serde.JournalKeySerde;
 import io.confluent.amq.persistence.kafka.journal.serde.JournalValueSerde;
@@ -45,8 +46,10 @@ public class JournalCache implements AutoCloseable {
     this.bridgeClientId = bridgeClientId;
     this.bindingsCacheConfig = bindingsCacheConfig;
     this.messagesCacheConfig = messagesCacheConfig;
-    this.bindingsResolver = new WalResolver("bindings", this::getBindingsCache);
-    this.messagesResolver = new WalResolver("messages", this::getMessagesCache);
+    this.bindingsResolver =
+        new WalResolver(KafkaJournalStorageManager.BINDINGS_NAME, this::getBindingsCache);
+    this.messagesResolver =
+        new WalResolver(KafkaJournalStorageManager.MESSAGES_NAME, this::getMessagesCache);
   }
 
   public boolean isInitialized() {
@@ -105,8 +108,7 @@ public class JournalCache implements AutoCloseable {
       Map<String, String> configs, String topic, WalResolver resolver) {
     String groupId =
         configs.getOrDefault(KafkaCacheConfig.KAFKACACHE_GROUP_ID_CONFIG, bridgeId + "-" + topic);
-    String clientId =
-        configs.getOrDefault(KafkaCacheConfig.KAFKACACHE_CLIENT_ID_CONFIG, groupId + "-" + topic);
+    String clientId = configs.getOrDefault(KafkaCacheConfig.KAFKACACHE_CLIENT_ID_CONFIG, groupId);
 
     KafkaCache<JournalEntryKey, JournalEntry> cache;
     Map<String, Object> cacheConfig = new HashMap<>(configs);
@@ -118,8 +120,10 @@ public class JournalCache implements AutoCloseable {
         JournalEntryKeyPartitioner.class.getCanonicalName());
     JournalCacheUpdateHandler updateHandler = new JournalCacheUpdateHandler(resolver);
 
-    //local cache is used for sending in a custom cache.
-    cache = new KafkaCache<>(new KafkaCacheConfig(configs),
+    // local cache is used for sending in a custom cache.
+    cache =
+        new KafkaCache<>(
+            new KafkaCacheConfig(configs),
             JournalKeySerde.DEFAULT,
             JournalValueSerde.DEFAULT,
             updateHandler,
@@ -128,11 +132,11 @@ public class JournalCache implements AutoCloseable {
     return cache;
   }
 
-  private KafkaCache<JournalEntryKey, JournalEntry> getMessagesCache() {
+  public KafkaCache<JournalEntryKey, JournalEntry> getMessagesCache() {
     return messagesCache;
   }
 
-  private KafkaCache<JournalEntryKey, JournalEntry> getBindingsCache() {
+  public KafkaCache<JournalEntryKey, JournalEntry> getBindingsCache() {
     return bindingsCache;
   }
 

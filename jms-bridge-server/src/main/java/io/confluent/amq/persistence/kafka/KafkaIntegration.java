@@ -6,6 +6,7 @@ package io.confluent.amq.persistence.kafka;
 
 import io.confluent.amq.config.BridgeClientId;
 import io.confluent.amq.persistence.kafka.journal.JournalSpec;
+import io.confluent.amq.persistence.kafka.kcache.JournalCache;
 import org.apache.activemq.artemis.utils.UUID;
 import org.apache.activemq.artemis.utils.UUIDGenerator;
 import org.apache.kafka.common.config.TopicConfig;
@@ -35,6 +36,7 @@ public class KafkaIntegration {
 
   private final BridgeConfig config;
   private final KafkaIO kafkaIO;
+  private final JournalCache journalCache;
   private final KafkaJournalProcessor journalProcessor;
   private final String bridgeId;
   private final UUID nodeUuid;
@@ -69,6 +71,8 @@ public class KafkaIntegration {
         config.journals().readyTimeout(),
         this.config.streams(),
         this.kafkaIO);
+    this.journalCache =
+        new JournalCache(bridgeId, clientId, config.kcacheBindings(), config.kcacheMessages());
   }
 
   private JournalSpec createProcessor(
@@ -173,6 +177,10 @@ public class KafkaIntegration {
 
   public KafkaIO getKafkaIO() {
     return kafkaIO;
+  }
+
+  public JournalCache getJournalCache() {
+    return journalCache;
   }
 
   public KJournal getBindingsJournal() {

@@ -5,6 +5,14 @@
 package io.confluent.amq.persistence.kafka;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import io.confluent.amq.JmsBridgeConfiguration;
+import io.confluent.amq.logging.StructuredLogger;
+import io.confluent.amq.persistence.kafka.kcache.JournalCache;
+import io.confluent.amq.persistence.kafka.kcache.KafkaCacheJournal;
+import java.nio.ByteBuffer;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import org.apache.activemq.artemis.api.core.ActiveMQBuffer;
 import org.apache.activemq.artemis.api.core.ActiveMQException;
 import org.apache.activemq.artemis.api.core.ActiveMQIOErrorException;
@@ -21,15 +29,6 @@ import org.apache.activemq.artemis.utils.ArtemisCloseable;
 import org.apache.activemq.artemis.utils.ExecutorFactory;
 import org.apache.activemq.artemis.utils.critical.CriticalAnalyzer;
 
-import io.confluent.amq.JmsBridgeConfiguration;
-import io.confluent.amq.logging.StructuredLogger;
-import io.confluent.amq.persistence.kafka.journal.impl.KafkaJournal;
-
-import java.nio.ByteBuffer;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
-
 public class KafkaJournalStorageManager extends JournalStorageManager {
 
   public static final String BINDINGS_NAME = "bindings";
@@ -40,6 +39,7 @@ public class KafkaJournalStorageManager extends JournalStorageManager {
 
 
   private KafkaIO kafkaIO;
+  private JournalCache journalCache;
   private KafkaIntegration kafkaIntegration;
 
   @Override
@@ -83,18 +83,16 @@ public class KafkaJournalStorageManager extends JournalStorageManager {
     InitWorkAroundWrapper jbConfig = (InitWorkAroundWrapper) config;
 
     this.kafkaIntegration = jbConfig.kafkaIntegration;
-    this.kafkaIO = this.kafkaIntegration.getKafkaIO();
-    this.messageJournal = new KafkaJournal(
-        this.kafkaIntegration.getMessagesJournal(),
-        this.kafkaIO,
-        this.executorFactory,
-        this.ioCriticalErrorListener);
 
-    this.bindingsJournal = new KafkaJournal(
-        this.kafkaIntegration.getBindingsJournal(),
-        this.kafkaIO,
-        this.executorFactory,
-        this.ioCriticalErrorListener);
+    this.kafkaIO = this.kafkaIntegration.getKafkaIO();
+    this.journalCache = this.kafkaIntegration.getJournalCache();
+
+    this.messageJournal =
+        new KafkaCacheJournal(
+            MESSAGES_NAME, journalCache.getMessagesCache(), this.ioCriticalErrorListener);
+    this.bindingsJournal =
+        new KafkaCacheJournal(
+            BINDINGS_NAME, journalCache.getBindingsCache(), this.ioCriticalErrorListener);
 
     SLOG.info(b -> b.event("Init").markSuccess());
   }
