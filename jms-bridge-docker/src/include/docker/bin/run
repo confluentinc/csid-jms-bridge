@@ -64,7 +64,7 @@ if [ $_prometheus_enabled == 1 ]; then
 
   echo "Prometheus jmx agent enabled, port: ${_prometheus_port}, conf: ${_prometheus_conf}"
 
-  export JMS_BRIDGE_OPTS="-javaagent:${_prometheus_jar}=${_prometheus_port}:${_prometheus_conf}"
+  export JMS_BRIDGE_OPTS="${JMS_BRIDGE_OPTS} -javaagent:${_prometheus_jar}=${_prometheus_port}:${_prometheus_conf}"
 fi
 
 
