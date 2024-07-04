@@ -10,8 +10,7 @@ import io.confluent.amq.exchange.KafkaExchangeManager;
 import io.confluent.amq.logging.StructuredLogger;
 import io.confluent.amq.persistence.kafka.KafkaIntegration;
 import io.confluent.amq.persistence.kafka.KafkaJournalStorageManager;
-import io.confluent.amq.server.kafka.KNodeManager;
-import io.confluent.amq.server.kafka.KafkaNodeManager;
+import io.confluent.amq.server.kafka.nodemanager.KafkaNodeManagerV2;
 import org.apache.activemq.artemis.core.config.HAPolicyConfiguration;
 import org.apache.activemq.artemis.core.persistence.StorageManager;
 import org.apache.activemq.artemis.core.server.ActiveMQServer;
@@ -22,7 +21,9 @@ import org.apache.activemq.artemis.spi.core.security.ActiveMQSecurityManager;
 
 import javax.management.MBeanServer;
 import java.io.File;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.UUID;
 
 public class ConfluentAmqServerImpl extends ActiveMQServerImpl implements ConfluentAmqServer {
   private static final String DEFAULT_KILL_DURATION_MINUTES = String.valueOf(60 * 8);
@@ -131,7 +132,6 @@ public class ConfluentAmqServerImpl extends ActiveMQServerImpl implements Conflu
     thread.start();
   }
 
-
   public void doFail(boolean failoverOnServerShutdown) throws Exception {
     super.fail(failoverOnServerShutdown);
     afterStop();
@@ -168,67 +168,63 @@ public class ConfluentAmqServerImpl extends ActiveMQServerImpl implements Conflu
 
   @Override
   protected NodeManager createNodeManager(File directory, boolean replicatingBackup) {
-    return super.createNodeManager(directory, replicatingBackup);
+    NodeManager manager;
+    boolean isPreferredLive = false;
+
+    final JmsBridgeConfiguration configuration = getJmsBridgeConfiguration();
+    final HAPolicyConfiguration.TYPE haType =
+        configuration.getHAPolicyConfiguration() == null
+            ? null
+            : configuration.getHAPolicyConfiguration().getType();
+
+    if (haType == HAPolicyConfiguration.TYPE.SHARED_STORE_MASTER ||
+        haType == HAPolicyConfiguration.TYPE.LIVE_ONLY ||
+        haType == null) {
+        isPreferredLive = true;
+    }
+
+    if (haType == HAPolicyConfiguration.TYPE.SHARED_STORE_MASTER
+        || haType == HAPolicyConfiguration.TYPE.SHARED_STORE_SLAVE) {
+
+      if (replicatingBackup) {
+        SLOG.error(b -> b
+            .event("CreateNodeManager")
+            .markFailure()
+            .message("replicating backup is not necessary while using kafka persistence"));
+        throw new IllegalArgumentException(
+            "replicating backup is not necessary while using kafka persistence");
+      }
+      manager = createKNodeManager(configuration, replicatingBackup, isPreferredLive);
+
+    } else if (haType == null || haType == HAPolicyConfiguration.TYPE.LIVE_ONLY) {
+
+      SLOG.debug(b -> b
+          .event("CreateNodeManager")
+          .message("Detected no Shared Store HA options on Kafka store"));
+
+      //LIVE_ONLY should be the default HA option when HA isn't configured
+      manager = createKNodeManager(configuration, replicatingBackup, isPreferredLive);
+
+    } else {
+      SLOG.error(b -> b
+          .event("CreateNodeManager")
+          .markFailure()
+          .message("Kafka persistence allows only Shared Store HA options"));
+      throw new IllegalArgumentException("Kafka persistence allows only Shared Store HA options");
+    }
+
+    return manager;
   }
 
-//  @Override
-//  protected NodeManager createNodeManager(File directory, boolean replicatingBackup) {
-//    NodeManager manager;
-//    boolean isPreferredLive = false;
-//
-//    final JmsBridgeConfiguration configuration = getJmsBridgeConfiguration();
-//    final HAPolicyConfiguration.TYPE haType =
-//        configuration.getHAPolicyConfiguration() == null
-//            ? null
-//            : configuration.getHAPolicyConfiguration().getType();
-//
-//    if (haType == HAPolicyConfiguration.TYPE.SHARED_STORE_MASTER ||
-//        haType == HAPolicyConfiguration.TYPE.LIVE_ONLY ||
-//        haType == null) {
-//        isPreferredLive = true;
-//    }
-//
-//    if (haType == HAPolicyConfiguration.TYPE.SHARED_STORE_MASTER
-//        || haType == HAPolicyConfiguration.TYPE.SHARED_STORE_SLAVE) {
-//
-//      if (replicatingBackup) {
-//        SLOG.error(b -> b
-//            .event("CreateNodeManager")
-//            .markFailure()
-//            .message("replicating backup is not necessary while using kafka persistence"));
-//        throw new IllegalArgumentException(
-//            "replicating backup is not necessary while using kafka persistence");
-//      }
-//      manager = createKNodeManager(configuration, replicatingBackup, isPreferredLive);
-//
-//    } else if (haType == null || haType == HAPolicyConfiguration.TYPE.LIVE_ONLY) {
-//
-//      SLOG.debug(b -> b
-//          .event("CreateNodeManager")
-//          .message("Detected no Shared Store HA options on Kafka store"));
-//
-//      //LIVE_ONLY should be the default HA option when HA isn't configured
-//      manager = createKNodeManager(configuration, replicatingBackup, isPreferredLive);
-//
-//    } else {
-//      SLOG.error(b -> b
-//          .event("CreateNodeManager")
-//          .markFailure()
-//          .message("Kafka persistence allows only Shared Store HA options"));
-//      throw new IllegalArgumentException("Kafka persistence allows only Shared Store HA options");
-//    }
-//
-//    return manager;
-//  }
-//
-//  private NodeManager createKNodeManager(
-//      JmsBridgeConfiguration jmsBridgeConfiguration, boolean replicatedBackup, boolean isPreferredLive) {
-//
-//    return new KafkaNodeManager(
-//            jmsBridgeConfiguration.getBridgeConfig().haConfig(),
-//            kafkaIntegration.getNodeUuid(),
-//            replicatedBackup);
-//  }
+  private NodeManager createKNodeManager(
+      JmsBridgeConfiguration jmsBridgeConfiguration, boolean replicatedBackup, boolean isPreferredLive) {
+   return new KafkaNodeManagerV2(
+            jmsBridgeConfiguration.getBridgeConfig().haConfig(),
+            //Derive nodeId from bridgeId. Node Id has to be same for all members of the Master/Slave set.
+            org.apache.activemq.artemis.utils.UUIDGenerator.getInstance().fromJavaUUID(
+                   UUID.nameUUIDFromBytes( kafkaIntegration.getBridgeId().getBytes(StandardCharsets.UTF_8))),
+            replicatedBackup, isPreferredLive);
+  }
 
   @Override
   protected StorageManager createStorageManager() {
@@ -250,8 +246,8 @@ public class ConfluentAmqServerImpl extends ActiveMQServerImpl implements Conflu
   public void resetNodeManager() throws Exception {
     SLOG.info(b -> b.event("ResetNodeManager"));
     NodeManager nodeManager = getNodeManager();
-    if (nodeManager instanceof KNodeManager) {
-      ((KNodeManager) nodeManager).reset();
+    if (nodeManager instanceof KafkaNodeManagerV2) {
+      ((KafkaNodeManagerV2) nodeManager).reset();
     } else {
       super.resetNodeManager();
     }

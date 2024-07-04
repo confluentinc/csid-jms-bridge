@@ -42,9 +42,11 @@ services:
       - kafka
     ports:
       - "61616:61616"
+      - "50006:50006"
     volumes:
       - ./shared-store:/var/cache/jms-bridge
     environment:
+      JMS_BRIDGE_OPTS: "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:50006"
       BROKER_XML: "broker-live-ha.xml"
       LOG_IO_CONFLUENT_AMQ: INFO
       LOG_ORG_APACHE_ACTIVEMQ: INFO
@@ -64,9 +66,11 @@ services:
       - kafka
     ports:
       - "61617:61617"
+      - "50005:50005"
     volumes:
       - ./shared-store:/var/cache/jms-bridge
     environment:
+      JMS_BRIDGE_OPTS: "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:50005"
       BROKER_XML: "broker-backup-ha.xml"
       LOG_IO_CONFLUENT_AMQ: INFO
       LOG_ORG_APACHE_ACTIVEMQ: INFO
