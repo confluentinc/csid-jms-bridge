@@ -159,7 +159,6 @@ public class WalResolver {
     }
 
     protected void handleTxRecord(JournalEntryKey key, JournalEntry entry) {
-        List<KeyValue<JournalEntryKey, JournalEntry>> results = Collections.emptyList();
         long txId = entry.getAppendedRecord().getTxId();
         JournalEntryKey txKey = KafkaRecordUtils.transactionReferenceKeyFromTxId(txId);
 
@@ -199,7 +198,7 @@ public class WalResolver {
 
     //TODO: clean up the cache
     private void reapExpiredTransactions() {
-
+            
     }
 
 
