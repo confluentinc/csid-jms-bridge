@@ -1,14 +1,16 @@
 package io.confluent.amq.persistence.kafka.kcache;
 
-import io.confluent.amq.persistence.domain.proto.JournalEntry;
 import io.confluent.amq.persistence.domain.proto.JournalEntryKey;
+import lombok.EqualsAndHashCode;
 import lombok.Value;
 
 import java.util.Date;
 
 @Value
-public class JournalKeyValue {
-    JournalEntryKey key;
-    JournalEntry value;
+public class TimestampedJournalKey {
+    JournalEntryKey entry;
+
+    @EqualsAndHashCode.Exclude
     Date timestamp;
+
 }

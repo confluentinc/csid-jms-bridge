@@ -7,6 +7,8 @@ import io.kcache.KafkaCache;
 import lombok.SneakyThrows;
 import org.apache.kafka.common.TopicPartition;
 
+import java.sql.Date;
+import java.time.Instant;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
@@ -47,6 +49,6 @@ public class JournalCacheUpdateHandler implements CacheUpdateHandler<JournalEntr
     @SneakyThrows
     @Override
     public void handleUpdate(JournalEntryKey key, JournalEntry value, JournalEntry oldValue, TopicPartition tp, long offset, long ts) {
-        walResolver.submitEntry(key, value);
+        walResolver.submitEntry(key, value, Date.from(Instant.ofEpochMilli(ts)));
     }
 }

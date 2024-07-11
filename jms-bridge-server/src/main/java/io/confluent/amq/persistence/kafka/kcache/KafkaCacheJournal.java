@@ -6,13 +6,22 @@ import io.confluent.amq.persistence.domain.proto.JournalEntry;
 import io.confluent.amq.persistence.domain.proto.JournalEntryKey;
 import io.confluent.amq.persistence.domain.proto.JournalRecord;
 import io.confluent.amq.persistence.domain.proto.JournalRecordType;
+import io.confluent.amq.persistence.kafka.LoadInitializer;
 import io.confluent.amq.persistence.kafka.journal.KafkaJournalRecord;
+import io.confluent.amq.persistence.kafka.journal.impl.EpochPuntcuator;
+import io.confluent.amq.persistence.kafka.journal.impl.KafkaJournalLoaderCallback;
+import io.confluent.amq.persistence.kafka.journal.impl.KafkaJournalProcessor;
 import io.kcache.KafkaCache;
 import io.kcache.exceptions.CacheException;
+
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
+
 import org.apache.activemq.artemis.api.core.*;
 import org.apache.activemq.artemis.core.io.IOCriticalErrorListener;
 import org.apache.activemq.artemis.core.io.SequentialFileFactory;
@@ -22,6 +31,9 @@ import org.apache.activemq.artemis.core.journal.impl.SimpleWaitIOCallback;
 import org.apache.activemq.artemis.core.persistence.Persister;
 import org.apache.activemq.artemis.utils.ExecutorFactory;
 import org.apache.activemq.artemis.utils.collections.SparseArrayLinkedList;
+import org.apache.kafka.streams.StoreQueryParameters;
+import org.apache.kafka.streams.state.QueryableStoreTypes;
+import org.apache.kafka.streams.state.ReadOnlyKeyValueStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -40,14 +52,14 @@ public class KafkaCacheJournal implements Journal {
 
   private final String journalName;
   private IOCriticalErrorListener criticalIOErrorListener;
-  private KafkaCache<JournalEntryKey, JournalEntry> journalCache;
-
+  private JournalCache journalCache;
   private volatile JournalState state;
 
   public KafkaCacheJournal(
       String journalName,
-      KafkaCache<JournalEntryKey, JournalEntry> journalCache,
+      JournalCache journalCache,
       IOCriticalErrorListener criticalIOErrorListener) {
+
     this.journalName = journalName;
     this.criticalIOErrorListener = criticalIOErrorListener;
     this.journalCache = journalCache;
@@ -163,7 +175,7 @@ public class KafkaCacheJournal implements Journal {
         JournalEntry.newBuilder().setAppendedRecord(kjr.getRecord()).build();
     try {
       KafkaCache.Metadata metadata =
-          journalCache.put(null, kjr.getKafkaMessageKey(), journalEntry, false);
+          journalCache.getCache().put(null, kjr.getKafkaMessageKey(), journalEntry, false);
       SLOG.trace(
           b ->
               b.event("PublishJournalRecord")
@@ -530,17 +542,21 @@ public class KafkaCacheJournal implements Journal {
   }
 
   @Override
-  public JournalLoadInformation load(LoaderCallback loaderCallback) throws Exception {
-    return null;
-  }
-
-  @Override
   public JournalLoadInformation loadInternalOnly() throws Exception {
+    SLOG.debug(b -> b
+            .name(journalName)
+            .event("UnimplementedMethodCall")
+            .message("loadInternalOnly"));
+
     return null;
   }
 
   @Override
-  public JournalLoadInformation loadSyncOnly(JournalState journalState) throws Exception {
+  public JournalLoadInformation loadSyncOnly(JournalState state) throws Exception {
+    SLOG.debug(b -> b
+            .name(journalName)
+            .event("UnimplementedMethodCall")
+            .message("loadSyncOnly"));
     return null;
   }
 
@@ -550,23 +566,84 @@ public class KafkaCacheJournal implements Journal {
   }
 
   @Override
-  public JournalLoadInformation load(
-      List<RecordInfo> list,
-      List<PreparedTransactionInfo> list1,
-      TransactionFailureCallback transactionFailureCallback,
-      boolean b)
-      throws Exception {
-    return null;
+  public synchronized JournalLoadInformation load(
+          final SparseArrayLinkedList<RecordInfo> committedRecords,
+          final List<PreparedTransactionInfo> preparedTransactions,
+          final TransactionFailureCallback failureCallback,
+          final boolean fixBadTX) throws Exception {
+
+    final List<RecordInfo> records = new ArrayList<>();
+    final JournalLoadInformation journalLoadInformation = load(records, preparedTransactions,
+            failureCallback, fixBadTX);
+    records.forEach(committedRecords::add);
+    return journalLoadInformation;
   }
 
   @Override
-  public JournalLoadInformation load(
-      SparseArrayLinkedList<RecordInfo> sparseArrayLinkedList,
-      List<PreparedTransactionInfo> list,
-      TransactionFailureCallback transactionFailureCallback,
-      boolean b)
-      throws Exception {
-    return null;
+  public synchronized JournalLoadInformation load(
+          final List<RecordInfo> committedRecords,
+          final List<PreparedTransactionInfo> preparedTransactions,
+          final TransactionFailureCallback failureCallback,
+          final boolean fixBadTX) {
+
+    KafkaJournalLoaderCallback lc = KafkaJournalLoaderCallback.from(committedRecords,
+            preparedTransactions, failureCallback, fixBadTX);
+
+    return load(lc);
+  }
+
+  @Override
+  public synchronized JournalLoadInformation load(LoaderCallback reloadManager) {
+
+    SLOG.debug(b -> b.name(journalName).event("Load"));
+
+    KafkaJournalLoaderCallback klc = KafkaJournalLoaderCallback.wrap(reloadManager);
+    doLoad(klc);
+
+    JournalLoadInformation jli = klc.getLoadInfo();
+    this.state = JournalState.LOADED;
+
+    SLOG.debug(b -> b
+            .name(journalName)
+            .event("Load")
+            .markSuccess()
+            .putTokens("NumberOfRecords", jli.getNumberOfRecords())
+            .putTokens("MaxID", jli.getMaxID()));
+
+    return jli;
+  }
+
+  /**
+   * This load is called from the KafkaJournal which was invoked during startup of Artemis via the
+   * JournalStorageManager. In order to gather the current state we need access the global state store and the
+   * transaction store. The transaction store is needed because there may be unprocessed, yet completed, transactions
+   * in the log, it is also where JTA transactions live.
+   *
+   * The initial onLoadComplete() call blocks until the WAL topic has been completely processed and the global state
+   * store is up to date. It uses a sentinel message to achieve this,
+   *  see {@link io.confluent.amq.persistence.domain.proto.EpochEvent}. The sentinal message is produced by
+   *  kafka streams when it starts up. This done via a timed message as part of the {@link EpochPuntcuator}
+   *  initialization.
+   *
+   */
+  synchronized void doLoad(KafkaJournalLoaderCallback callback) {
+    if (journalCache != null) {
+
+      try {
+        //TODO: need to specify load timeout via configuration
+        journalCache.onLoadComplete().get(5, TimeUnit.MINUTES);
+      } catch (Exception e) {
+        throw new RuntimeException(e);
+      }
+
+      //finish the callback
+      KCacheJournalLoader loader = new KCacheJournalLoader(journalName);
+      loader.executeLoadCallback(journalCache, callback);
+
+    } else {
+      throw new IllegalStateException(
+              "KCacheJournalProcessor must be started before being loaded.");
+    }
   }
 
   @Override
@@ -724,8 +801,8 @@ public class KafkaCacheJournal implements Journal {
     // We can hack it by performing a simple get operation which would throw an CacheException
     // indicate that the store is not ready yet (not initialized).
     try {
-      journalCache.get("dummy");
-      return true;
+      //TODO: use the processing flag instead?
+      return journalCache.isInitialized();
     } catch (CacheException e) {
       return false;
     }

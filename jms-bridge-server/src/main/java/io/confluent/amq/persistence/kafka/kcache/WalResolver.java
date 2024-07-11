@@ -8,7 +8,10 @@ import lombok.SneakyThrows;
 import org.apache.kafka.streams.KeyValue;
 
 import java.time.Duration;
+import java.time.temporal.ChronoUnit;
+import java.time.temporal.TemporalUnit;
 import java.util.Collections;
+import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.*;
@@ -22,10 +25,9 @@ public class WalResolver {
     private static final StructuredLogger SLOG = StructuredLogger
             .with(b -> b.loggerClass(WalResolver.class));
 
-    private final ConcurrentHashMap<JournalEntryKey, TransactionReference> txCache = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<JournalEntryKey, AnnotationReference> annCache = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<TimestampedJournalKey, TransactionReference> txCache = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<TimestampedJournalKey, AnnotationReference> annCache = new ConcurrentHashMap<>();
     private final LinkedBlockingQueue<JournalKeyValue> walSource = new LinkedBlockingQueue<>();
-    private final LinkedList<JournalEntryKey> expiredTransactions = new LinkedList<>();
     private final Supplier<KafkaCache<JournalEntryKey, JournalEntry>> cacheSupplier;
 
     private final Duration txTTL;
@@ -62,15 +64,17 @@ public class WalResolver {
      * Begins processing and writing the results to the WAL.
      * This can be invoked after {@link #startReadOnlyProcessing()} or on its own.
      */
-    public void startProcessing() {
-        isProcessing = true;
-        startWorkThread();
+    public synchronized void startProcessing() {
+        if (!isProcessing) {
+            isProcessing = true;
+            startWorkThread();
+        }
     }
 
     /**
      * Stops all processing including read-only.
      */
-    public void stop() {
+    public synchronized void stop() {
         if (isProcessing) {
             isReading = false;
             isProcessing = false;
@@ -102,11 +106,11 @@ public class WalResolver {
                 JournalEntryKey key = keyVal.getKey();
 
                 if (KafkaRecordUtils.isTxRecord(entry.getAppendedRecord())) {
-                    handleTxRecord(key, entry);
+                    handleTxRecord(keyVal);
                 } else if (JournalRecordType.DELETE_RECORD.equals(entry.getAppendedRecord().getRecordType())) {
                     handleDelete(key);
                 } else if (JournalRecordType.ANNOTATE_RECORD.equals(entry.getAppendedRecord().getRecordType())) {
-                    handleAnnotation(key, entry);
+                    handleAnnotation(keyVal);
                 } else {
                     SLOG.warn(b -> b
                             .addJournalEntryKey(key)
@@ -117,27 +121,27 @@ public class WalResolver {
         }
     }
 
-    private void handleAnnotation(JournalEntryKey key, JournalEntry value) {
+    private void handleAnnotation(JournalKeyValue keyValue) {
 
-        JournalEntryKey annRefKey = KafkaRecordUtils.annotationsKeyFromRecordKey(key);
+        JournalEntryKey annRefKey = KafkaRecordUtils.annotationsKeyFromRecordKey(keyValue.getKey());
         AnnotationReference annRef = annCache.get(annRefKey);
         if (annRef != null) {
             //need to update the annotation reference
             AnnotationReference updatedAnnRef = AnnotationReference
                     .newBuilder()
                     .setMessageId(annRef.getMessageId())
-                    .addAllEntryReferences(value.getAnnotationReference().getEntryReferencesList())
+                    .addAllEntryReferences(keyValue.getValue().getAnnotationReference().getEntryReferencesList())
                     .build();
 
-            annCache.put(annRefKey, updatedAnnRef);
+            annCache.put(new TimestampedJournalKey(annRefKey, keyValue.getTimestamp()), updatedAnnRef);
         } else {
             //first annotation
             AnnotationReference firstAnnRef = AnnotationReference
                     .newBuilder()
-                    .setMessageId(key.getMessageId())
-                    .addEntryReferences(key)
+                    .setMessageId(keyValue.getKey().getMessageId())
+                    .addEntryReferences(keyValue.getKey())
                     .build();
-            annCache.put(key, firstAnnRef);
+            annCache.put(new TimestampedJournalKey(annRefKey, keyValue.getTimestamp()), firstAnnRef);
         }
     }
 
@@ -158,16 +162,18 @@ public class WalResolver {
         }
     }
 
-    protected void handleTxRecord(JournalEntryKey key, JournalEntry entry) {
-        long txId = entry.getAppendedRecord().getTxId();
-        JournalEntryKey txKey = KafkaRecordUtils.transactionReferenceKeyFromTxId(txId);
+    protected void handleTxRecord(JournalKeyValue keyValue) {
+        //TODO: handle timedout transactions
+        long txId = keyValue.getValue().getAppendedRecord().getTxId();
+        TimestampedJournalKey txKey = new TimestampedJournalKey(
+                KafkaRecordUtils.transactionReferenceKeyFromTxId(txId), keyValue.getTimestamp());
 
         TransactionReference txReference = txCache.computeIfAbsent(txKey, id -> TransactionReference
                         .newBuilder()
                         .setTxId(txId)
                         .build());
 
-        switch (entry.getAppendedRecord().getRecordType()) {
+        switch (keyValue.getValue().getAppendedRecord().getRecordType()) {
             case COMMIT_TX:
                 //tombstones the commit record
                 commit(txReference);
@@ -183,14 +189,14 @@ public class WalResolver {
             case DELETE_RECORD_TX:
             case ANNOTATE_RECORD_TX:
                 //adds to the transaction reference cache
-                updateTxReferences(key, entry, txReference);
+                updateTxReferences(txKey, keyValue.getValue(), txReference);
                 break;
             default:
                 SLOG.warn(b -> b
                         .name(journalName)
                         .event("NotTXRecord")
-                        .addJournalEntryKey(key)
-                        .addJournalEntry(entry));
+                        .addJournalEntryKey(keyValue.getKey())
+                        .addJournalEntry(keyValue.getValue()));
                 break;
 
         }
@@ -198,32 +204,37 @@ public class WalResolver {
 
     //TODO: clean up the cache
     private void reapExpiredTransactions() {
-            
+        //scan the cache for expired TXs
+        txCache.forEach((k, v) -> {
+            long ageMs = System.currentTimeMillis() - k.getTimestamp().getTime();
+            if(txTTL.minus(ageMs, ChronoUnit.MILLIS).isNegative()) {
+                //reap the transaction
+                //this may happen multiple times against a single TX as additional TX messages flow in, it's OK.
+                cleanupTx(v);
+            }
+        });
     }
 
 
-    public void submitEntry(JournalEntryKey key, JournalEntry value) throws InterruptedException {
-        walSource.put(new JournalKeyValue(key, value));
+    public void submitEntry(JournalEntryKey key, JournalEntry value, Date recordTime) throws InterruptedException {
+        walSource.put(new JournalKeyValue(key, value, recordTime));
     }
 
     private void updateTxReferences(
-            JournalEntryKey newRecordKey, JournalEntry entry, TransactionReference txReference) {
+            TimestampedJournalKey newRecordKey, JournalEntry entry, TransactionReference txReference) {
 
         if (isProcessing) {
-            getCache().put(newRecordKey, entry);
+            getCache().put(newRecordKey.getEntry(), entry);
         }
-
-        JournalEntryKey txRefKey =
-                KafkaRecordUtils.transactionReferenceKeyFromTxId(txReference.getTxId());
 
         TransactionReference updatedRefEntry = TransactionReference.newBuilder()
                 .setTxId(txReference.getTxId())
                 .addAllEntryReferences(txReference.getEntryReferencesList())
-                .addEntryReferences(JournalEntryKey.newBuilder(newRecordKey))
+                .addEntryReferences(JournalEntryKey.newBuilder(newRecordKey.getEntry()))
                 .build();
 
 
-        txCache.put(txRefKey, updatedRefEntry);
+        txCache.put(newRecordKey, updatedRefEntry);
 
     }
 
@@ -319,5 +330,4 @@ public class WalResolver {
                 .transactionReferenceKeyFromTxId(txReference.getTxId());
         getCache().remove(txRefKey);
     }
-
 }
