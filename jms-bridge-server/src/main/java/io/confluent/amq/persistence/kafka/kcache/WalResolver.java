@@ -108,7 +108,7 @@ public class WalResolver {
                 if (KafkaRecordUtils.isTxRecord(entry.getAppendedRecord())) {
                     handleTxRecord(keyVal);
                 } else if (JournalRecordType.DELETE_RECORD.equals(entry.getAppendedRecord().getRecordType())) {
-                    handleDelete(key);
+                    handleDelete(keyVal);
                 } else if (JournalRecordType.ANNOTATE_RECORD.equals(entry.getAppendedRecord().getRecordType())) {
                     handleAnnotation(keyVal);
                 } else {
@@ -124,7 +124,7 @@ public class WalResolver {
     private void handleAnnotation(JournalKeyValue keyValue) {
 
         JournalEntryKey annRefKey = KafkaRecordUtils.annotationsKeyFromRecordKey(keyValue.getKey());
-        AnnotationReference annRef = annCache.get(annRefKey);
+        AnnotationReference annRef = annCache.get(new TimestampedJournalKey(annRefKey, keyValue.getTimestamp()));
         if (annRef != null) {
             //need to update the annotation reference
             AnnotationReference updatedAnnRef = AnnotationReference
@@ -145,12 +145,12 @@ public class WalResolver {
         }
     }
 
-    private void handleDelete(JournalEntryKey key) {
+    private void handleDelete(JournalKeyValue jkv) {
 
-        JournalEntryKey annRefKey = KafkaRecordUtils.annotationsKeyFromRecordKey(key);
+        JournalEntryKey annRefKey = KafkaRecordUtils.annotationsKeyFromRecordKey(jkv.getKey());
 
         //delete all related annotations and the key
-        AnnotationReference annRef = annCache.remove(annRefKey);
+        AnnotationReference annRef = annCache.remove(new TimestampedJournalKey(annRefKey, jkv.getTimestamp()));
 
         if (isProcessing) {
             if (annRef != null) {
@@ -158,7 +158,7 @@ public class WalResolver {
             }
 
             //delete main record
-            getCache().remove(key);
+            getCache().remove(jkv.getKey());
         }
     }
 
@@ -329,5 +329,9 @@ public class WalResolver {
         JournalEntryKey txRefKey = KafkaRecordUtils
                 .transactionReferenceKeyFromTxId(txReference.getTxId());
         getCache().remove(txRefKey);
+    }
+
+    private TimestampedJournalKey fromJournalKV(JournalKeyValue jkv) {
+        return new TimestampedJournalKey(jkv.getKey(), jkv.getTimestamp());
     }
 }

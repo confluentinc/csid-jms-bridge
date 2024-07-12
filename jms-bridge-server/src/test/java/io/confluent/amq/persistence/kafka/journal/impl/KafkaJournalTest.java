@@ -6,6 +6,7 @@ package io.confluent.amq.persistence.kafka.journal.impl;
 
 import com.google.protobuf.ByteString;
 import io.confluent.amq.config.BridgeClientId;
+import io.confluent.amq.persistence.kafka.journal.JournalSpec;
 import org.apache.kafka.clients.admin.TopicDescription;
 import org.apache.kafka.clients.consumer.ConsumerGroupMetadata;
 import org.apache.kafka.common.TopicPartitionInfo;
@@ -27,7 +28,6 @@ import io.confluent.amq.persistence.domain.proto.JournalRecordType;
 import io.confluent.amq.persistence.kafka.KafkaIO;
 import io.confluent.amq.persistence.kafka.KafkaRecordUtils;
 import io.confluent.amq.persistence.kafka.journal.ProtocolRecordType;
-import io.confluent.amq.persistence.kafka.journal.impl.KafkaJournalProcessor.JournalSpec;
 import io.confluent.amq.persistence.kafka.journal.serde.JournalKeySerde;
 import io.confluent.amq.persistence.kafka.journal.serde.JournalValueSerde;
 import io.confluent.amq.test.TestSupport;

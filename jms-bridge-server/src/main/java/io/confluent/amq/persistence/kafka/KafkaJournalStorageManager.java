@@ -85,14 +85,13 @@ public class KafkaJournalStorageManager extends JournalStorageManager {
     this.kafkaIntegration = jbConfig.kafkaIntegration;
 
     this.kafkaIO = this.kafkaIntegration.getKafkaIO();
-    this.journalCache = this.kafkaIntegration.getJournalCache();
 
     this.messageJournal =
         new KafkaCacheJournal(
-            MESSAGES_NAME, journalCache.getMessagesCache(), this.ioCriticalErrorListener);
+            MESSAGES_NAME, kafkaIntegration.getMessagesJournal(), this.ioCriticalErrorListener);
     this.bindingsJournal =
         new KafkaCacheJournal(
-            BINDINGS_NAME, journalCache.getBindingsCache(), this.ioCriticalErrorListener);
+            BINDINGS_NAME, kafkaIntegration.getBindingsJournal(), this.ioCriticalErrorListener);
 
     SLOG.info(b -> b.event("Init").markSuccess());
   }

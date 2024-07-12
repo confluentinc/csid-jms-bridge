@@ -4,6 +4,7 @@
 
 package io.confluent.amq.exchange;
 
+import io.confluent.amq.persistence.kafka.kcache.JournalCache;
 import org.apache.activemq.artemis.api.core.QueueConfiguration;
 import org.apache.activemq.artemis.api.core.SimpleString;
 import org.apache.activemq.artemis.api.core.management.AddressControl;
@@ -79,10 +80,10 @@ public class KafkaExchangeManagerTest {
   KafkaExchangeIngress mockIngress;
 
   @Mock
-  KJournal mockBindings;
+  JournalCache mockBindings;
 
   @Mock
-  KJournal mockMessages;
+  JournalCache mockMessages;
 
   String messagesTopic = "messages";
   String bindingsTopic = "bindings";
