@@ -4,13 +4,12 @@ import io.confluent.amq.config.BridgeClientId;
 import io.confluent.amq.logging.StructuredLogger;
 import io.confluent.amq.persistence.kafka.KafkaIO;
 import io.confluent.amq.persistence.kafka.journal.JournalSpec;
-import io.confluent.amq.persistence.kafka.journal.KJournal;
 import io.confluent.amq.persistence.kafka.journal.KJournalState;
-import io.confluent.amq.persistence.kafka.journal.impl.EpochCoordinator;
 import io.confluent.amq.persistence.kafka.journal.impl.KafkaJournalProcessor;
 import io.confluent.amq.util.Retry;
 import org.apache.kafka.clients.admin.TopicDescription;
 
+import java.io.IOException;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
@@ -26,14 +25,13 @@ public class KCacheJournalProcessor {
 
     private final String bridgeId;
     private final BridgeClientId bridgeClientId;
-    private final String applicationId;
-    private final Map<String, String> streamsConfig;
     private final KafkaIO kafkaIO;
 
     private final List<JournalSpec> journalSpecs;
     private final Map<String, JournalCache> journals;
     private final Duration loadTimeout;
 
+    private CompletableFuture<Void> onLoadCompleted;
     private volatile KJournalState journalState;
     private volatile boolean loadComplete = false;
 
@@ -41,16 +39,12 @@ public class KCacheJournalProcessor {
             String bridgeId,
             List<JournalSpec> journalSpecs,
             BridgeClientId bridgeClientId,
-            String applicationId,
             Duration loadTimeOut,
-            Map<String, String> streamsConfig,
             KafkaIO kafkaIO) {
 
         this.bridgeId = bridgeId;
         this.bridgeClientId = bridgeClientId;
-        this.applicationId = applicationId;
         this.loadTimeout = loadTimeOut;
-        this.streamsConfig = streamsConfig;
         this.kafkaIO = kafkaIO;
 
         this.journalState = CREATED;
@@ -89,11 +83,20 @@ public class KCacheJournalProcessor {
     }
 
     private void initializeJournals() {
-        //TODO: start the journals
+        //TODO: Need journal specific configuration
+        for (JournalSpec js : journalSpecs) {
+            JournalCache jCache = new JournalCache(bridgeId, js.journalName(), bridgeClientId, new HashMap<>());
+            jCache.start();
+            journals.put(js.journalName(), jCache);
+        }
     }
 
-    public synchronized void stop() {
+    public synchronized void stop() throws IOException {
+
         if (journalState.validTransition(KJournalState.STOPPED)) {
+            for (JournalCache jc : journals.values()) {
+                jc.stop();
+            }
             SLOG.info(b -> b
                     .event("StopJournal")
                     .markSuccess()
@@ -161,7 +164,7 @@ public class KCacheJournalProcessor {
             idx++;
         }
 
-        CompletableFuture.allOf(loadingfutures).whenComplete((nil, t) -> {
+        this.onLoadCompleted = CompletableFuture.allOf(loadingfutures).whenComplete((nil, t) -> {
             if (t != null) {
                 SLOG.error(b -> b
                         .event("LoadListener")

@@ -11,6 +11,7 @@ import io.confluent.amq.persistence.kafka.journal.serde.JournalValueSerde;
 import io.kcache.KafkaCache;
 import io.kcache.KafkaCacheConfig;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -61,14 +62,18 @@ public class JournalCache implements AutoCloseable {
 
     public synchronized void start() {
         CompletableFuture<Void> bindingsFuture =
-                CompletableFuture.runAsync(
-                        () -> this.cache = initCache(cacheConfig));
+                CompletableFuture.runAsync(() -> initCache(cacheConfig));
 
         boolean isInitialized = initialized.compareAndSet(false, true);
         if (!isInitialized) {
             throw new IllegalStateException(
                     "Illegal state while initializing KafkaJournal. Journal already initialized.");
         }
+    }
+
+    public synchronized void stop() throws IOException {
+        cache.flush();
+        cache.destroy();
     }
 
     public CompletableFuture<Void> onLoadComplete() {
@@ -87,12 +92,13 @@ public class JournalCache implements AutoCloseable {
         return isInitialized();
     }
 
-    private KafkaCache<JournalEntryKey, JournalEntry> initCache(Map<String, String> configs) {
+    private void initCache(Map<String, String> configs) {
         String topic =
                 configs.getOrDefault(
                         KafkaCacheConfig.KAFKACACHE_TOPIC_CONFIG,
-                        String.format(TOPIC_FORMAT, bridgeId, "bindings", bridgeClientId, "cache"));
-        return getJournalEntryKeyJournalEntryCache(configs, topic, resolver);
+                        String.format(TOPIC_FORMAT, bridgeId, journalName, "_cache"));
+        this.cache = getJournalEntryKeyJournalEntryCache(configs, topic, resolver);
+        this.resolver.startReadOnlyProcessing();
     }
 
     private KafkaCache<JournalEntryKey, JournalEntry> getJournalEntryKeyJournalEntryCache(
