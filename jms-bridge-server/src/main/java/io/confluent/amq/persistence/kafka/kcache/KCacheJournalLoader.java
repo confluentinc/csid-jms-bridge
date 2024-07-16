@@ -37,35 +37,11 @@ public class KCacheJournalLoader {
                 .event("LoadJournal")
                 .markStarted());
 
-        int recordCount = 0;
-
-        List<AnnotationReference> annotations = new LinkedList<>();
-        try (KeyValueIterator<JournalEntryKey, JournalEntry> kvIter = journalCache.getCache().all()) {
-            //only add messages and annotations
-            while (kvIter.hasNext()) {
-
-                KeyValue<JournalEntryKey, JournalEntry> kv = kvIter.next();
-                JournalEntry entry = kv.value;
-
-                if (entry != null) {
-                    if (entry.hasAnnotationReference()) {
-                        annotations.add(entry.getAnnotationReference());
-                    } else if (entry.getAppendedRecord().getRecordType() == ADD_RECORD) {
-                        SLOG.trace(b -> b
-                                .event("LoadAddRecord")
-                                .addJournalEntryKey(kv.key)
-                                .addJournalEntry(entry));
-                        callback.addRecord(KafkaRecordUtils.toRecordInfo(entry.getAppendedRecord()));
-
-                        recordCount++;
-                    }
-                }
-            }
-        }
+        //all annotation references
 
         //process annotations
-        loadAnnotations(journalCache, callback, annotations);
-        loadTransactions(journalCache, callback);
+        int recordCount = loadAnnotations(journalCache, callback);
+        recordCount += loadTransactions(journalCache, callback);
 
         final int finalLoadCount = recordCount;
         callback.loadComplete(finalLoadCount);
@@ -77,12 +53,13 @@ public class KCacheJournalLoader {
                 .putTokens("finalLoadCount", finalLoadCount));
     }
 
-    private void loadAnnotations(
+    private int loadAnnotations(
             JournalCache journalCache,
-            KafkaJournalLoaderCallback callback,
-            List<AnnotationReference> annRefList) {
+            KafkaJournalLoaderCallback callback) {
 
-        for (AnnotationReference annRef : annRefList) {
+        List<AnnotationReference> reflist = journalCache.getAnnotationRefs();
+        int recordCount = 0;
+        for (AnnotationReference annRef : reflist) {
 
             for (JournalEntryKey annRefKey : annRef.getEntryReferencesList()) {
 
@@ -94,6 +71,7 @@ public class KCacheJournalLoader {
                             .addJournalEntry(annEntry));
 
                     callback.updateRecord(KafkaRecordUtils.toRecordInfo(annEntry.getAppendedRecord()));
+                    recordCount++;
                 } else {
                     SLOG.warn(b -> b
                             .event("LoadAnnotation")
@@ -102,38 +80,17 @@ public class KCacheJournalLoader {
                 }
             }
         }
+       return recordCount;
     }
 
     @SuppressWarnings("checkstyle:CyclomaticComplexity")
-    private void loadTransactions(
+    private int loadTransactions(
             JournalCache journalCache,
             KafkaJournalLoaderCallback callback) {
 
-        List<JournalEntry> txRefList = new LinkedList<>();
 
-        int retryAttempt = 0;
-        int maxRetries = 5;
-        while (true) {
-            try {
-                try (KeyValueIterator<JournalEntryKey, JournalEntry> kvIter = journalCache.getCache().all()) {
-                    while (kvIter.hasNext()) {
-
-                        KeyValue<JournalEntryKey, JournalEntry> kv = kvIter.next();
-                        JournalEntry entry = kv.value;
-                        if (entry.hasTransactionReference()) {
-                            txRefList.add(entry);
-                        }
-                    }
-                }
-                break;
-            } catch (Exception ignored) {
-                //todo: do nothing?
-            }
-        }
-
-
-        for (JournalEntry txRefEntry : txRefList) {
-            TransactionReference txref = txRefEntry.getTransactionReference();
+        int recordCount = 0;
+        for (TransactionReference txref: journalCache.getTransactionRefs()) {
             List<RecordInfo> txRecords = new LinkedList<>();
             List<RecordInfo> txDeleteRecords = new LinkedList<>();
             boolean prepared = false;
@@ -141,6 +98,7 @@ public class KCacheJournalLoader {
 
             for (JournalEntryKey refKey : txref.getEntryReferencesList()) {
                 JournalEntry entry = journalCache.getCache().get(refKey);
+                recordCount++;
 
                 if (entry == null) {
                     SLOG.warn(b -> b
@@ -175,7 +133,7 @@ public class KCacheJournalLoader {
                 SLOG.warn(b -> b
                         .name(journalName)
                         .event("PreparedTransactionLoaded")
-                        .addJournalEntry(txRefEntry));
+                        .addTransactionRef(txref));
 
                 PreparedTransactionInfo pti = new PreparedTransactionInfo(txref.getTxId(), txData);
                 pti.getRecords().addAll(txRecords);
@@ -183,5 +141,6 @@ public class KCacheJournalLoader {
                 callback.addPreparedTransaction(pti);
             }
         }
+        return recordCount;
     }
 }

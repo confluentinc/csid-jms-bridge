@@ -22,6 +22,7 @@ import org.apache.activemq.artemis.core.io.SequentialFileFactory;
 import org.apache.activemq.artemis.core.journal.*;
 import org.apache.activemq.artemis.core.journal.impl.JournalFile;
 import org.apache.activemq.artemis.core.journal.impl.SimpleWaitIOCallback;
+import org.apache.activemq.artemis.core.paging.PagingManager;
 import org.apache.activemq.artemis.core.persistence.Persister;
 import org.apache.activemq.artemis.utils.collections.SparseArrayLinkedList;
 import org.slf4j.Logger;
@@ -37,6 +38,7 @@ public class KafkaCacheJournal implements Journal {
       StructuredLogger.with(b -> b.loggerClass(KafkaCacheJournal.class));
   private static final Logger LOGGER = LoggerFactory.getLogger(KafkaCacheJournal.class);
   private static final Integer MAX_RECORD_SIZE = 1024 * 1024;
+  private final Duration loadTimeOut;
 
   private final AtomicBoolean failed = new AtomicBoolean(false);
 
@@ -46,10 +48,12 @@ public class KafkaCacheJournal implements Journal {
   private volatile JournalState state;
 
   public KafkaCacheJournal(
+      Duration loadTimeOut,
       String journalName,
       JournalCache journalCache,
       IOCriticalErrorListener criticalIOErrorListener) {
 
+    this.loadTimeOut = loadTimeOut;
     this.journalName = journalName;
     this.criticalIOErrorListener = criticalIOErrorListener;
     this.journalCache = journalCache;
@@ -555,6 +559,11 @@ public class KafkaCacheJournal implements Journal {
     ioCompletion.storeLineUp();
   }
 
+  /**
+   * This method is called by the KafkaJournalStorageManager but the calling methods are inherited from
+   * {@link org.apache.activemq.artemis.core.persistence.impl.journal.JournalStorageManager}. There are two main
+   * load methods called <code>loadMessageJournal</code> and <code>loadBindingsJournal</code>.
+   */
   @Override
   public synchronized JournalLoadInformation load(
           final SparseArrayLinkedList<RecordInfo> committedRecords,
@@ -609,19 +618,15 @@ public class KafkaCacheJournal implements Journal {
    * transaction store. The transaction store is needed because there may be unprocessed, yet completed, transactions
    * in the log, it is also where JTA transactions live.
    *
-   * The initial onLoadComplete() call blocks until the WAL topic has been completely processed and the global state
-   * store is up to date. It uses a sentinel message to achieve this,
-   *  see {@link io.confluent.amq.persistence.domain.proto.EpochEvent}. The sentinal message is produced by
-   *  kafka streams when it starts up. This done via a timed message as part of the {@link EpochPuntcuator}
-   *  initialization.
+   * The initial onLoadComplete() call blocks until the WAL topic has been completely processed and KCache has been
+   * synchronized.
    *
    */
   synchronized void doLoad(KafkaJournalLoaderCallback callback) {
     if (journalCache != null) {
 
       try {
-        //TODO: need to specify load timeout via configuration
-        journalCache.onLoadComplete().get(5, TimeUnit.MINUTES);
+        journalCache.onLoadComplete().get(loadTimeOut.toMillis(), TimeUnit.MILLISECONDS);
       } catch (Exception e) {
         throw new RuntimeException(e);
       }

@@ -4,11 +4,7 @@
 
 package io.confluent.amq.logging;
 
-import io.confluent.amq.persistence.domain.proto.AnnotationReference;
-import io.confluent.amq.persistence.domain.proto.EpochEvent;
-import io.confluent.amq.persistence.domain.proto.JournalEntry;
-import io.confluent.amq.persistence.domain.proto.JournalEntryKey;
-import io.confluent.amq.persistence.domain.proto.JournalRecord;
+import io.confluent.amq.persistence.domain.proto.*;
 import io.confluent.amq.persistence.kafka.journal.ProtocolRecordType;
 import java.util.Map;
 import java.util.Optional;
@@ -121,6 +117,15 @@ public interface LogSpec {
       return this.putTokens("entryType", "AnnotationReference")
           .putTokens("messageId", annotations.getMessageId())
           .putTokens("annotationCount", annotations.getEntryReferencesCount());
+    }
+
+    public Builder addTransactionRef(TransactionReference tranRef) {
+      if (tranRef == null) {
+        return this.putTokens("transactionReference", "null");
+      }
+      return this.putTokens("entryType", "TransactionReference")
+              .putTokens("txId", tranRef.getTxId())
+              .putTokens("txCount", tranRef.getEntryReferencesCount());
     }
 
     public Builder addJournalRecord(JournalRecord record) {

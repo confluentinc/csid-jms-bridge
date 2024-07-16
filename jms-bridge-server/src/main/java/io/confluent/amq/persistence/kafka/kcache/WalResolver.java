@@ -10,10 +10,7 @@ import org.apache.kafka.streams.KeyValue;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.time.temporal.TemporalUnit;
-import java.util.Collections;
-import java.util.Date;
-import java.util.LinkedList;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.*;
 import java.util.function.Supplier;
 
@@ -49,6 +46,20 @@ public class WalResolver {
     public WalResolver(String journalName,
                        Supplier<KafkaCache<JournalEntryKey, JournalEntry>> cacheSupplier) {
         this(journalName, DEFAULT_TX_TTL, cacheSupplier);
+    }
+
+    /**
+     * Returns a list of currently known active annotation references.
+     */
+    public List<AnnotationReference> getAnnotationRefs() {
+        return new ArrayList<>(annCache.values());
+    }
+
+    /**
+     * Returns a list of currently known active transaction references.
+     */
+    public List<TransactionReference> getTransactionRefs() {
+        return new ArrayList<>(txCache.values());
     }
 
     /**

@@ -2,8 +2,10 @@ package io.confluent.amq.persistence.kafka.kcache;
 
 import io.confluent.amq.config.BridgeClientId;
 import io.confluent.amq.logging.StructuredLogger;
+import io.confluent.amq.persistence.domain.proto.AnnotationReference;
 import io.confluent.amq.persistence.domain.proto.JournalEntry;
 import io.confluent.amq.persistence.domain.proto.JournalEntryKey;
+import io.confluent.amq.persistence.domain.proto.TransactionReference;
 import io.confluent.amq.persistence.kafka.KafkaJournalStorageManager;
 import io.confluent.amq.persistence.kafka.journal.JournalEntryKeyPartitioner;
 import io.confluent.amq.persistence.kafka.journal.serde.JournalKeySerde;
@@ -13,6 +15,7 @@ import io.kcache.KafkaCacheConfig;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -68,6 +71,14 @@ public class JournalCache implements AutoCloseable {
         }
     }
 
+    public List<AnnotationReference> getAnnotationRefs() {
+        return this.resolver.getAnnotationRefs();
+    }
+
+    public List<TransactionReference> getTransactionRefs() {
+        return this.resolver.getTransactionRefs();
+    }
+
     public synchronized void stop() throws IOException {
         cache.flush();
         cache.destroy();
@@ -96,13 +107,12 @@ public class JournalCache implements AutoCloseable {
             Map<String, String> configs, String topic, WalResolver resolver) {
         String groupId =
                 configs.getOrDefault(KafkaCacheConfig.KAFKACACHE_GROUP_ID_CONFIG, bridgeId + "-" + topic);
-        String clientId = configs.getOrDefault(KafkaCacheConfig.KAFKACACHE_CLIENT_ID_CONFIG, groupId);
 
         KafkaCache<JournalEntryKey, JournalEntry> cache;
         Map<String, Object> cacheConfig = new HashMap<>(configs);
         cacheConfig.put(KafkaCacheConfig.KAFKACACHE_TOPIC_CONFIG, topic);
         cacheConfig.put(KafkaCacheConfig.KAFKACACHE_GROUP_ID_CONFIG, groupId);
-        cacheConfig.put(KafkaCacheConfig.KAFKACACHE_CLIENT_ID_CONFIG, clientId);
+        cacheConfig.put(KafkaCacheConfig.KAFKACACHE_CLIENT_ID_CONFIG, bridgeClientId);
         cacheConfig.put(
                 ProducerConfig.PARTITIONER_CLASS_CONFIG,
                 JournalEntryKeyPartitioner.class.getCanonicalName());
