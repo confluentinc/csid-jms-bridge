@@ -12,6 +12,8 @@ import io.confluent.amq.logging.StructuredLogger;
 import io.confluent.amq.persistence.kafka.journal.JournalSpec;
 import io.confluent.amq.persistence.kafka.kcache.JournalCache;
 import io.confluent.amq.persistence.kafka.kcache.KCacheJournalProcessor;
+
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -61,7 +63,6 @@ public class KafkaIntegration {
                 bridgeId,
                 jspecs,
                 clientId,
-                applicationId,
                 config.journals().readyTimeout(),
                 this.kafkaIO);
     }
@@ -147,7 +148,7 @@ public class KafkaIntegration {
         return journalProcessor.getJournal(KafkaJournalStorageManager.MESSAGES_NAME);
     }
 
-    private void doStop() {
+    private void doStop() throws IOException {
         SLOG.info(b -> b.event("Stopping"));
         this.journalProcessor.stop();
         this.kafkaIO.stop();

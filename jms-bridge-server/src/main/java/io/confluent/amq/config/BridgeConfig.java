@@ -14,6 +14,7 @@ import java.time.Duration;
 import java.util.Map;
 import java.util.Optional;
 
+import com.typesafe.config.ConfigException;
 import com.typesafe.config.ConfigValue;
 import io.kcache.KafkaCacheConfig;
 import org.inferred.freebuilder.FreeBuilder;
@@ -109,15 +110,17 @@ public interface BridgeConfig {
         if (bindingsConfigBuilder
             .getKcacheGroupId()
             .equals(messagesConfigBuilder.getKcacheGroupId())) {
-          throw new IllegalArgumentException(
+          throw new ConfigException.BadValue(
+              "journals.<bindings|messages>.kcache.kafkacache.group.id",
               String.format(
-                  "kcache.group.id for bindings and messages should be different. Found %s",
+                  "kafkacache.group.id for bindings and messages should be different. Found %s",
                   bindingsConfigBuilder.getKcacheGroupId()));
         }
         if (bindingsConfigBuilder.getKcacheTopic().equals(messagesConfigBuilder.getKcacheTopic())) {
-          throw new IllegalArgumentException(
+          throw new ConfigException.BadValue(
+              "journals.<bindings|messages>.kcache.kafkacache.topic.name",
               String.format(
-                  "kcache.topic for bindings and messages should be different. Found %s",
+                  "kafkacache.topic.name for bindings and messages should be different. Found %s",
                   bindingsConfigBuilder.getKcacheTopic()));
         }
       }
@@ -139,21 +142,31 @@ public interface BridgeConfig {
         // validate that kafkacache.group.id, kafkacache.topic  is supplied and is not using the
         // default
         if (isKcacheGroupIdNotValid()) {
-          throw new IllegalArgumentException(
+          throw new ConfigException.BadValue(
+              // current path to config
+              "journals.<bindings|messages>.kcache.kafkacache.group.id",
               String.format(
-                  "kcache.group.id is required and not equal to default %s",
+                  "kafkacache.group.id is required and not equal to default %s",
                   KafkaCacheConfig.DEFAULT_KAFKACACHE_GROUP_ID_PREFIX + "-" + getDefaultHost()));
         }
         if (isKcacheTopicNotValid()) {
-          throw new IllegalArgumentException(
+          throw new ConfigException.BadValue(
+              "journals.<bindings|messages>.kafkacache.topic.name",
               String.format(
-                  "kcache.topic is required and not equal to default %s",
+                  "kafkacache.topic is required and not equal to default %s",
                   KafkaCacheConfig.DEFAULT_KAFKACACHE_TOPIC));
         }
         setKCacheDefaultValues(kafkaConfig);
       }
 
       private void setKCacheDefaultValues(Config kafkaConfig) {
+        // sets the topic here as the default config would conflict with hocons ability to parse
+        // nested configs which are decided by the prefix kafkacache.topic
+        this.mutateKcache(
+            kcache ->
+                kcache.put(
+                    KafkaCacheConfig.KAFKACACHE_TOPIC_CONFIG,
+                    kcache().get("kafkacache.topic.name")));
         // set sensible defaults for `segment.bytes` to "134217728" (128MB)
         if (!this.kcache().containsKey("kafkacache.topic.config.segment.bytes")) {
           this.mutateKcache(
@@ -176,9 +189,9 @@ public interface BridgeConfig {
       }
 
       private boolean isKcacheTopicNotValid() {
-        return !(this.kcache().containsKey(KafkaCacheConfig.KAFKACACHE_TOPIC_CONFIG)
+        return !(this.kcache().containsKey(KafkaCacheConfig.KAFKACACHE_TOPIC_CONFIG + ".name")
             && !this.kcache()
-                .get(KafkaCacheConfig.KAFKACACHE_TOPIC_CONFIG)
+                .get(KafkaCacheConfig.KAFKACACHE_TOPIC_CONFIG + ".name")
                 .equals(KafkaCacheConfig.DEFAULT_KAFKACACHE_TOPIC));
       }
 
