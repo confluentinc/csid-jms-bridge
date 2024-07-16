@@ -7,7 +7,6 @@ package io.confluent.amq.persistence.kafka;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import io.confluent.amq.JmsBridgeConfiguration;
 import io.confluent.amq.logging.StructuredLogger;
-import io.confluent.amq.persistence.kafka.kcache.JournalCache;
 import io.confluent.amq.persistence.kafka.kcache.KafkaCacheJournal;
 import java.nio.ByteBuffer;
 import java.util.concurrent.CountDownLatch;
@@ -38,8 +37,6 @@ public class KafkaJournalStorageManager extends JournalStorageManager {
       .loggerClass(KafkaJournalStorageManager.class));
 
 
-  private KafkaIO kafkaIO;
-  private JournalCache journalCache;
   private KafkaIntegration kafkaIntegration;
 
   @Override
@@ -83,8 +80,6 @@ public class KafkaJournalStorageManager extends JournalStorageManager {
     InitWorkAroundWrapper jbConfig = (InitWorkAroundWrapper) config;
 
     this.kafkaIntegration = jbConfig.kafkaIntegration;
-
-    this.kafkaIO = this.kafkaIntegration.getKafkaIO();
 
     this.messageJournal =
         new KafkaCacheJournal(

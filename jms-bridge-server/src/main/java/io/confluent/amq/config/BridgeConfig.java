@@ -4,18 +4,19 @@
 
 package io.confluent.amq.config;
 
-import com.typesafe.config.Config;
-import io.confluent.csid.common.utils.accelerator.Accelerator;
-import io.confluent.csid.common.utils.accelerator.ClientId;
-import io.confluent.csid.common.utils.accelerator.Owner;
-import org.inferred.freebuilder.FreeBuilder;
+import static io.confluent.amq.config.BridgeConfigFactory.flattenConfig;
 
+import com.typesafe.config.Config;
+
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.time.Duration;
 import java.util.Map;
 import java.util.Optional;
 
-import static io.confluent.amq.config.BridgeConfigFactory.flattenConfig;
-import static io.confluent.amq.config.BridgeConfigFactory.getBridgeVersion;
+import com.typesafe.config.ConfigValue;
+import io.kcache.KafkaCacheConfig;
+import org.inferred.freebuilder.FreeBuilder;
 
 @FreeBuilder
 public interface BridgeConfig {
@@ -30,14 +31,6 @@ public interface BridgeConfig {
 
   Map<String, String> kafka();
 
-  Map<String, String> kcache();
-
-  Map<String, String> kcacheBindings();
-
-  Map<String, String> kcacheMessages();
-
-  Map<String, String> streams();
-
   JournalsConfig journals();
 
   Optional<RoutingConfig> routing();
@@ -50,23 +43,10 @@ public interface BridgeConfig {
 
     public Builder(Config rootConfig) {
       Config bridgeConfig = rootConfig.getConfig("bridge");
+      Config kafkaConfig = bridgeConfig.getConfig("kafka");
       this.id(bridgeConfig.getString("id"))
-          .journals(new JournalsConfig.Builder(bridgeConfig.getConfig("journals")))
-          .putAllKafka(flattenConfig(bridgeConfig.getConfig("kafka")))
-          .putAllKcache(flattenConfig(bridgeConfig.getConfig("kcache")))
-          .putAllKcacheBindings(
-              flattenConfig(
-                  bridgeConfig
-                      .getConfig("kcache_bindings")
-                      .withFallback(bridgeConfig.getConfig("kcache"))))
-          .putAllKcacheMessages(
-              flattenConfig(
-                  bridgeConfig
-                      .getConfig("kcache_messages")
-                      .withFallback(bridgeConfig.getConfig("kcache"))))
-          .putAllStreams(
-              flattenConfig(
-                  bridgeConfig.getConfig("streams").withFallback(bridgeConfig.getConfig("kafka"))));
+          .journals(new JournalsConfig.Builder(bridgeConfig.getConfig("journals"), kafkaConfig))
+          .putAllKafka(flattenConfig(kafkaConfig));
 
       if (bridgeConfig.hasPath("ha")) {
         Config haConfig = bridgeConfig.getConfig("ha");
@@ -100,8 +80,6 @@ public interface BridgeConfig {
 
     int maxMessageSize();
 
-    TopicConfig topic();
-
     Duration readyTimeout();
 
     Duration readyCheckInterval();
@@ -112,15 +90,36 @@ public interface BridgeConfig {
 
     class Builder extends BridgeConfig_JournalsConfig_Builder {
 
+      JournalConfig.Builder bindingsConfigBuilder;
+      JournalConfig.Builder messagesConfigBuilder;
+
       public Builder() {}
 
-      public Builder(Config journalsConfig) {
-        this.bindings(new JournalConfig.Builder(journalsConfig.getConfig("bindings")))
+      public Builder(Config journalsConfig, Config kafkaConfig) {
+        this.bindingsConfigBuilder =
+            new JournalConfig.Builder(journalsConfig.getConfig("bindings"), kafkaConfig);
+        this.messagesConfigBuilder =
+            new JournalConfig.Builder(journalsConfig.getConfig("messages"), kafkaConfig);
+        this.bindings(bindingsConfigBuilder)
             .maxMessageSize(journalsConfig.getBytes("max.message.size").intValue())
-            .messages(new JournalConfig.Builder(journalsConfig.getConfig("messages")))
+            .messages(messagesConfigBuilder)
             .readyTimeout(journalsConfig.getDuration("ready.timeout"))
-            .readyCheckInterval(journalsConfig.getDuration("ready.check.interval"))
-            .topic(new TopicConfig.Builder(journalsConfig.getConfig("topic")));
+            .readyCheckInterval(journalsConfig.getDuration("ready.check.interval"));
+        // validate that the group id and topic ids of bindings and messages are not the same
+        if (bindingsConfigBuilder
+            .getKcacheGroupId()
+            .equals(messagesConfigBuilder.getKcacheGroupId())) {
+          throw new IllegalArgumentException(
+              String.format(
+                  "kcache.group.id for bindings and messages should be different. Found %s",
+                  bindingsConfigBuilder.getKcacheGroupId()));
+        }
+        if (bindingsConfigBuilder.getKcacheTopic().equals(messagesConfigBuilder.getKcacheTopic())) {
+          throw new IllegalArgumentException(
+              String.format(
+                  "kcache.topic for bindings and messages should be different. Found %s",
+                  bindingsConfigBuilder.getKcacheTopic()));
+        }
       }
     }
   }
@@ -128,43 +127,82 @@ public interface BridgeConfig {
   @FreeBuilder
   interface JournalConfig {
 
-    TopicConfig walTopic();
-
-    TopicConfig tableTopic();
+    Map<String, String> kcache();
 
     class Builder extends BridgeConfig_JournalConfig_Builder {
 
       public Builder() {}
 
-      public Builder(Config journalConfig) {
-        this.walTopic(new TopicConfig.Builder(journalConfig.getConfig("wal.topic")));
-        this.tableTopic(new TopicConfig.Builder(journalConfig.getConfig("table.topic")));
+      public Builder(Config journalConfig, Config kafkaConfig) {
+        this.putAllKcache(
+            flattenConfig(journalConfig.getConfig("kcache").withFallback(kafkaConfig)));
+        // validate that kafkacache.group.id, kafkacache.topic  is supplied and is not using the
+        // default
+        if (isKcacheGroupIdNotValid()) {
+          throw new IllegalArgumentException(
+              String.format(
+                  "kcache.group.id is required and not equal to default %s",
+                  KafkaCacheConfig.DEFAULT_KAFKACACHE_GROUP_ID_PREFIX + "-" + getDefaultHost()));
+        }
+        if (isKcacheTopicNotValid()) {
+          throw new IllegalArgumentException(
+              String.format(
+                  "kcache.topic is required and not equal to default %s",
+                  KafkaCacheConfig.DEFAULT_KAFKACACHE_TOPIC));
+        }
+        setKCacheDefaultValues(kafkaConfig);
       }
-    }
-  }
 
-  @FreeBuilder()
-  interface TopicConfig {
+      private void setKCacheDefaultValues(Config kafkaConfig) {
+        // set sensible defaults for `segment.bytes` to "134217728" (128MB)
+        if (!this.kcache().containsKey("kafkacache.topic.config.segment.bytes")) {
+          this.mutateKcache(
+              kcache -> kcache.put("kafkacache.topic.config.segment.bytes", "134217728"));
+        }
+        // iterate through the kafka config and add a prefix of kafkacache. to the kcache config if
+        // it does not exist
+        kafkaConfig.entrySet().forEach(this::populateKCacheConfigsFromKafkaConfigs);
+      }
 
-    Optional<String> name();
+      private void populateKCacheConfigsFromKafkaConfigs(
+          Map.Entry<String, ConfigValue> kafkaConfig) {
+        if (!this.kcache().containsKey("kafkacache." + kafkaConfig.getKey())) {
+          this.mutateKcache(
+              kcache ->
+                  kcache.put(
+                      "kafkacache." + kafkaConfig.getKey(),
+                      kafkaConfig.getValue().unwrapped().toString()));
+        }
+      }
 
-    int replication();
+      private boolean isKcacheTopicNotValid() {
+        return !(this.kcache().containsKey(KafkaCacheConfig.KAFKACACHE_TOPIC_CONFIG)
+            && !this.kcache()
+                .get(KafkaCacheConfig.KAFKACACHE_TOPIC_CONFIG)
+                .equals(KafkaCacheConfig.DEFAULT_KAFKACACHE_TOPIC));
+      }
 
-    int partitions();
+      private boolean isKcacheGroupIdNotValid() {
+        return !(this.kcache().containsKey(KafkaCacheConfig.KAFKACACHE_GROUP_ID_CONFIG)
+            && !this.kcache()
+                .get(KafkaCacheConfig.KAFKACACHE_GROUP_ID_CONFIG)
+                .equals(
+                    KafkaCacheConfig.DEFAULT_KAFKACACHE_GROUP_ID_PREFIX + "-" + getDefaultHost()));
+      }
 
-    Map<String, Object> options();
+      private String getKcacheGroupId() {
+        return this.kcache().get(KafkaCacheConfig.KAFKACACHE_GROUP_ID_CONFIG);
+      }
 
-    class Builder extends BridgeConfig_TopicConfig_Builder {
+      private String getKcacheTopic() {
+        return this.kcache().get(KafkaCacheConfig.KAFKACACHE_TOPIC_CONFIG);
+      }
 
-      public Builder() {}
-
-      public Builder(Config topicConfig) {
-        this.replication(topicConfig.getInt("replication"))
-            .partitions(topicConfig.getInt("partitions"))
-            .putAllOptions(flattenConfig(topicConfig.getConfig("options")));
-
-        if (topicConfig.hasPath("name")) {
-          this.name(topicConfig.getString("name"));
+      private static String getDefaultHost() {
+        try {
+          return InetAddress.getLocalHost().getHostName();
+        } catch (UnknownHostException e) {
+          throw new IllegalArgumentException("Unable to determine hostname", e);
         }
       }
     }

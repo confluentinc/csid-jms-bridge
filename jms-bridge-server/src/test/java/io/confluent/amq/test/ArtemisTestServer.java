@@ -204,9 +204,6 @@ public class ArtemisTestServer implements
 
             Path streamDir = this.tempDir.toPath().resolve(safeId("streams-state-dir"));
             Files.createDirectory(streamDir);
-            specBldr.mutateJmsBridgeConfig(b -> b
-                    .putStreams(StreamsConfig.STATE_DIR_CONFIG, streamDir.toAbsolutePath().toString())
-            );
             this.serverSpec = specBldr.build();
 
             if (this.serverSpec.useVanilla()) {
@@ -497,9 +494,6 @@ public class ArtemisTestServer implements
                                 .putAllKafka(Maps.transformValues(
                                         BridgeConfigFactory.propsToMap(kafkaProps),
                                         Objects::toString))
-                                .putAllStreams(Maps.transformValues(
-                                        BridgeConfigFactory.propsToMap(kafkaProps),
-                                        Object::toString))
                                 .haConfig(new HaConfig.Builder()
                                         .putAllConsumerConfig(BridgeConfigFactory.propsToMap(kafkaProps))
                                         .groupId("test_ha")

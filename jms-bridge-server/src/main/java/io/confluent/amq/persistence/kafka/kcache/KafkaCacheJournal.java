@@ -3,25 +3,19 @@ package io.confluent.amq.persistence.kafka.kcache;
 import com.google.protobuf.ByteString;
 import io.confluent.amq.logging.StructuredLogger;
 import io.confluent.amq.persistence.domain.proto.JournalEntry;
-import io.confluent.amq.persistence.domain.proto.JournalEntryKey;
 import io.confluent.amq.persistence.domain.proto.JournalRecord;
 import io.confluent.amq.persistence.domain.proto.JournalRecordType;
-import io.confluent.amq.persistence.kafka.LoadInitializer;
 import io.confluent.amq.persistence.kafka.journal.KafkaJournalRecord;
 import io.confluent.amq.persistence.kafka.journal.impl.EpochPuntcuator;
 import io.confluent.amq.persistence.kafka.journal.impl.KafkaJournalLoaderCallback;
-import io.confluent.amq.persistence.kafka.journal.impl.KafkaJournalProcessor;
 import io.kcache.KafkaCache;
 import io.kcache.exceptions.CacheException;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Collectors;
-
 import org.apache.activemq.artemis.api.core.*;
 import org.apache.activemq.artemis.core.io.IOCriticalErrorListener;
 import org.apache.activemq.artemis.core.io.SequentialFileFactory;
@@ -29,11 +23,7 @@ import org.apache.activemq.artemis.core.journal.*;
 import org.apache.activemq.artemis.core.journal.impl.JournalFile;
 import org.apache.activemq.artemis.core.journal.impl.SimpleWaitIOCallback;
 import org.apache.activemq.artemis.core.persistence.Persister;
-import org.apache.activemq.artemis.utils.ExecutorFactory;
 import org.apache.activemq.artemis.utils.collections.SparseArrayLinkedList;
-import org.apache.kafka.streams.StoreQueryParameters;
-import org.apache.kafka.streams.state.QueryableStoreTypes;
-import org.apache.kafka.streams.state.ReadOnlyKeyValueStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

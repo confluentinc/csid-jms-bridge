@@ -32,10 +32,6 @@ class BridgeConfigFactoryTest {
     assertEquals(1, config.kafka().size());
     assertEquals(
         "localhost:9092", config.kafka().get(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG));
-    assertEquals(
-        "localhost:9092", config.streams().get(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG));
-    assertEquals(2, config.streams().size());
-    assertTrue(config.streams().containsKey("bootstrap.servers"));
 
     assertEquals(Duration.ofSeconds(60), config.journals().readyTimeout());
     assertEquals(Duration.ofSeconds(1), config.journals().readyCheckInterval());
@@ -53,7 +49,6 @@ class BridgeConfigFactoryTest {
   public void testMinimalConfiguration() throws Exception {
     BridgeConfig config = getConfig("minimal.conf");
     assertEquals("minimal", config.id());
-    assertTrue(config.journals().topic().options().containsKey("segment.bytes"));
   }
 
   @Test

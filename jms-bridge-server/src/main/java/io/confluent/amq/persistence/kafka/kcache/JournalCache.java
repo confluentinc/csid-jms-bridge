@@ -23,9 +23,6 @@ import org.apache.kafka.clients.producer.ProducerConfig;
 @FieldDefaults(level = lombok.AccessLevel.PRIVATE)
 public class JournalCache implements AutoCloseable {
 
-    static final StructuredLogger SLOG =
-            StructuredLogger.with(b -> b.loggerClass(JournalCache.class));
-
     static final String TOPIC_FORMAT = "_jms.bridge_%s_%s_%s";
 
     final String bridgeId;
@@ -78,12 +75,6 @@ public class JournalCache implements AutoCloseable {
 
     public CompletableFuture<Void> onLoadComplete() {
         return loadCompletion;
-    }
-
-    public synchronized void sync() {
-        CompletableFuture<Void> bindingsFuture =
-                CompletableFuture.runAsync(() -> cache.reset())
-                        .thenRunAsync(() -> cache.sync());
     }
 
     public synchronized boolean isLeader() {

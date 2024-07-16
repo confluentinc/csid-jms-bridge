@@ -1,27 +1,21 @@
 package io.confluent.amq.persistence.kafka.kcache;
 
+import static io.confluent.amq.persistence.kafka.journal.KJournalState.CREATED;
+import static io.confluent.amq.persistence.kafka.journal.KJournalState.STARTED;
+
 import io.confluent.amq.config.BridgeClientId;
 import io.confluent.amq.logging.StructuredLogger;
 import io.confluent.amq.persistence.kafka.KafkaIO;
 import io.confluent.amq.persistence.kafka.journal.JournalSpec;
 import io.confluent.amq.persistence.kafka.journal.KJournalState;
-import io.confluent.amq.persistence.kafka.journal.impl.KafkaJournalProcessor;
-import io.confluent.amq.util.Retry;
-import org.apache.kafka.clients.admin.TopicDescription;
-
 import java.io.IOException;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
-
-import static io.confluent.amq.persistence.kafka.journal.KJournalState.CREATED;
-import static io.confluent.amq.persistence.kafka.journal.KJournalState.STARTED;
 
 public class KCacheJournalProcessor {
     private static final StructuredLogger SLOG = StructuredLogger
-            .with(b -> b.loggerClass(KafkaJournalProcessor.class));
+            .with(b -> b.loggerClass(KCacheJournalProcessor.class));
 
     private final String bridgeId;
     private final BridgeClientId bridgeClientId;
@@ -41,11 +35,10 @@ public class KCacheJournalProcessor {
             BridgeClientId bridgeClientId,
             Duration loadTimeOut,
             KafkaIO kafkaIO) {
-
         this.bridgeId = bridgeId;
         this.bridgeClientId = bridgeClientId;
-        this.loadTimeout = loadTimeOut;
         this.kafkaIO = kafkaIO;
+        this.loadTimeout = loadTimeOut;
 
         this.journalState = CREATED;
         this.journalSpecs = journalSpecs;
@@ -55,12 +48,6 @@ public class KCacheJournalProcessor {
 
     public synchronized void start() {
         if (journalState.validTransition(STARTED)) {
-
-            Retry retry = new Retry(5, Duration.ofSeconds(30), Duration.ofSeconds(1));
-            retry.retry(
-                    () -> ensureTopics(journalSpecs),
-                    (j, err) -> j == null || j.isEmpty());
-
             initializeJournals();
             setupLoadingStateTransition();
 
@@ -112,47 +99,6 @@ public class KCacheJournalProcessor {
                     .putTokens("nextState", KJournalState.STOPPED)
                     .message("Invalid state transition"));
         }
-    }
-
-    protected Collection<JournalSpec> ensureTopics(Collection<JournalSpec> journals) {
-        Set<String> topics = kafkaIO.listTopics();
-        journals.forEach(jspec -> {
-            if (!topics.contains(jspec.journalTableTopic().name())) {
-                kafkaIO.createTopic(
-                        jspec.journalTableTopic().name(),
-                        jspec.journalTableTopic().partitions(),
-                        jspec.journalTableTopic().replication(),
-                        jspec.journalTableTopic().configs());
-            }
-
-            if (!topics.contains(jspec.journalWalTopic().name())) {
-                kafkaIO.createTopic(
-                        jspec.journalWalTopic().name(),
-                        jspec.journalWalTopic().partitions(),
-                        jspec.journalWalTopic().replication(),
-                        jspec.journalWalTopic().configs());
-            }
-        });
-        Map<String, TopicDescription> topicDescriptions =
-                kafkaIO.describeTopics(journals.stream()
-                        .flatMap(jspec ->
-                                Stream.of(jspec.journalWalTopic().name(), jspec.journalTableTopic().name()))
-                        .collect(Collectors.toSet()));
-
-        return journals.stream()
-                .map(jspec -> {
-                    TopicDescription walTopic = topicDescriptions.get(jspec.journalWalTopic().name());
-                    TopicDescription tblTopic = topicDescriptions.get(jspec.journalTableTopic().name());
-                    return new JournalSpec.Builder().mergeFrom(jspec)
-                            .mutateJournalWalTopic(t -> t
-                                    .partitions(walTopic.partitions().size())
-                                    .replication(walTopic.partitions().get(0).replicas().size()))
-                            .mutateJournalTableTopic(t -> t
-                                    .partitions(tblTopic.partitions().size())
-                                    .replication(tblTopic.partitions().get(0).replicas().size()))
-                            .build();
-                })
-                .collect(Collectors.toList());
     }
 
     private void setupLoadingStateTransition() {

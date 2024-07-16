@@ -7,21 +7,18 @@ package io.confluent.amq.persistence.kafka;
 import io.confluent.amq.JmsBridgeConfiguration;
 import io.confluent.amq.config.BridgeClientId;
 import io.confluent.amq.config.BridgeConfig;
-import io.confluent.amq.config.BridgeConfig.JournalConfig;
 import io.confluent.amq.config.BridgeConfigFactory;
 import io.confluent.amq.logging.StructuredLogger;
 import io.confluent.amq.persistence.kafka.journal.JournalSpec;
-import io.confluent.amq.persistence.kafka.journal.impl.KafkaJournal;
 import io.confluent.amq.persistence.kafka.kcache.JournalCache;
 import io.confluent.amq.persistence.kafka.kcache.KCacheJournalProcessor;
-import org.apache.activemq.artemis.utils.UUID;
-import org.apache.activemq.artemis.utils.UUIDGenerator;
-import org.apache.kafka.common.config.TopicConfig;
-
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import org.apache.activemq.artemis.utils.UUID;
+import org.apache.activemq.artemis.utils.UUIDGenerator;
+import org.apache.kafka.common.config.TopicConfig;
 
 public class KafkaIntegration {
 
@@ -50,12 +47,12 @@ public class KafkaIntegration {
         jspecs.add(
                 createProcessor(
                         KafkaJournalStorageManager.BINDINGS_NAME,
-                        config.journals().bindings(),
+                        config.journals().bindings().kcache(),
                         false));
         jspecs.add(
                 createProcessor(
                         KafkaJournalStorageManager.MESSAGES_NAME,
-                        config.journals().messages(),
+                        config.journals().messages().kcache(),
                         true));
 
         final BridgeClientId clientId = config.clientId().withEvenMoreClientId(nodeUuid.toString());
@@ -66,33 +63,17 @@ public class KafkaIntegration {
                 clientId,
                 applicationId,
                 config.journals().readyTimeout(),
-                this.config.streams(),
                 this.kafkaIO);
     }
 
-    private JournalSpec createProcessor(
-            String journalName, JournalConfig jconfig, boolean performRouting) {
-
-        return new JournalSpec.Builder()
-                .journalName(journalName)
-
-                .mutateJournalWalTopic(wt -> wt
-                        .partitions(jconfig.walTopic().partitions())
-                        .replication(jconfig.walTopic().replication())
-                        .name(jconfig.walTopic().name()
-                                .orElse(KafkaJournal.journalWalTopic(bridgeId, journalName)))
-                        .putAllConfigs(getEffectiveJournalWalTopicProps(jconfig.walTopic().options())))
-
-                .mutateJournalTableTopic(tt -> tt
-                        .partitions(jconfig.tableTopic().partitions())
-                        .replication(jconfig.tableTopic().replication())
-                        .name(jconfig.tableTopic().name()
-                                .orElse(KafkaJournal.journalTableTopic(bridgeId, journalName)))
-                        .putAllConfigs(getEffectiveJournalTableTopicProps(jconfig.tableTopic().options())))
-
-                .performRouting(performRouting)
-                .build();
-    }
+  private JournalSpec createProcessor(
+      String journalName, Map<String, String> kcacheConfig, boolean performRouting) {
+    return new JournalSpec.Builder()
+        .journalName(journalName)
+        .putAllKcacheConfig(kcacheConfig)
+        .performRouting(performRouting)
+        .build();
+  }
 
     public Map<String, String> getEffectiveJournalWalTopicProps(
             Map<String, Object> configTopicProps) {
