@@ -70,9 +70,8 @@ public class KCacheJournalProcessor {
     }
 
     private void initializeJournals() {
-        //TODO: Need journal specific configuration
         for (JournalSpec js : journalSpecs) {
-            JournalCache jCache = new JournalCache(bridgeId, js.journalName(), bridgeClientId, new HashMap<>());
+            JournalCache jCache = new JournalCache(bridgeId, js.journalName(), bridgeClientId, js.kcacheConfig());
             jCache.start();
             journals.put(js.journalName(), jCache);
         }
