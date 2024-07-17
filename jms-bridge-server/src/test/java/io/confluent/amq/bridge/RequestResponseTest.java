@@ -40,6 +40,7 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -154,7 +155,7 @@ public class RequestResponseTest extends AbstractContainerTest {
 
     public void awaitReady() {
       try {
-        readyLatch.await();
+        readyLatch.await(10, TimeUnit.SECONDS);
       } catch (Exception e) {
         throw new RuntimeException(e);
       }
@@ -167,7 +168,7 @@ public class RequestResponseTest extends AbstractContainerTest {
 
       running = false;
       try {
-        stoppedLatch.await();
+        stoppedLatch.await(10, TimeUnit.SECONDS);
       } catch (Exception e) {
         throw new RuntimeException(e);
       }

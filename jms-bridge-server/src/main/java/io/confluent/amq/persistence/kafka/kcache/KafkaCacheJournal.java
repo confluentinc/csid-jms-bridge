@@ -10,6 +10,8 @@ import io.confluent.amq.persistence.kafka.journal.impl.EpochPuntcuator;
 import io.confluent.amq.persistence.kafka.journal.impl.KafkaJournalLoaderCallback;
 import io.kcache.KafkaCache;
 import io.kcache.exceptions.CacheException;
+
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -37,18 +39,19 @@ public class KafkaCacheJournal implements Journal {
   private static final StructuredLogger SLOG =
       StructuredLogger.with(b -> b.loggerClass(KafkaCacheJournal.class));
   private static final Logger LOGGER = LoggerFactory.getLogger(KafkaCacheJournal.class);
-  private static final Integer MAX_RECORD_SIZE = 1024 * 1024;
   private final Duration loadTimeOut;
 
   private final AtomicBoolean failed = new AtomicBoolean(false);
 
   private final String journalName;
+  private final long maxMessageSize;
   private IOCriticalErrorListener criticalIOErrorListener;
   private JournalCache journalCache;
   private volatile JournalState state;
 
   public KafkaCacheJournal(
       Duration loadTimeOut,
+      long maxMessageSize,
       String journalName,
       JournalCache journalCache,
       IOCriticalErrorListener criticalIOErrorListener) {
@@ -57,6 +60,7 @@ public class KafkaCacheJournal implements Journal {
     this.journalName = journalName;
     this.criticalIOErrorListener = criticalIOErrorListener;
     this.journalCache = journalCache;
+    this.maxMessageSize = maxMessageSize;
   }
 
   private byte[] decode(Persister<Object> persister, Object obj) {
@@ -768,7 +772,7 @@ public class KafkaCacheJournal implements Journal {
 
   @Override
   public long getMaxRecordSize() {
-    return MAX_RECORD_SIZE;
+    return maxMessageSize;
   }
 
   @Override

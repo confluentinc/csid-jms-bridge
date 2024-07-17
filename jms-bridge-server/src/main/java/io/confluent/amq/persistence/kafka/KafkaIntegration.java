@@ -100,22 +100,6 @@ public class KafkaIntegration {
         return bridgeId;
     }
 
-    public UUID getNodeUuid() {
-        return nodeUuid;
-    }
-
-    public String getApplicationId() {
-        return applicationId;
-    }
-
-    /**
-     * Starts the basic kafka clients as part of the KafkaIO class. This method may be called multiple
-     * times without repercussion.
-     */
-    public synchronized void startKafkaIo() {
-        kafkaIO.start();
-    }
-
     /**
      * Will start both the KafkaIo and journal processors.
      */

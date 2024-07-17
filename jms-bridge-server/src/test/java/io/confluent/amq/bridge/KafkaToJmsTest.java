@@ -48,7 +48,7 @@ public class KafkaToJmsTest extends AbstractContainerTest {
   @Order(300)
   public static final ArtemisTestServer amqServer = ArtemisTestServer
       .embedded(essentialProps(), b -> b
-          .mutateJmsBridgeConfig(br -> br
+              .mutateJmsBridgeConfig(br -> br
               .putKafka(ConsumerConfig.AUTO_COMMIT_INTERVAL_MS_CONFIG, "500")
               .routing(new RoutingConfig.Builder()
                   .addTopics(new RoutedTopic.Builder()

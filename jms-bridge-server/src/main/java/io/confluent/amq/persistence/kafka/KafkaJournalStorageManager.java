@@ -84,9 +84,11 @@ public class KafkaJournalStorageManager extends JournalStorageManager {
 
         this.messageJournal =
                 new KafkaCacheJournal(jbConfig.getBridgeConfig().journals().readyTimeout(),
+                        jbConfig.getBridgeConfig().journals().maxMessageSize(),
                         MESSAGES_NAME, kafkaIntegration.getMessagesJournal(), this.ioCriticalErrorListener);
         this.bindingsJournal =
                 new KafkaCacheJournal(jbConfig.getBridgeConfig().journals().readyTimeout(),
+                        jbConfig.getBridgeConfig().journals().maxMessageSize(),
                         BINDINGS_NAME, kafkaIntegration.getBindingsJournal(), this.ioCriticalErrorListener);
 
         SLOG.info(b -> b.event("Init").markSuccess());

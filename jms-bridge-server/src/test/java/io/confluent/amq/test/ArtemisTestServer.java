@@ -21,6 +21,7 @@ import io.confluent.amq.persistence.kafka.KafkaIntegration;
 import io.confluent.amq.persistence.kafka.KafkaJournalStorageManager;
 import io.confluent.amq.persistence.kafka.journal.impl.KafkaJournal;
 import io.confluent.amq.test.ServerSpec.Builder;
+import io.kcache.KafkaCacheConfig;
 import org.apache.activemq.artemis.api.core.management.ActiveMQServerControl;
 import org.apache.activemq.artemis.api.jms.ActiveMQJMSClient;
 import org.apache.activemq.artemis.core.config.FileDeploymentManager;
@@ -32,6 +33,7 @@ import org.apache.activemq.artemis.core.server.metrics.plugins.SimpleMetricsPlug
 import org.apache.activemq.artemis.core.settings.impl.AddressSettings;
 import org.apache.activemq.artemis.jms.client.ActiveMQConnection;
 import org.apache.activemq.artemis.jms.client.ActiveMQConnectionFactory;
+import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.streams.StreamsConfig;
 import org.junit.jupiter.api.extension.*;
 
@@ -88,10 +90,6 @@ public class ArtemisTestServer implements
 
     public static ArtemisTestServer embedded(
             Properties kafkaProps, Consumer<Builder> serverSpecBuilder) {
-
-        Consumer<JmsCnxnSpec.Builder> cnxnSpecBuider = spec -> {
-
-        };
 
         return new Factory(TEST_SEQ.getAndIncrement()).embedded(kafkaProps, serverSpecBuilder, null);
     }
@@ -498,6 +496,17 @@ public class ArtemisTestServer implements
                                         .putAllConsumerConfig(BridgeConfigFactory.propsToMap(kafkaProps))
                                         .groupId("test_ha")
                                         .initTimeoutMs(30_000))
+                                .journals(new BridgeConfig.JournalsConfig.Builder()
+                                        .bindings(new BridgeConfig.JournalConfig.Builder()
+                                                .putKcache(KafkaCacheConfig.KAFKACACHE_TOPIC_CONFIG, "test-wal-bindings")
+                                                .putKcache(KafkaCacheConfig.KAFKACACHE_GROUP_ID_CONFIG, "test-bindings")
+                                                .putKcache(KafkaCacheConfig.KAFKACACHE_BOOTSTRAP_SERVERS_CONFIG,
+                                                        kafkaProps.getProperty(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG)))
+                                        .messages(new BridgeConfig.JournalConfig.Builder()
+                                                .putKcache(KafkaCacheConfig.KAFKACACHE_TOPIC_CONFIG, "test-wal-msgs")
+                                                .putKcache(KafkaCacheConfig.KAFKACACHE_GROUP_ID_CONFIG, "test-messages")
+                                                .putKcache(KafkaCacheConfig.KAFKACACHE_BOOTSTRAP_SERVERS_CONFIG,
+                                                        kafkaProps.getProperty(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG))))
                                 .mapRouting(rb -> new RoutingConfig.Builder().mergeFrom(rb)
                                         .putAllProducer(
                                                 Maps.transformValues(

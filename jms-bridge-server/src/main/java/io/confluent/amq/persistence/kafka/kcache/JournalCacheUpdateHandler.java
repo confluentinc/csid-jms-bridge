@@ -1,5 +1,6 @@
 package io.confluent.amq.persistence.kafka.kcache;
 
+import io.confluent.amq.logging.StructuredLogger;
 import io.confluent.amq.persistence.domain.proto.JournalEntry;
 import io.confluent.amq.persistence.domain.proto.JournalEntryKey;
 import io.kcache.CacheUpdateHandler;
@@ -13,11 +14,16 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 public class JournalCacheUpdateHandler implements CacheUpdateHandler<JournalEntryKey, JournalEntry> {
+
+    private static final StructuredLogger SLOG = StructuredLogger.with(b -> b
+            .loggerClass(JournalCacheUpdateHandler.class));
+    private final String journalName;
     private CompletableFuture<Void> onInitializedFuture = new CompletableFuture<>();
     private WalResolver walResolver;
 
-    public JournalCacheUpdateHandler(WalResolver walResolver) {
+    public JournalCacheUpdateHandler(String journalName, WalResolver walResolver) {
         this.walResolver = walResolver;
+        this.journalName = journalName;
     }
 
     public CompletableFuture<Void> onInitialized() {
@@ -31,6 +37,8 @@ public class JournalCacheUpdateHandler implements CacheUpdateHandler<JournalEntr
      */
     @Override
     public void cacheSynchronized(int count, Map<TopicPartition, Long> checkpoints) {
+        SLOG.info(b -> b.event("cacheSynchronized").name(journalName).markCompleted());
+        onInitializedFuture.complete(null);
         CacheUpdateHandler.super.cacheSynchronized(count, checkpoints);
     }
 
@@ -40,6 +48,7 @@ public class JournalCacheUpdateHandler implements CacheUpdateHandler<JournalEntr
      */
     @Override
     public void cacheInitialized(int count, Map<TopicPartition, Long> checkpoints) {
+        SLOG.info(b -> b.event("cacheInitialized").name(journalName).markCompleted());
         onInitializedFuture.complete(null);
     }
 

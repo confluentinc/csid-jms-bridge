@@ -1,5 +1,6 @@
 package io.confluent.amq.persistence.kafka.kcache;
 
+import io.confluent.amq.DelegatingConfluentAmqServer;
 import io.confluent.amq.config.BridgeClientId;
 import io.confluent.amq.logging.StructuredLogger;
 import io.confluent.amq.persistence.domain.proto.AnnotationReference;
@@ -25,6 +26,8 @@ import org.apache.kafka.clients.producer.ProducerConfig;
 
 @FieldDefaults(level = lombok.AccessLevel.PRIVATE)
 public class JournalCache implements AutoCloseable {
+    static final StructuredLogger SLOG = StructuredLogger.with(b -> b
+            .loggerClass(JournalCache.class));
 
     static final String TOPIC_FORMAT = "_jms.bridge_%s_%s_%s";
 
@@ -61,8 +64,11 @@ public class JournalCache implements AutoCloseable {
     }
 
     public synchronized void start() {
-        CompletableFuture<Void> bindingsFuture =
-                CompletableFuture.runAsync(() -> initCache(cacheConfig));
+        SLOG.info(b -> b
+                .name(journalName)
+                .event("start"));
+
+        initCache(cacheConfig);
 
         boolean isInitialized = initialized.compareAndSet(false, true);
         if (!isInitialized) {
@@ -80,8 +86,20 @@ public class JournalCache implements AutoCloseable {
     }
 
     public synchronized void stop() throws IOException {
-        cache.flush();
-        cache.destroy();
+        SLOG.info(b -> b
+                .name(journalName)
+                .event("stop")
+                .markStarted());
+
+        if (cache != null) {
+            cache.flush();
+            cache.destroy();
+        }
+
+        SLOG.info(b -> b
+                .name(journalName)
+                .event("stop")
+                .markCompleted());
     }
 
     public CompletableFuture<Void> onLoadComplete() {
@@ -101,6 +119,10 @@ public class JournalCache implements AutoCloseable {
                         String.format(TOPIC_FORMAT, bridgeId, journalName, "_cache"));
         this.cache = getJournalEntryKeyJournalEntryCache(configs, topic, resolver);
         this.resolver.startReadOnlyProcessing();
+        SLOG.info(b -> b
+                .name(journalName)
+                .event("start")
+                .markCompleted());
     }
 
     private KafkaCache<JournalEntryKey, JournalEntry> getJournalEntryKeyJournalEntryCache(
@@ -116,20 +138,43 @@ public class JournalCache implements AutoCloseable {
         cacheConfig.put(
                 ProducerConfig.PARTITIONER_CLASS_CONFIG,
                 JournalEntryKeyPartitioner.class.getCanonicalName());
-        updateHandler = new JournalCacheUpdateHandler(resolver);
+        updateHandler = new JournalCacheUpdateHandler(journalName, resolver);
 
-        updateHandler.onInitialized().whenComplete((i, e) -> loadCompletion.complete(null));
+        updateHandler.onInitialized().whenComplete((i, e) -> {
+            loadCompletion.complete(null);
+            SLOG.info(b -> b
+                    .name(journalName)
+                    .event("load")
+                    .markCompleted());
+        });
 
         // local cache is used for sending in a custom cache.
-        cache =
-                new KafkaCache<>(
+        cache = new KafkaCache<>(
                         new KafkaCacheConfig(configs),
                         JournalKeySerde.DEFAULT,
                         JournalValueSerde.DEFAULT,
                         updateHandler,
-                        null);
+                        null,
+                        this::compareKeys);
         cache.init();
+
         return cache;
+    }
+
+    private int compareKeys(JournalEntryKey key1, JournalEntryKey key2) {
+        if (key1 == null && key2 == null) {
+            return 0;
+        }
+
+        if (key1 != null && key2 == null) {
+            return 1;
+        }
+
+        if (key1 == null && key2 != null) {
+            return -1;
+        }
+
+        return Long.compare(key1.getMessageId(), key2.getMessageId());
     }
 
     public KafkaCache<JournalEntryKey, JournalEntry> getCache() {
@@ -139,7 +184,17 @@ public class JournalCache implements AutoCloseable {
     @Override
     public void close() throws Exception {
         if (cache != null) {
+            SLOG.info(b -> b
+                    .name(journalName)
+                    .event("close")
+                    .markStarted());
+
             cache.close();
+
+            SLOG.info(b -> b
+                    .name(journalName)
+                    .event("close")
+                    .markCompleted());
         }
     }
 

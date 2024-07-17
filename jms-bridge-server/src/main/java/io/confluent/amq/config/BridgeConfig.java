@@ -21,6 +21,9 @@ import org.inferred.freebuilder.FreeBuilder;
 
 @FreeBuilder
 public interface BridgeConfig {
+  Integer MAX_RECORD_SIZE = 1024 * 1024;
+  Duration READY_TIMEOUT = Duration.ofMinutes(5);
+  Duration READY_CHECK_INTERVAL = Duration.ofSeconds(10);
 
   String id();
 
@@ -91,38 +94,44 @@ public interface BridgeConfig {
 
     class Builder extends BridgeConfig_JournalsConfig_Builder {
 
-      JournalConfig.Builder bindingsConfigBuilder;
-      JournalConfig.Builder messagesConfigBuilder;
-
-      public Builder() {}
+      public Builder() {
+        this.maxMessageSize(MAX_RECORD_SIZE);
+        this.readyTimeout(READY_TIMEOUT);
+        this.readyCheckInterval(READY_CHECK_INTERVAL);
+      }
 
       public Builder(Config journalsConfig, Config kafkaConfig) {
-        this.bindingsConfigBuilder =
-            new JournalConfig.Builder(journalsConfig.getConfig("bindings"), kafkaConfig);
-        this.messagesConfigBuilder =
-            new JournalConfig.Builder(journalsConfig.getConfig("messages"), kafkaConfig);
-        this.bindings(bindingsConfigBuilder)
-            .maxMessageSize(journalsConfig.getBytes("max.message.size").intValue())
-            .messages(messagesConfigBuilder)
-            .readyTimeout(journalsConfig.getDuration("ready.timeout"))
-            .readyCheckInterval(journalsConfig.getDuration("ready.check.interval"));
+        this.maxMessageSize(MAX_RECORD_SIZE);
+        this.readyTimeout(READY_TIMEOUT);
+        this.readyCheckInterval(READY_CHECK_INTERVAL);
+
+        this.bindings(
+            new JournalConfig.Builder(journalsConfig.getConfig("bindings"), kafkaConfig));
+        this.messages(
+            new JournalConfig.Builder(journalsConfig.getConfig("messages"), kafkaConfig));
+      }
+
+      @Override
+      public JournalsConfig build() {
+
         // validate that the group id and topic ids of bindings and messages are not the same
-        if (bindingsConfigBuilder
-            .getKcacheGroupId()
-            .equals(messagesConfigBuilder.getKcacheGroupId())) {
+        if (this.bindingsBuilder()
+                .getKcacheGroupId()
+                .equals(this.messagesBuilder().getKcacheGroupId())) {
+
           throw new ConfigException.BadValue(
-              "journals.<bindings|messages>.kcache.kafkacache.group.id",
-              String.format(
-                  "kafkacache.group.id for bindings and messages should be different. Found %s",
-                  bindingsConfigBuilder.getKcacheGroupId()));
+                  "journals.<bindings|messages>.kcache.kafkacache.group.id",
+                  String.format(
+                          "kafkacache.group.id for bindings and messages should be different. Found %s",
+                          this.bindingsBuilder().getKcacheGroupId()));
         }
-        if (bindingsConfigBuilder.getKcacheTopic().equals(messagesConfigBuilder.getKcacheTopic())) {
+        if (this.bindingsBuilder().getKcacheTopic().equals(this.messagesBuilder().getKcacheTopic())) {
           throw new ConfigException.BadValue(
-              "journals.<bindings|messages>.kcache.kafkacache.topic.name",
-              String.format(
-                  "kafkacache.topic.name for bindings and messages should be different. Found %s",
-                  bindingsConfigBuilder.getKcacheTopic()));
-        }
+                  "journals.<bindings|messages>.kcache.kafkacache.topic.name",
+                  String.format(
+                          "kafkacache.topic.name for bindings and messages should be different. Found %s",
+                          this.bindingsBuilder().getKcacheTopic()));
+        }        return super.build();
       }
     }
   }
