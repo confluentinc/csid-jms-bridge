@@ -48,8 +48,8 @@ class BridgeConfigFactoryTest {
         "134217728",
         config.journals().bindings().kcache().get("kafkacache.topic.config.segment.bytes"));
 
-    assertEquals(Duration.ofSeconds(60), config.journals().readyTimeout());
-    assertEquals(Duration.ofSeconds(1), config.journals().readyCheckInterval());
+    assertEquals(Duration.ofSeconds(300), config.journals().readyTimeout());
+    assertEquals(Duration.ofSeconds(10), config.journals().readyCheckInterval());
   }
 
   @Test

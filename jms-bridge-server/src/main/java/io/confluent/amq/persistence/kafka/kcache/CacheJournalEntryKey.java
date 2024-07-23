@@ -16,7 +16,10 @@ public class CacheJournalEntryKey implements Comparable<CacheJournalEntryKey>{
 
     @Override
     public boolean equals(Object obj) {
-        return journalEntryKey.equals(obj);
+        if (obj instanceof CacheJournalEntryKey) {
+            return journalEntryKey.equals(((CacheJournalEntryKey) obj).journalEntryKey);
+        }
+        return false;
     }
 
     @Override

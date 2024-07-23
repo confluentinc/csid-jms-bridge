@@ -148,6 +148,7 @@ public class ConfluentAmqServerImpl extends ActiveMQServerImpl implements Conflu
   public void doStart() throws Exception {
     beforeStart();
 
+    kafkaIntegration.start();
     super.start();
 
     afterStart();

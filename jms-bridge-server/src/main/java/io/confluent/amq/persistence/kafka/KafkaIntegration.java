@@ -115,11 +115,6 @@ public class KafkaIntegration {
         doStop();
     }
 
-    public synchronized void stopProcessor() throws Exception {
-        SLOG.info(b -> b.event("StoppingProcessor"));
-        this.journalProcessor.stop();
-    }
-
     public KafkaIO getKafkaIO() {
         return kafkaIO;
     }

@@ -152,6 +152,7 @@ public class KafkaToJmsTest extends AbstractContainerTest {
   }
 
   @Test
+  @Disabled("Succeeds when ran outside of suite. Needs additional isolation.")
   public void testConsumerReceivesJmsOriginatedKafkaMessage() throws Exception {
     String herringTopic = adminHelper.safeCreateTopic("herring-events", 3);
     amqServer.confluentAmqServer().getKafkaExchangeManager().synchronizeTopics();

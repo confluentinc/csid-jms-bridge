@@ -118,7 +118,7 @@ public class JournalCache implements AutoCloseable {
                         KafkaCacheConfig.KAFKACACHE_TOPIC_CONFIG,
                         String.format(TOPIC_FORMAT, bridgeId, journalName, "_cache"));
         this.cache = getJournalEntryKeyJournalEntryCache(configs, topic, resolver);
-        this.resolver.startReadOnlyProcessing();
+        this.resolver.processLog();
         SLOG.info(b -> b
                 .name(journalName)
                 .event("start")

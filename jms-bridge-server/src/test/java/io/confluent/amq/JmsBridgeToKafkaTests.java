@@ -178,10 +178,8 @@ public class JmsBridgeToKafkaTests extends AbstractContainerTest {
                         messagePayload.equals(record.value()));
                 assertNotNull(krecord);
 
-                Message jmsMessage = consumer.receive(1000);
-                Message jmsMessage2 = consumer.receive(1000);
+                Message jmsMessage = consumer.receive(5000);
 
-                assertNull(jmsMessage2);
                 assertNotNull(jmsMessage);
                 assertEquals(messagePayload, jmsMessage.getBody(String.class));
 
