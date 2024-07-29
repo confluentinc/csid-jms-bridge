@@ -153,7 +153,7 @@ public class KafkaExchangeIngress implements Consumer {
     ICoreMessage coreMessage = reference.getMessage().toCore();
     String bridgeId = config.id();
 
-    Map<String, byte[]> headers = Headers.convertHeaders(coreMessage, bridgeId, true);
+    Map<String, byte[]> headers = Headers.convertHeaders(coreMessage, bridgeId, false);
     byte[] key = extractKey(headers);
     byte[] value = extractValue(coreMessage);
     ProducerRecord<byte[], byte[]> record = new ProducerRecord<>(

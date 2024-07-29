@@ -120,11 +120,13 @@ public class KafkaExchangeEgress implements MessageReciever<byte[], byte[]> {
         true);
     jmsHeaders.forEach(coreMessage::putObjectProperty);
 
-    if (msgType == KExMessageType.BYTES) {
-      coreMessage.getBodyBuffer().writeBytes(kafkaRecord.value());
-    } else if (msgType == KExMessageType.TEXT) {
-      String value = STRING_DESERIALIZER.deserialize("", kafkaRecord.value());
-      coreMessage.getBodyBuffer().writeNullableSimpleString(new SimpleString(value));
+    if (kafkaRecord.value() != null) {
+      if (msgType == KExMessageType.BYTES) {
+        coreMessage.getBodyBuffer().writeBytes(kafkaRecord.value());
+      } else if (msgType == KExMessageType.TEXT) {
+        String value = STRING_DESERIALIZER.deserialize("", kafkaRecord.value());
+        coreMessage.getBodyBuffer().writeNullableSimpleString(new SimpleString(value));
+      }
     }
 
     try {

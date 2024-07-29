@@ -198,6 +198,7 @@ public class KafkaContainerHelper {
             records.forEach(cr -> {
               lastOffset.put(new TopicPartition(cr.topic(), cr.partition()), cr.offset());
               receivedRecords.add(cr);
+              LOGGER.info("Found record with payload: {}",cr.value());
             });
             lag.set(endOffsets.entrySet()
                 .stream()

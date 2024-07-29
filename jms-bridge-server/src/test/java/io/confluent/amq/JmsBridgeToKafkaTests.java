@@ -189,7 +189,6 @@ public class JmsBridgeToKafkaTests extends AbstractContainerTest {
         }
     }
 
-    @Disabled("Fails in CI for some reason")
     @Test
     public void testSingleMessageForJmsAndKafka_OriginJms() throws Exception {
         String kafkaCustomerTopic = adminHelper.safeCreateTopic("customer-topic", 1);
@@ -233,8 +232,8 @@ public class JmsBridgeToKafkaTests extends AbstractContainerTest {
                 Message jmsMessage = consumer.receive(1000);
                 Message jmsMessage2 = consumer.receive(1000);
 
-                assertNull(jmsMessage2);
                 assertNotNull(jmsMessage);
+                assertNull(jmsMessage2);
                 assertEquals(messagePayload, jmsMessage.getBody(String.class));
 
                 producerHelper.publish(kafkaCustomerTopic, "key", messagePayload);

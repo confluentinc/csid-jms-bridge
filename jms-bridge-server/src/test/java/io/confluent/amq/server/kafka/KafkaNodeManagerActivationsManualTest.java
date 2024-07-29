@@ -26,8 +26,8 @@ public class KafkaNodeManagerActivationsManualTest {
      * Manually executed test - to be used for testing failover and failback scenarios with abrupt live node crashes in conjunction with {@link KafkaNodeManagerActivationsTest#testLiveToBackupFailoverAndFailbackWithAbruptLiveCrashes}
      * Make sure to update bootsrap server config below in HaConfig to match Kafka endpoint exposed by Kafka Container that testLiveToBackupFailoverAndFailbackWithAbruptLiveCrashes stands up.
      */
-    @Test
-    @Disabled
+    //@Test
+    //@Disabled
     public void testFailoverAndFailbackWithAbruptLiveCrashing() throws Exception {
         UUID liveUUID = new UUID(UUID.TYPE_NAME_BASED, UUID.stringToBytes("8cdb294c-2355-11ef-97fc-bed413035aef"));
         HaConfig haConfig = new HaConfig.Builder()

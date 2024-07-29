@@ -330,7 +330,7 @@ public final class Headers {
             .name("SerializeJMSHeaders")
             .event("FailedToSerializeHeader")
             .addAmqMessage(message)
-            .putTokens("headerKey", k), new Exception("TRACE"));
+            .putTokens("headerKey", k));
       }
     });
 

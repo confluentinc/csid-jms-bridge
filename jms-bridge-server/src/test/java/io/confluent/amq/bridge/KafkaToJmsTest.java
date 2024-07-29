@@ -12,6 +12,7 @@ import io.confluent.amq.test.AbstractContainerTest;
 import io.confluent.amq.test.ArtemisTestServer;
 import io.confluent.amq.test.KafkaContainerHelper;
 import io.confluent.amq.test.TestSupport;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.serialization.ByteArrayDeserializer;
@@ -38,6 +39,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SuppressFBWarnings("MS_SHOULD_BE_FINAL")
+@Slf4j
 public class KafkaToJmsTest extends AbstractContainerTest {
 
   @TempDir
@@ -152,13 +154,23 @@ public class KafkaToJmsTest extends AbstractContainerTest {
   }
 
   @Test
-  @Disabled("Succeeds when ran outside of suite. Needs additional isolation.")
   public void testConsumerReceivesJmsOriginatedKafkaMessage() throws Exception {
     String herringTopic = adminHelper.safeCreateTopic("herring-events", 3);
     amqServer.confluentAmqServer().getKafkaExchangeManager().synchronizeTopics();
 
     String herringAddress = "test." + herringTopic;
     amqServer.assertAddressAvailable(herringAddress);
+
+
+
+    boolean kafkaTopicFound = amqServer.confluentAmqServer().getKafkaExchangeManager().getAllTopicExchanges().stream()
+            .map(te -> te.kafkaTopicName())
+                    .filter(herringTopic::equals)
+                            .findFirst()
+                                    .isPresent();
+    if(!kafkaTopicFound) {
+      log.trace("kafka topic {} is not mapped!", herringTopic);
+    }
     consumerHelper.consumeBegin(herringTopic);
 
     try (Session session = amqServer.getConnection()
