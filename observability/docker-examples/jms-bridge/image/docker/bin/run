@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+
+#
+# Copyright 2021 Confluent Inc.
+#
+# Licensed under the Confluent Community License (the "License"); you may not use
+# this file except in compliance with the License.  You may obtain a copy of the
+# License at
+#
+# http://www.confluent.io/confluent-community-license
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OF ANY KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations under the License.
+#
+
+
+echo "===> Configuring jms-bridge ..."
+dub template "/etc/jms-bridge/jms-bridge.properties.template" "/etc/jms-bridge/jms-bridge.properties"
+
+echo "===> Configuring logging ..."
+dub template "/etc/jms-bridge/logback.xml.template" "/etc/jms-bridge/logback.xml"
+
+#check for broker xml in env
+echo "===> Analyzing BROKER_XML environment variable"
+if [ "z${BROKER_XML}" == "z" ]; then
+  echo "======> BROKER_XML not set will use default"
+
+  # Use default broker.xml
+  _brokerxml=/etc/jms-bridge/broker.xml
+else
+  if [ -f "${BROKER_XML}" ]; then
+    _brokerxml="${BROKER_XML}"
+  elif [ -f "/etc/jms-bridge/${BROKER_XML}" ]; then
+    _brokerxml="/etc/jms-bridge/${BROKER_XML}"
+  else
+    echo "======> Assuming BROKER_XML value is the XML, creating broker.xml from it."
+
+    if [ -f /etc/jms-bridge/env-broker.xml ]; then
+      echo "======> Skipping creation since /etc/jms-bridge/env-broker.xml already exists"
+    else
+      echo "${BROKER_XML}" > /etc/jms-bridge/env-broker.xml
+    fi
+    _brokerxml=/etc/jms-bridge/env-broker.xml
+  fi
+fi
+
+echo "======> Using broker.xml at ${_brokerxml}"
+
+#Check for prometheus enablement
+case ${PROMETHEUS_ENABLED} in
+  "y" | "Y" | "1" | "t" | "T")
+    _prometheus_enabled=1
+    ;;
+  *)
+    _prometheus_enabled=0
+    ;;
+esac
+if [ $_prometheus_enabled == 1 ]; then
+  _prometheus_port="${PROMETHEUS_PORT:-8080}"
+  _prometheus_conf="${PROMETHEUS_CONF:-/etc/jms-bridge/jmx-prometheus-config.yml}"
+  _prometheus_jar="/usr/share/java/jmx_prometheus_agent/jmx_prometheus_javaagent-0.15.0.jar"
+
+  echo "Prometheus jmx agent enabled, port: ${_prometheus_port}, conf: ${_prometheus_conf}"
+
+  export JMS_BRIDGE_OPTS="-javaagent:${_prometheus_jar}=${_prometheus_port}:${_prometheus_conf}"
+fi
+
+
+
+echo "===> Launching jms-bridge ..."
+/usr/bin/jms-bridge-server-start --broker-xml=file://${_brokerxml} /etc/jms-bridge/jms-bridge.properties
