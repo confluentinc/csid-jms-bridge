@@ -8,6 +8,7 @@
     "build": "astro build",
     "preview": "astro preview",
     "format": "prettier --write .",
+    "gh-pages": "astro build && rm -rf ../docs/* && mv ./dist/* ../docs/ && mv ./dist/.nojekyll ../docs/",
     "lint": "astro check",
     "astro": "astro"
   },
