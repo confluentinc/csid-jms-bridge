@@ -1,3 +1,0 @@
-User-agent: *
-Allow: /
-Sitemap: https://didactic-dollop-j819mr3.pages.github.io/sitemap-index.xml
