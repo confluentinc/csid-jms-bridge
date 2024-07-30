@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width">
     <link rel="icon" type="image/x-icon" href="https://didactic-dollop-j819mr3.pages.github.io/favicon.svg">
-    <meta name="generator" content="Astro v2.1.5">
+    <meta name="generator" content="Astro v2.10.15">
     <script>
       if (
         localStorage.theme === 'dark' ||
@@ -20,7 +20,7 @@
       [x-cloak] { display: none !important; }
     </style>
     
-    <link rel="stylesheet" href="/astro/404.77eb0992.css" /><script type="module" src="/astro/page.0fc6666a.js"></script></head>
+    <link rel="stylesheet" href="/astro/404.c0e3bd7d.css" /><script type="module" src="/astro/page.e0da8779.js"></script></head>
     <body class="dark:bg-gray-900">
       
       <div class="relative h-16 w-full">
@@ -216,7 +216,8 @@
     </div>
   </nav>
 </div>
-      <main class="relative mx-auto flex max-w-8xl justify-center sm:px-2 lg:px-8 xl:px-12 bg-white dark:bg-slate-900">
+      
+  <main class="relative mx-auto flex max-w-8xl justify-center sm:px-2 lg:px-8 xl:px-12 bg-white dark:bg-slate-900">
     <aside id="grid-left" class="grid-sidebar flex" title="Site Navigation">
       <div class="hidden lg:sticky lg:top-16 lg:-ml-6 lg:block lg:h-[calc(100vh-4rem)] lg:flex-none lg:overflow-y-auto lg:py-16 lg:pl-6 bg-sky-50 dark:bg-gray-800">
   <nav aria-labelledby="grid-left" class="text-base lg:text-sm w-64 pr-8 xl:w-72 xl:pr-16">
@@ -366,10 +367,6 @@
             JDK
           </a>
         </li><li class="mt-2 py-1 pl-5 text-gray-500 dark:text-gray-400">
-          <a class="hover:text-sky-600 dark:hover:text-sky-300" href="#os-swappiness">
-            OS Swappiness
-          </a>
-        </li><li class="mt-2 py-1 pl-5 text-gray-500 dark:text-gray-400">
           <a class="hover:text-sky-600 dark:hover:text-sky-300" href="#disable-selinux">
             Disable SELinux
           </a>
@@ -420,8 +417,10 @@
         </li>
 </ol>
     </nav>
-    <section class="prose prose-slate max-w-none dark:prose-invert dark:text-slate-400 prose-headings:scroll-mt-28 prose-headings:font-display prose-headings:font-normal lg:prose-headings:scroll-mt-[8.5rem] prose-lead:text-slate-500 dark:prose-lead:text-slate-400 prose-a:font-semibold dark:prose-a:text-sky-400 prose-a:no-underline prose-a:shadow-[inset_0_-2px_0_0_var(--tw-prose-background,#fff),inset_0_calc(-1*(var(--tw-prose-underline-size,4px)+2px))_0_0_var(--tw-prose-underline,theme(colors.sky.300))] hover:prose-a:[--tw-prose-underline-size:6px] dark:[--tw-prose-background:theme(colors.slate.900)] dark:prose-a:shadow-[inset_0_calc(-1*var(--tw-prose-underline-size,2px))_0_0_var(--tw-prose-underline,theme(colors.sky.800))] dark:hover:prose-a:[--tw-prose-underline-size:6px] prose-pre:rounded-xl prose-pre:bg-slate-900 prose-pre:shadow-lg dark:prose-pre:bg-slate-800/60 dark:prose-pre:shadow-none dark:prose-pre:ring-1 dark:prose-pre:ring-slate-300/10 dark:prose-hr:border-slate-800">
-          <p>This guide provides instructions for installing the JMS Bridge, including The JMS Bridge, and the Confluent Platform.</p>
+    
+        <section class="prose prose-slate max-w-none dark:prose-invert dark:text-slate-400 prose-headings:scroll-mt-28 prose-headings:font-display prose-headings:font-normal lg:prose-headings:scroll-mt-[8.5rem] prose-lead:text-slate-500 dark:prose-lead:text-slate-400 prose-a:font-semibold dark:prose-a:text-sky-400 prose-a:no-underline prose-a:shadow-[inset_0_-2px_0_0_var(--tw-prose-background,#fff),inset_0_calc(-1*(var(--tw-prose-underline-size,4px)+2px))_0_0_var(--tw-prose-underline,theme(colors.sky.300))] hover:prose-a:[--tw-prose-underline-size:6px] dark:[--tw-prose-background:theme(colors.slate.900)] dark:prose-a:shadow-[inset_0_calc(-1*var(--tw-prose-underline-size,2px))_0_0_var(--tw-prose-underline,theme(colors.sky.800))] dark:hover:prose-a:[--tw-prose-underline-size:6px] prose-pre:rounded-xl prose-pre:bg-slate-900 prose-pre:shadow-lg dark:prose-pre:bg-slate-800/60 dark:prose-pre:shadow-none dark:prose-pre:ring-1 dark:prose-pre:ring-slate-300/10 dark:prose-hr:border-slate-800">
+          
+  <p>This guide provides instructions for installing the JMS Bridge, including The JMS Bridge, and the Confluent Platform.</p>
 <p>For non-production enviroments (such as testing and proof-of-concept use cases), see The <a href="http://wwww.google.com">quickstart guide</a> for limited installation procedures.</p>
 <p>This guide includes the following sections:</p>
 <ul>
@@ -430,7 +429,7 @@
 <li><a href="uninstall">Uninstalling the JMS Bridge</a></li>
 </ul>
 <h2 id="system-requirements">System Requirements</h2>
-<p>Before you install the JMS Bridg:</p>
+<p>Before you install the JMS Bridge:</p>
 <ul>
 <li>Review the JMS Bridge Requirements and supported OS Versions.</li>
 <li>Review the JMS Bridge Release Notes.</li>
@@ -485,13 +484,13 @@
 <li>macOS 10.13 and later is supported for testing and development purposes only.</li>
 </ul>
 <h2 id="before-you-install">Before you Install</h2>
-<p>Before you install the JMS Bridg:</p>
+<p>Before you install the JMS Bridge:</p>
 <ul>
 <li>Review the JMS Bridge Requirements and supported OS Versions.</li>
 <li>Review the JMS Bridge Release Notes.</li>
 </ul>
 <h3 id="active-confluent-cluster">Active Confluent Cluster</h3>
-<p>‘ToDo’</p>
+<p>Please refer to confluent platform documentation <a href="https://docs.confluent.io/platform/current/multi-dc-deployments/multi-region-architectures.html#:~:text=A%202%2B%2Dcluster%20active,failover%20to%20the%20other%20cluster.">Active Active Cluster</a></p>
 <h3 id="jdk">JDK</h3>
 <p>The JMS Bridge Requires the use of a supported JDK to operate. Current supported JDK Versions include:</p>
 
@@ -508,10 +507,6 @@
 
 
 <table><thead><tr><th>Component</th><th align="center">Version</th></tr></thead><tbody><tr><td>Oracle JDK</td><td align="center">1.8 or greater</td></tr></tbody></table>
-<h3 id="os-swappiness">OS Swappiness</h3>
-<ul>
-<li>Talk with John about this..</li>
-</ul>
 <h4 id="installing-customer-provided-jdk">Installing customer provided JDK</h4>
 <blockquote>
 <p>Note: A Java optimization called compressed oops (ordinary object pointers) enables a 64-bit JVM to address heap sizes up to about 32 GB using 4-byte pointers. For larger heap sizes, 8-byte pointers are required. This means that a heap size slightly less than 32 GB can hold more objects than a heap size slightly more than 32 GB.</p>
@@ -527,15 +522,15 @@
 </li>
 <li>
 <p>Extract the JDK to <code>/usr/java/jdk-version</code>. For Example:</p>
-<pre is:raw="" class="astro-code" style="background-color: #ffffff; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;"><code><span class="line"><span style="color: #24292F">$ tar xvfz /path/to/jdk-8u</span><span style="color: #CF222E">&#x3C;</span><span style="color: #24292F">update_version</span><span style="color: #CF222E">></span><span style="color: #24292F">-linux-x64.tar.gz -C /usr/java/</span></span></code></pre>
+<pre is:raw="" class="astro-code github-light" style="background-color: #fff; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0"><code><span class="line"><span style="color: #6F42C1">$</span><span style="color: #24292E"> </span><span style="color: #032F62">tar</span><span style="color: #24292E"> </span><span style="color: #032F62">xvfz</span><span style="color: #24292E"> </span><span style="color: #032F62">/path/to/jdk-8u</span><span style="color: #D73A49">&#x3C;</span><span style="color: #032F62">update_versio</span><span style="color: #24292E">n</span><span style="color: #D73A49">></span><span style="color: #032F62">-linux-x64.tar.gz</span><span style="color: #24292E"> </span><span style="color: #005CC5">-C</span><span style="color: #24292E"> </span><span style="color: #032F62">/usr/java/</span></span></code></pre>
 </li>
 <li>
 <p>Set JAVA_HOME</p>
-<pre is:raw="" class="astro-code" style="background-color: #ffffff; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;"><code><span class="line"><span style="color: #24292F">$ touch </span><span style="color: #CF222E">~</span><span style="color: #24292F">/.profile</span></span>
-<span class="line"><span style="color: #24292F">$ vi </span><span style="color: #CF222E">~</span><span style="color: #24292F">/.profile</span></span>
-<span class="line"><span style="color: #24292F">JAVA_HOME=/usr/java/jdk1.8.0_261.jdk/Contents/Home</span></span>
-<span class="line"><span style="color: #24292F">    </span><span style="color: #CF222E">export</span><span style="color: #24292F"> JAVA_HOME</span><span style="color: #CF222E">;</span></span>
-<span class="line"><span style="color: #24292F">    $JAVA_HOME/bin/java -version</span></span></code></pre>
+<pre is:raw="" class="astro-code github-light" style="background-color: #fff; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0"><code><span class="line"><span style="color: #6F42C1">$</span><span style="color: #24292E"> </span><span style="color: #032F62">touch</span><span style="color: #24292E"> </span><span style="color: #032F62">~/.profile</span></span>
+<span class="line"><span style="color: #6F42C1">$</span><span style="color: #24292E"> </span><span style="color: #032F62">vi</span><span style="color: #24292E"> </span><span style="color: #032F62">~/.profile</span></span>
+<span class="line"><span style="color: #24292E">JAVA_HOME</span><span style="color: #D73A49">=</span><span style="color: #032F62">/usr/java/jdk1.8.0_261.jdk/Contents/Home</span></span>
+<span class="line"><span style="color: #24292E">    </span><span style="color: #D73A49">export</span><span style="color: #24292E"> </span><span style="color: #032F62">JAVA_HOME</span><span style="color: #24292E">;</span></span>
+<span class="line"><span style="color: #24292E">    $JAVA_HOME/bin/java </span><span style="color: #005CC5">-version</span></span></code></pre>
 </li>
 </ol>
 <h3 id="disable-selinux">Disable SELinux</h3>
@@ -543,14 +538,14 @@
 <p>To set the SELinux mode, perform the following steps on each host.</p>
 <ol>
 <li>Check the SELinux state:
-<pre is:raw="" class="astro-code" style="background-color: #ffffff; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;"><code><span class="line"><span style="color: #24292F">$ getenforce</span></span></code></pre>
+<pre is:raw="" class="astro-code github-light" style="background-color: #fff; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0"><code><span class="line"><span style="color: #6F42C1">$</span><span style="color: #24292E"> </span><span style="color: #032F62">getenforce</span></span></code></pre>
 </li>
 <li>If the output is either ‘Permissive’ or ‘Disabled’, you can skip this task and continue on to Disabling the Firewall. If the output is enforcing, continue to the next step.</li>
 <li>Open the ‘/etc/selinux/config’ file (in some systems, the ‘/etc/sysconfig/selinux’ file).</li>
 <li>Change the line ‘SELINUX=enforcing’ to ‘SELINUX=permissive’.</li>
 <li>Save and close the file.</li>
 <li>Restart your system or run the following command to disable SELinux immediately:
-<pre is:raw="" class="astro-code" style="background-color: #ffffff; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;"><code><span class="line"><span style="color: #24292F">$ setenforce 0</span></span></code></pre>
+<pre is:raw="" class="astro-code github-light" style="background-color: #fff; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0"><code><span class="line"><span style="color: #6F42C1">$</span><span style="color: #24292E"> </span><span style="color: #032F62">setenforce</span><span style="color: #24292E"> </span><span style="color: #005CC5">0</span></span></code></pre>
 </li>
 </ol>
 <h3 id="disable-selinux-1">Disable SELinux</h3>
@@ -558,8 +553,8 @@
 <p>To disable Transparent Hugepages, perform the following steps:</p>
 <ol>
 <li>To disable transparent hugepages on reboot, add the following commands to the /etc/rc.d/rc.local file on the host:
-<pre is:raw="" class="astro-code" style="background-color: #ffffff; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;"><code><span class="line"><span style="color: #0550AE">echo</span><span style="color: #24292F"> never </span><span style="color: #CF222E">></span><span style="color: #24292F"> /sys/kernel/mm/transparent_hugepage/enabled</span></span>
-<span class="line"><span style="color: #0550AE">echo</span><span style="color: #24292F"> never </span><span style="color: #CF222E">></span><span style="color: #24292F"> /sys/kernel/mm/transparent_hugepage/defrag</span></span></code></pre>
+<pre is:raw="" class="astro-code github-light" style="background-color: #fff; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0"><code><span class="line"><span style="color: #005CC5">echo</span><span style="color: #24292E"> </span><span style="color: #032F62">never</span><span style="color: #24292E"> </span><span style="color: #D73A49">></span><span style="color: #24292E"> </span><span style="color: #032F62">/sys/kernel/mm/transparent_hugepage/enabled</span></span>
+<span class="line"><span style="color: #005CC5">echo</span><span style="color: #24292E"> </span><span style="color: #032F62">never</span><span style="color: #24292E"> </span><span style="color: #D73A49">></span><span style="color: #24292E"> </span><span style="color: #032F62">/sys/kernel/mm/transparent_hugepage/defrag</span></span></code></pre>
 </li>
 </ol>
 <h3 id="required-ports">Required Ports</h3>
@@ -574,39 +569,39 @@
 <ol>
 <li>
 <p>Set the hostname to a unique name (not localhost).</p>
-<pre is:raw="" class="astro-code" style="background-color: #ffffff; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;"><code><span class="line"><span style="color: #24292F">$ sudo hostnamectl set-hostname foo-1.example.com</span></span></code></pre>
+<pre is:raw="" class="astro-code github-light" style="background-color: #fff; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0"><code><span class="line"><span style="color: #6F42C1">$</span><span style="color: #24292E"> </span><span style="color: #032F62">sudo</span><span style="color: #24292E"> </span><span style="color: #032F62">hostnamectl</span><span style="color: #24292E"> </span><span style="color: #032F62">set-hostname</span><span style="color: #24292E"> </span><span style="color: #032F62">foo-1.example.com</span></span></code></pre>
 </li>
 <li>
 <p>Edit /etc/hosts with the IP address and fully qualified domain name (FQDN) of each host in the cluster. You can add the unqualified name as well.</p>
-<pre is:raw="" class="astro-code" style="background-color: #ffffff; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;"><code><span class="line"><span style="color: #24292F">1.1.1.1  foo-1.example.com  foo-1</span></span>
-<span class="line"><span style="color: #24292F">2.2.2.2  foo-2.example.com  foo-2</span></span>
-<span class="line"><span style="color: #24292F">3.3.3.3  foo-3.example.com  foo-3</span></span>
-<span class="line"><span style="color: #24292F">4.4.4.4  foo-4.example.com  foo-4</span></span></code></pre>
+<pre is:raw="" class="astro-code github-light" style="background-color: #fff; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0"><code><span class="line"><span style="color: #6F42C1">1.1.1.1</span><span style="color: #24292E">  </span><span style="color: #032F62">foo-1.example.com</span><span style="color: #24292E">  </span><span style="color: #032F62">foo-1</span></span>
+<span class="line"><span style="color: #6F42C1">2.2.2.2</span><span style="color: #24292E">  </span><span style="color: #032F62">foo-2.example.com</span><span style="color: #24292E">  </span><span style="color: #032F62">foo-2</span></span>
+<span class="line"><span style="color: #6F42C1">3.3.3.3</span><span style="color: #24292E">  </span><span style="color: #032F62">foo-3.example.com</span><span style="color: #24292E">  </span><span style="color: #032F62">foo-3</span></span>
+<span class="line"><span style="color: #6F42C1">4.4.4.4</span><span style="color: #24292E">  </span><span style="color: #032F62">foo-4.example.com</span><span style="color: #24292E">  </span><span style="color: #032F62">foo-4</span></span></code></pre>
 </li>
 <li>
 <p>Edit ‘/etc/sysconfig/network’ with the FQDN of this host only:</p>
-<pre is:raw="" class="astro-code" style="background-color: #ffffff; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;"><code><span class="line"><span style="color: #24292F">HOSTNAME=foo-1.example.com</span></span></code></pre>
+<pre is:raw="" class="astro-code github-light" style="background-color: #fff; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0"><code><span class="line"><span style="color: #24292E">HOSTNAME</span><span style="color: #D73A49">=</span><span style="color: #032F62">foo-1.example.com</span></span></code></pre>
 </li>
 <li>
 <p>Verify that each host consistently identifies to the network:</p>
 <ol>
 <li>
 <p>Run ‘uname -a’ and check that the hostname matches the output of the hostname command.</p>
-<pre is:raw="" class="astro-code" style="background-color: #ffffff; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;"><code><span class="line"><span style="color: #24292F">HOSTNAME=foo-1.example.com</span></span></code></pre>
+<pre is:raw="" class="astro-code github-light" style="background-color: #fff; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0"><code><span class="line"><span style="color: #24292E">HOSTNAME</span><span style="color: #D73A49">=</span><span style="color: #032F62">foo-1.example.com</span></span></code></pre>
 </li>
 <li>
 <p>Run /sbin/ifconfig and note the value of inet addr in the eth0 (or bond0) entry, for example:</p>
-<pre is:raw="" class="astro-code" style="background-color: #ffffff; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;"><code><span class="line"><span style="color: #24292F">eth0      Link encap:Ethernet  HWaddr 00:0C:29:A4:E8:97</span></span>
-<span class="line"><span style="color: #24292F">          inet addr:172.29.82.176  Bcast:172.29.87.255  Mask:255.255.248.0</span></span>
-<span class="line"><span style="color: #24292F">...</span></span></code></pre>
+<pre is:raw="" class="astro-code github-light" style="background-color: #fff; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0"><code><span class="line"><span style="color: #6F42C1">eth0</span><span style="color: #24292E">      </span><span style="color: #032F62">Link</span><span style="color: #24292E"> </span><span style="color: #032F62">encap:Ethernet</span><span style="color: #24292E">  </span><span style="color: #032F62">HWaddr</span><span style="color: #24292E"> </span><span style="color: #005CC5">00</span><span style="color: #032F62">:0C:29:A4:E8:97</span></span>
+<span class="line"><span style="color: #24292E">          </span><span style="color: #6F42C1">inet</span><span style="color: #24292E"> </span><span style="color: #032F62">addr:172.29.82.176</span><span style="color: #24292E">  </span><span style="color: #032F62">Bcast:172.29.87.255</span><span style="color: #24292E">  </span><span style="color: #032F62">Mask:255.255.248.0</span></span>
+<span class="line"><span style="color: #005CC5">...</span></span></code></pre>
 </li>
 <li>
 <p>Run ‘host -v -t A $(hostname)’ and verify that the output matches the hostname command.
 The IP address should be the same as reported by ifconfig for eth0 (or bond0):</p>
-<pre is:raw="" class="astro-code" style="background-color: #ffffff; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;"><code><span class="line"><span style="color: #24292F">Trying </span><span style="color: #0A3069">"foo-1.example.com"</span></span>
-<span class="line"><span style="color: #24292F">...</span></span>
-<span class="line"><span style="color: #CF222E">;;</span><span style="color: #24292F"> ANSWER SECTION:</span></span>
-<span class="line"><span style="color: #24292F">foo-1.example.com. 60 IN	A	172.29.82.176</span></span></code></pre>
+<pre is:raw="" class="astro-code github-light" style="background-color: #fff; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0"><code><span class="line"><span style="color: #6F42C1">Trying</span><span style="color: #24292E"> </span><span style="color: #032F62">"foo-1.example.com"</span></span>
+<span class="line"><span style="color: #005CC5">...</span></span>
+<span class="line"><span style="color: #24292E">;; </span><span style="color: #6F42C1">ANSWER</span><span style="color: #24292E"> </span><span style="color: #032F62">SECTION:</span></span>
+<span class="line"><span style="color: #6F42C1">foo-1.example.com.</span><span style="color: #24292E"> </span><span style="color: #005CC5">60</span><span style="color: #24292E"> </span><span style="color: #032F62">IN</span><span style="color: #24292E">	</span><span style="color: #032F62">A</span><span style="color: #24292E">	</span><span style="color: #005CC5">172.29</span><span style="color: #032F62">.82.176</span></span></code></pre>
 </li>
 </ol>
 </li>
@@ -615,32 +610,32 @@ The IP address should be the same as reported by ifconfig for eth0 (or bond0):</
 <h3 id="obtaining-a-copy-of-the-jms-bridge">Obtaining a copy of the JMS Bridge</h3>
 <p>To obtain a copy of the JMS-Bridge, please contact your Account Executive or Confluent Support.</p>
 <h3 id="unzip-the-jms-bridge-archive">Unzip the JMS Bridge Archive</h3>
-<pre is:raw="" class="astro-code" style="background-color: #ffffff; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;"><code><span class="line"><span style="color: #24292f">    ```shell</span></span>
-<span class="line"><span style="color: #24292f">    cd /usr/local</span></span>
-<span class="line"><span style="color: #24292f">    unzip jms-bridge-1.0.0-M1.zip</span></span>
-<span class="line"><span style="color: #24292f">     ```</span></span></code></pre>
+<pre is:raw="" class="astro-code github-light" style="background-color: #fff; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0"><code><span class="line"><span style="color: #24292e">    ```shell</span></span>
+<span class="line"><span style="color: #24292e">    cd /usr/local</span></span>
+<span class="line"><span style="color: #24292e">    unzip jms-bridge-1.0.0-M1.zip</span></span>
+<span class="line"><span style="color: #24292e">     ```</span></span></code></pre>
 <h4 id="place-archive-in-your-organizations-preffered-deployment-directory">Place Archive in your organizations preffered deployment directory.</h4>
 <p><code>The recommended location for instation is '/opt' or '/usr/local' depending on the use of a service user account for installation.</code></p>
-<pre is:raw="" class="astro-code" style="background-color: #ffffff; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;"><code><span class="line"><span style="color: #0550AE">cd</span><span style="color: #24292F"> /usr/local</span></span>
-<span class="line"><span style="color: #24292F">unzip jms-bridge-1.0.0-M1.zip</span></span></code></pre>
+<pre is:raw="" class="astro-code github-light" style="background-color: #fff; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0"><code><span class="line"><span style="color: #005CC5">cd</span><span style="color: #24292E"> </span><span style="color: #032F62">/usr/local</span></span>
+<span class="line"><span style="color: #6F42C1">unzip</span><span style="color: #24292E"> </span><span style="color: #032F62">jms-bridge-1.0.0-M1.zip</span></span></code></pre>
 <h4 id="update-the-broker-directory-permissions">Update the broker directory permissions</h4>
 <p>In order to execute, the JMS bridge directory permissions must be modified. It is highly recommended to never use ‘777’ when deploying in a production environment.</p>
-<pre is:raw="" class="astro-code" style="background-color: #ffffff; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;"><code><span class="line"><span style="color: #24292F">chmod -R a=rx,u+w bin/</span></span>
-<span class="line"><span style="color: #24292F">chmod -R a=r,u+w etc/ share/</span></span></code></pre>
+<pre is:raw="" class="astro-code github-light" style="background-color: #fff; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0"><code><span class="line"><span style="color: #6F42C1">chmod</span><span style="color: #24292E"> </span><span style="color: #005CC5">-R</span><span style="color: #24292E"> </span><span style="color: #032F62">a=rx,u+w</span><span style="color: #24292E"> </span><span style="color: #032F62">bin/</span></span>
+<span class="line"><span style="color: #6F42C1">chmod</span><span style="color: #24292E"> </span><span style="color: #005CC5">-R</span><span style="color: #24292E"> </span><span style="color: #032F62">a=r,u+w</span><span style="color: #24292E"> </span><span style="color: #032F62">etc/</span><span style="color: #24292E"> </span><span style="color: #032F62">share/</span></span></code></pre>
 <h3 id="the-jms-bridge-is-now-ready-to">The JMS bridge is now ready to</h3>
 <h4 id="starting">Starting</h4>
 <p>To start the JMS-Bridge there is the <code>jms-bridge-server-start</code> script that can be called.
 One argument is required and that is the path to the etc/jms-bridge.properties file, this is a <a href="https://github.com/confluentinc/csid-jms-bridge/tree/master/config/quick-start-kafka-request-reply.properties">template</a> directory.</p>
-<pre is:raw="" class="astro-code" style="background-color: #ffffff; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;"><code><span class="line"><span style="color: #24292F">bin/jms-bridge-server-start etc/jms-bridge/jms-bridge.properties</span></span></code></pre>
+<pre is:raw="" class="astro-code github-light" style="background-color: #fff; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0"><code><span class="line"><span style="color: #6F42C1">bin/jms-bridge-server-start</span><span style="color: #24292E"> </span><span style="color: #032F62">etc/jms-bridge/jms-bridge.properties</span></span></code></pre>
 <p>By default it will run in the foreground and can be killed with <code>^C</code>.
 Alternatively you can start it in the background using the <code>-daemon</code> option.</p>
-<pre is:raw="" class="astro-code" style="background-color: #ffffff; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;"><code><span class="line"><span style="color: #24292F">bin/jms-bridge-server-start -daemon etc/jms-bridge/jms-bridge.properties</span></span></code></pre>
+<pre is:raw="" class="astro-code github-light" style="background-color: #fff; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0"><code><span class="line"><span style="color: #6F42C1">bin/jms-bridge-server-start</span><span style="color: #24292E"> </span><span style="color: #005CC5">-daemon</span><span style="color: #24292E"> </span><span style="color: #032F62">etc/jms-bridge/jms-bridge.properties</span></span></code></pre>
 <p>As a companion to the <code>jms-bridge-server-start</code> script there is a <code>jms-bridge-server-stop</code> script which can be used to stop the JMS-Bridge.</p>
-<pre is:raw="" class="astro-code" style="background-color: #ffffff; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;"><code><span class="line"><span style="color: #24292F">bin/jms-bridge-server-stop</span></span></code></pre>
-<pre is:raw="" class="astro-code" style="background-color: #ffffff; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;"><code><span class="line"><span style="color: #24292F">    Default location of runtime files of interest:</span></span>
+<pre is:raw="" class="astro-code github-light" style="background-color: #fff; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0"><code><span class="line"><span style="color: #6F42C1">bin/jms-bridge-server-stop</span></span></code></pre>
+<pre is:raw="" class="astro-code github-light" style="background-color: #fff; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0"><code><span class="line"><span style="color: #24292E">    Default location of runtime files of interest:</span></span>
 <span class="line"></span>
-<span class="line"><span style="color: #24292F">     * Log files  -> `./logs`</span></span>
-<span class="line"><span style="color: #24292F">     * Data files -> `./data`</span></span></code></pre>
+<span class="line"><span style="color: #24292E">     * Log files  -> `./logs`</span></span>
+<span class="line"><span style="color: #24292E">     * Data files -> `./data`</span></span></code></pre>
 <h5 id="systemd">Systemd</h5>
 <p>It is possible to run it via systemd but I leave that as an exercise for the reader for now.</p>
 <h2 id="configuration-options">Configuration Options</h2>
@@ -662,62 +657,60 @@ When a node forms a cluster connection to another node, internally it creates a 
 <p>Clustering for the JMS-Bridge was tested by explicitly setting host connections. This can only be done using a static list of connectors and is configured as follows:</p>
 <ol>
 <li>Define ‘cluster-connections’:
-<pre is:raw="" class="astro-code" style="background-color: #ffffff; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;"><code><span class="line"><span style="color: #24292F">&#x3C;</span><span style="color: #116329">cluster-connection</span><span style="color: #24292F"> </span><span style="color: #0550AE">name</span><span style="color: #24292F">=</span><span style="color: #0A3069">"my-cluster"</span><span style="color: #24292F">></span></span>
-<span class="line"><span style="color: #24292F">    &#x3C;</span><span style="color: #116329">address</span><span style="color: #24292F">>jms&#x3C;/</span><span style="color: #116329">address</span><span style="color: #24292F">></span></span>
-<span class="line"><span style="color: #24292F">    &#x3C;</span><span style="color: #116329">connector-ref</span><span style="color: #24292F">>netty-connector&#x3C;/</span><span style="color: #116329">connector-ref</span><span style="color: #24292F">></span></span>
-<span class="line"><span style="color: #24292F">    &#x3C;</span><span style="color: #116329">retry-interval</span><span style="color: #24292F">>500&#x3C;/</span><span style="color: #116329">retry-interval</span><span style="color: #24292F">></span></span>
-<span class="line"><span style="color: #24292F">    &#x3C;</span><span style="color: #116329">use-duplicate-detection</span><span style="color: #24292F">>true&#x3C;/</span><span style="color: #116329">use-duplicate-detection</span><span style="color: #24292F">></span></span>
-<span class="line"><span style="color: #24292F">    &#x3C;</span><span style="color: #116329">message-load-balancing</span><span style="color: #24292F">>STRICT&#x3C;/</span><span style="color: #116329">message-load-balancing</span><span style="color: #24292F">></span></span>
-<span class="line"><span style="color: #24292F">    &#x3C;</span><span style="color: #116329">max-hops</span><span style="color: #24292F">>1&#x3C;/</span><span style="color: #116329">max-hops</span><span style="color: #24292F">></span></span>
-<span class="line"><span style="color: #24292F">    &#x3C;</span><span style="color: #116329">static-connectors</span><span style="color: #24292F"> </span><span style="color: #0550AE">allow-direct-connections-only</span><span style="color: #24292F">=</span><span style="color: #0A3069">"true"</span><span style="color: #24292F">></span></span>
-<span class="line"><span style="color: #24292F">    &#x3C;</span><span style="color: #116329">connector-ref</span><span style="color: #24292F">>server1-connector&#x3C;/</span><span style="color: #116329">connector-ref</span><span style="color: #24292F">></span></span>
-<span class="line"><span style="color: #24292F">    &#x3C;/</span><span style="color: #116329">static-connectors</span><span style="color: #24292F">></span></span>
-<span class="line"><span style="color: #24292F">&#x3C;/</span><span style="color: #116329">cluster-connection</span><span style="color: #24292F">></span></span></code></pre>
+<pre is:raw="" class="astro-code github-light" style="background-color: #fff; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0"><code><span class="line"><span style="color: #24292E">&#x3C;</span><span style="color: #22863A">cluster-connection</span><span style="color: #24292E"> </span><span style="color: #6F42C1">name</span><span style="color: #24292E">=</span><span style="color: #032F62">"my-cluster"</span><span style="color: #24292E">></span></span>
+<span class="line"><span style="color: #24292E">    &#x3C;</span><span style="color: #22863A">address</span><span style="color: #24292E">>jms&#x3C;/</span><span style="color: #22863A">address</span><span style="color: #24292E">></span></span>
+<span class="line"><span style="color: #24292E">    &#x3C;</span><span style="color: #22863A">connector-ref</span><span style="color: #24292E">>netty-connector&#x3C;/</span><span style="color: #22863A">connector-ref</span><span style="color: #24292E">></span></span>
+<span class="line"><span style="color: #24292E">    &#x3C;</span><span style="color: #22863A">retry-interval</span><span style="color: #24292E">>500&#x3C;/</span><span style="color: #22863A">retry-interval</span><span style="color: #24292E">></span></span>
+<span class="line"><span style="color: #24292E">    &#x3C;</span><span style="color: #22863A">use-duplicate-detection</span><span style="color: #24292E">>true&#x3C;/</span><span style="color: #22863A">use-duplicate-detection</span><span style="color: #24292E">></span></span>
+<span class="line"><span style="color: #24292E">    &#x3C;</span><span style="color: #22863A">message-load-balancing</span><span style="color: #24292E">>STRICT&#x3C;/</span><span style="color: #22863A">message-load-balancing</span><span style="color: #24292E">></span></span>
+<span class="line"><span style="color: #24292E">    &#x3C;</span><span style="color: #22863A">max-hops</span><span style="color: #24292E">>1&#x3C;/</span><span style="color: #22863A">max-hops</span><span style="color: #24292E">></span></span>
+<span class="line"><span style="color: #24292E">    &#x3C;</span><span style="color: #22863A">static-connectors</span><span style="color: #24292E"> </span><span style="color: #6F42C1">allow-direct-connections-only</span><span style="color: #24292E">=</span><span style="color: #032F62">"true"</span><span style="color: #24292E">></span></span>
+<span class="line"><span style="color: #24292E">    &#x3C;</span><span style="color: #22863A">connector-ref</span><span style="color: #24292E">>server1-connector&#x3C;/</span><span style="color: #22863A">connector-ref</span><span style="color: #24292E">></span></span>
+<span class="line"><span style="color: #24292E">    &#x3C;/</span><span style="color: #22863A">static-connectors</span><span style="color: #24292E">></span></span>
+<span class="line"><span style="color: #24292E">&#x3C;/</span><span style="color: #22863A">cluster-connection</span><span style="color: #24292E">></span></span></code></pre>
 </li>
 <li>Add the new connector defined in the ‘cluster-connection’ node to the connectors xml node.
-<pre is:raw="" class="astro-code" style="background-color: #ffffff; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;"><code><span class="line"><span style="color: #24292F">&#x3C;</span><span style="color: #116329">connectors</span><span style="color: #24292F">></span></span>
-<span class="line"><span style="color: #24292F">  </span><span style="color: #6E7781">&#x3C;!-- Default Connector.  Returned to clients during broadcast and distributed around cluster.  See broadcast and discovery-groups --></span></span>
-<span class="line"><span style="color: #24292F">  &#x3C;</span><span style="color: #116329">connector</span><span style="color: #24292F"> </span><span style="color: #0550AE">name</span><span style="color: #24292F">=</span><span style="color: #0A3069">"activemq"</span><span style="color: #24292F">></span></span>
-<span class="line"><span style="color: #24292F">    tcp://${activemq.remoting.default.host:localhost}:${activemq.remoting.default.port:61616}</span></span>
-<span class="line"><span style="color: #24292F">  &#x3C;/</span><span style="color: #116329">connector</span><span style="color: #24292F">></span></span>
-<span class="line"><span style="color: #24292F">  &#x3C;</span><span style="color: #116329">connector</span><span style="color: #24292F"> </span><span style="color: #0550AE">name</span><span style="color: #24292F">=</span><span style="color: #0A3069">"server1-connector"</span><span style="color: #24292F">>tcp://hostname:61616&#x3C;/</span><span style="color: #116329">connector</span><span style="color: #24292F">></span></span>
-<span class="line"><span style="color: #24292F">&#x3C;/</span><span style="color: #116329">connectors</span><span style="color: #24292F">></span></span></code></pre>
+<pre is:raw="" class="astro-code github-light" style="background-color: #fff; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0"><code><span class="line"><span style="color: #24292E">&#x3C;</span><span style="color: #22863A">connectors</span><span style="color: #24292E">></span></span>
+<span class="line"><span style="color: #24292E">  </span><span style="color: #6A737D">&#x3C;!-- Default Connector.  Returned to clients during broadcast and distributed around cluster.  See broadcast and discovery-groups --></span></span>
+<span class="line"><span style="color: #24292E">  &#x3C;</span><span style="color: #22863A">connector</span><span style="color: #24292E"> </span><span style="color: #6F42C1">name</span><span style="color: #24292E">=</span><span style="color: #032F62">"activemq"</span><span style="color: #24292E">></span></span>
+<span class="line"><span style="color: #24292E">    tcp://${activemq.remoting.default.host:localhost}:${activemq.remoting.default.port:61616}</span></span>
+<span class="line"><span style="color: #24292E">  &#x3C;/</span><span style="color: #22863A">connector</span><span style="color: #24292E">></span></span>
+<span class="line"><span style="color: #24292E">  &#x3C;</span><span style="color: #22863A">connector</span><span style="color: #24292E"> </span><span style="color: #6F42C1">name</span><span style="color: #24292E">=</span><span style="color: #032F62">"server1-connector"</span><span style="color: #24292E">>tcp://hostname:61616&#x3C;/</span><span style="color: #22863A">connector</span><span style="color: #24292E">></span></span>
+<span class="line"><span style="color: #24292E">&#x3C;/</span><span style="color: #22863A">connectors</span><span style="color: #24292E">></span></span></code></pre>
 </li>
 </ol>
 <blockquote>
 <p>Conector names in both the cluster-connections and the connectors node, must match.</p>
 </blockquote>
 <h4 id="high-availability-and-failover">High Availability and Failover</h4>
-<p>The JMS-Bridge allows servers to be linked together as live - backup groups where each live server can have 1 or more backup servers. A backup server is owned by only one live server. Backup servers are not operational until failover occurs, however 1 chosen backup, which will be in passive mode, announces its status and waits to take over the live servers work
+<p>The JMS-Bridge allows servers to be linked together as live - backup groups where each live server can have one or more backup servers. A backup server is owned by only one live server. Backup servers are not operational until failover occurs, however 1 chosen backup, which will be in passive mode, announces its status and waits to take over the live servers work
 Before failover, only the live server is serving the Apache ActiveMQ Artemis clients while the backup servers remain passive or awaiting to become a backup server. When a live server crashes or is brought down in the correct mode, the backup server currently in passive mode will become live and another backup server will become passive. If a live server restarts after a failover then it will have priority and be the next server to become live when the current live server goes down, if the current live server is configured to allow automatic failback then it will detect the live server coming back up and automatically stop.</p>
 <p>Due to the addition of Kafka as a storage mechanism for the JMS Bridge, only one option is currently supported for high availability in contrast to traditional ActiveMQ.</p>
 <p>To configure High Availability, perform the following steps:</p>
 <ol>
 <li>Cluster two or odes together using a telopolgy of the organizations choise. Please note that any topology that uses the redistribution of journals will ot be supported.</li>
 <li>On the ‘master’ node, please set the following configuration. the configurations ‘failover-on-shutdown’
-`xml
-<ha-policy>
-</ha-policy></li>
+<pre is:raw="" class="astro-code github-light" style="background-color: #fff; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0"><code><span class="line"><span style="color: #24292E"> &#x3C;</span><span style="color: #22863A">ha-policy</span><span style="color: #24292E">></span></span>
+<span class="line"><span style="color: #24292E">   &#x3C;</span><span style="color: #22863A">shared-store</span><span style="color: #24292E">></span></span>
+<span class="line"><span style="color: #24292E">     &#x3C;</span><span style="color: #22863A">master</span><span style="color: #24292E">></span></span>
+<span class="line"><span style="color: #24292E">       &#x3C;</span><span style="color: #22863A">failover-on-shutdown</span><span style="color: #24292E">>true&#x3C;/</span><span style="color: #22863A">failover-on-shutdown</span><span style="color: #24292E">></span></span>
+<span class="line"><span style="color: #24292E">     &#x3C;/</span><span style="color: #22863A">master</span><span style="color: #24292E">></span></span>
+<span class="line"><span style="color: #24292E">   &#x3C;/</span><span style="color: #22863A">shared-store</span><span style="color: #24292E">></span></span>
+<span class="line"><span style="color: #24292E"> &#x3C;/</span><span style="color: #22863A">ha-policy</span><span style="color: #24292E">></span></span></code></pre>
+<code>Be aware that if you restart a live server while after failover has occurred then check-for-live-server must be set to true . If not the live server will restart and server the same messages that the backup has already handled causing duplicates.</code> ></li>
+<li>On the ‘slave’ node, define the preferred state of the slave JMS-Bridge Server.
+<pre is:raw="" class="astro-code github-light" style="background-color: #fff; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0"><code><span class="line"><span style="color: #24292E">&#x3C;</span><span style="color: #22863A">ha-policy</span><span style="color: #24292E">></span></span>
+<span class="line"><span style="color: #24292E">  &#x3C;</span><span style="color: #22863A">shared-store</span><span style="color: #24292E">></span></span>
+<span class="line"><span style="color: #24292E">    &#x3C;</span><span style="color: #22863A">slave</span><span style="color: #24292E">></span></span>
+<span class="line"><span style="color: #24292E">      &#x3C;</span><span style="color: #22863A">allow-failback</span><span style="color: #24292E">>true&#x3C;/</span><span style="color: #22863A">allow-failback</span><span style="color: #24292E">></span></span>
+<span class="line"><span style="color: #24292E">    &#x3C;/</span><span style="color: #22863A">slave</span><span style="color: #24292E">></span></span>
+<span class="line"><span style="color: #24292E">  &#x3C;/</span><span style="color: #22863A">shared-store</span><span style="color: #24292E">></span></span>
+<span class="line"><span style="color: #24292E">&#x3C;/</span><span style="color: #22863A">ha-policy</span><span style="color: #24292E">></span></span></code></pre>
+</li>
 </ol>
-  <shared-store>
-    <master>
-      <failover-on-shutdown>true</failover-on-shutdown>
-    </master>
-  </shared-store>
 
-`
-   `Be aware that if you restart a live server while after failover has occurred then check-for-live-server must be set to true . If not the live server will restart and server the same messages that the backup has already handled causing duplicates.` >
-3. On the 'slave' node, define the preffered state of the slave JMS-Bridge Server.
-    ```xml
-    <ha-policy>
-      <shared-store>
-        <slave>
-          <allow-failback>true</allow-failback>
-        </slave>
-      </shared-store>
-    </ha-policy>
-    ```
-        </section><dl class="mt-12 flex border-t border-sky-300 pt-6 dark:border-sky-700">
+        </section>
+        <dl class="mt-12 flex border-t border-sky-300 pt-6 dark:border-sky-700">
   <div class="mr-auto text-left">
         <dt class="font-display text-sm font-medium text-gray-800 dark:text-gray-200">
           Prev
@@ -741,11 +734,14 @@ Before failover, only the live server is serving the Apache ActiveMQ Artemis cli
         </dd>
       </div>
 </dl>
+      
   </section>
   <nav class="block sm:hidden">
-    <h2 id="more-title" class="font-display text-sm font-medium text-gray-900 dark:text-white mt-4 space-y-3">
+    
+      <h2 id="more-title" class="font-display text-sm font-medium text-gray-900 dark:text-white mt-4 space-y-3">
         More
-      </h2><ol role="list" class="mt-4 space-y-3 text-sm flex flex-col">
+      </h2>
+      <ol role="list" class="mt-4 space-y-3 text-sm flex flex-col">
         <li class="py-1 text-gray-500 dark:text-gray-400 flex items-center">
             <svg viewBox="0 0 24 24" class="w-6 h-6 mr-2" astro-icon="heroicons-outline:pencil"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m15.232 5.232 3.536 3.536m-2.036-5.036a2.5 2.5 0 1 1 3.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
             <a class="hover:text-sky-600 dark:hover:text-sky-300" href="https://github.com/confluentinc/csid-jms-bridge/astrodocs/src/content/docs/guides/installation.md" target="_blank">
@@ -753,6 +749,7 @@ Before failover, only the live server is serving the Apache ActiveMQ Artemis cli
             </a>
           </li>
       </ol>
+    
   </nav>
 </article>
     </div>
@@ -779,10 +776,6 @@ Before failover, only the live server is serving the Apache ActiveMQ Artemis cli
         </li><li class="mt-2 py-1 pl-5 text-gray-500 dark:text-gray-400">
           <a class="hover:text-sky-600 dark:hover:text-sky-300" href="#jdk">
             JDK
-          </a>
-        </li><li class="mt-2 py-1 pl-5 text-gray-500 dark:text-gray-400">
-          <a class="hover:text-sky-600 dark:hover:text-sky-300" href="#os-swappiness">
-            OS Swappiness
           </a>
         </li><li class="mt-2 py-1 pl-5 text-gray-500 dark:text-gray-400">
           <a class="hover:text-sky-600 dark:hover:text-sky-300" href="#disable-selinux">
@@ -834,9 +827,11 @@ Before failover, only the live server is serving the Apache ActiveMQ Artemis cli
           </a>
         </li>
 </ol>
+      
       <h2 id="more-title" class="font-display text-sm font-medium text-gray-900 dark:text-white mt-4 space-y-3">
         More
-      </h2><ol role="list" class="mt-4 space-y-3 text-sm flex flex-col">
+      </h2>
+      <ol role="list" class="mt-4 space-y-3 text-sm flex flex-col">
         <li class="py-1 text-gray-500 dark:text-gray-400 flex items-center">
             <svg viewBox="0 0 24 24" class="w-6 h-6 mr-2" astro-icon="heroicons-outline:pencil"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m15.232 5.232 3.536 3.536m-2.036-5.036a2.5 2.5 0 1 1 3.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
             <a class="hover:text-sky-600 dark:hover:text-sky-300" href="https://github.com/confluentinc/csid-jms-bridge/astrodocs/src/content/docs/guides/installation.md" target="_blank">
@@ -844,11 +839,13 @@ Before failover, only the live server is serving the Apache ActiveMQ Artemis cli
             </a>
           </li>
       </ol>
+    
     </div>
   </nav>
 </div>
     </aside>
   </main>
+
       
       <div class="h-24 lg:h-16"></div>
 <footer class="text-gray-600 dark:text-gray-400">

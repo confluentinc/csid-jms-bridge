@@ -16,7 +16,7 @@ This guide includes the following sections:
 
 ## System Requirements
 
-Before you install the JMS Bridg:
+Before you install the JMS Bridge:
 
 - Review the JMS Bridge Requirements and supported OS Versions.
 - Review the JMS Bridge Release Notes.
@@ -42,14 +42,14 @@ The JMS Bridge required a linux distribution in order to function. Windows is no
 
 ## Before you Install
 
-Before you install the JMS Bridg:
+Before you install the JMS Bridge:
 
 - Review the JMS Bridge Requirements and supported OS Versions.
 - Review the JMS Bridge Release Notes.
 
 ### Active Confluent Cluster
 
-'ToDo'
+Please refer to confluent platform documentation [Active Active Cluster](https://docs.confluent.io/platform/current/multi-dc-deployments/multi-region-architectures.html#:~:text=A%202%2B%2Dcluster%20active,failover%20to%20the%20other%20cluster.)
 
 ### JDK
 
@@ -58,10 +58,6 @@ The JMS Bridge Requires the use of a supported JDK to operate. Current supported
 | Component  |    Version     |
 | ---------- | :------------: |
 | Oracle JDK | 1.8 or greater |
-
-### OS Swappiness
-
-- Talk with John about this..
 
 #### Installing customer provided JDK
 
@@ -301,7 +297,7 @@ Clustering for the JMS-Bridge was tested by explicitly setting host connections.
 
 #### High Availability and Failover
 
-The JMS-Bridge allows servers to be linked together as live - backup groups where each live server can have 1 or more backup servers. A backup server is owned by only one live server. Backup servers are not operational until failover occurs, however 1 chosen backup, which will be in passive mode, announces its status and waits to take over the live servers work
+The JMS-Bridge allows servers to be linked together as live - backup groups where each live server can have one or more backup servers. A backup server is owned by only one live server. Backup servers are not operational until failover occurs, however 1 chosen backup, which will be in passive mode, announces its status and waits to take over the live servers work
 Before failover, only the live server is serving the Apache ActiveMQ Artemis clients while the backup servers remain passive or awaiting to become a backup server. When a live server crashes or is brought down in the correct mode, the backup server currently in passive mode will become live and another backup server will become passive. If a live server restarts after a failover then it will have priority and be the next server to become live when the current live server goes down, if the current live server is configured to allow automatic failback then it will detect the live server coming back up and automatically stop.
 
 Due to the addition of Kafka as a storage mechanism for the JMS Bridge, only one option is currently supported for high availability in contrast to traditional ActiveMQ.
@@ -310,17 +306,17 @@ To configure High Availability, perform the following steps:
 
 1. Cluster two or odes together using a telopolgy of the organizations choise. Please note that any topology that uses the redistribution of journals will ot be supported.
 2. On the 'master' node, please set the following configuration. the configurations 'failover-on-shutdown'
-   `xml
-<ha-policy>
-  <shared-store>
-    <master>
-      <failover-on-shutdown>true</failover-on-shutdown>
-    </master>
-  </shared-store>
-</ha-policy>
-`
+   ```xml
+    <ha-policy>
+      <shared-store>
+        <master>
+          <failover-on-shutdown>true</failover-on-shutdown>
+        </master>
+      </shared-store>
+    </ha-policy>
+    ```
    `Be aware that if you restart a live server while after failover has occurred then check-for-live-server must be set to true . If not the live server will restart and server the same messages that the backup has already handled causing duplicates.` >
-3. On the 'slave' node, define the preffered state of the slave JMS-Bridge Server.
+3. On the 'slave' node, define the preferred state of the slave JMS-Bridge Server.
     ```xml
     <ha-policy>
       <shared-store>

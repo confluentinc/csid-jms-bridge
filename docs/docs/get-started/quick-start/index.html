@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width">
     <link rel="icon" type="image/x-icon" href="https://didactic-dollop-j819mr3.pages.github.io/favicon.svg">
-    <meta name="generator" content="Astro v2.1.5">
+    <meta name="generator" content="Astro v2.10.15">
     <script>
       if (
         localStorage.theme === 'dark' ||
@@ -20,7 +20,7 @@
       [x-cloak] { display: none !important; }
     </style>
     
-    <link rel="stylesheet" href="/astro/404.77eb0992.css" /><script type="module" src="/astro/page.0fc6666a.js"></script></head>
+    <link rel="stylesheet" href="/astro/404.c0e3bd7d.css" /><script type="module" src="/astro/page.e0da8779.js"></script></head>
     <body class="dark:bg-gray-900">
       
       <div class="relative h-16 w-full">
@@ -216,7 +216,8 @@
     </div>
   </nav>
 </div>
-      <main class="relative mx-auto flex max-w-8xl justify-center sm:px-2 lg:px-8 xl:px-12 bg-white dark:bg-slate-900">
+      
+  <main class="relative mx-auto flex max-w-8xl justify-center sm:px-2 lg:px-8 xl:px-12 bg-white dark:bg-slate-900">
     <aside id="grid-left" class="grid-sidebar flex" title="Site Navigation">
       <div class="hidden lg:sticky lg:top-16 lg:-ml-6 lg:block lg:h-[calc(100vh-4rem)] lg:flex-none lg:overflow-y-auto lg:py-16 lg:pl-6 bg-sky-50 dark:bg-gray-800">
   <nav aria-labelledby="grid-left" class="text-base lg:text-sm w-64 pr-8 xl:w-72 xl:pr-16">
@@ -372,8 +373,10 @@
         </li>
 </ol>
     </nav>
-    <section class="prose prose-slate max-w-none dark:prose-invert dark:text-slate-400 prose-headings:scroll-mt-28 prose-headings:font-display prose-headings:font-normal lg:prose-headings:scroll-mt-[8.5rem] prose-lead:text-slate-500 dark:prose-lead:text-slate-400 prose-a:font-semibold dark:prose-a:text-sky-400 prose-a:no-underline prose-a:shadow-[inset_0_-2px_0_0_var(--tw-prose-background,#fff),inset_0_calc(-1*(var(--tw-prose-underline-size,4px)+2px))_0_0_var(--tw-prose-underline,theme(colors.sky.300))] hover:prose-a:[--tw-prose-underline-size:6px] dark:[--tw-prose-background:theme(colors.slate.900)] dark:prose-a:shadow-[inset_0_calc(-1*var(--tw-prose-underline-size,2px))_0_0_var(--tw-prose-underline,theme(colors.sky.800))] dark:hover:prose-a:[--tw-prose-underline-size:6px] prose-pre:rounded-xl prose-pre:bg-slate-900 prose-pre:shadow-lg dark:prose-pre:bg-slate-800/60 dark:prose-pre:shadow-none dark:prose-pre:ring-1 dark:prose-pre:ring-slate-300/10 dark:prose-hr:border-slate-800">
-          <p>Assuming you have <a href="https://kafka.apache.org/quickstart" target="_blank">kafka</a> avaliable at <code>localhost:9092</code> and it is not secured (no TLS or ACLs).</p>
+    
+        <section class="prose prose-slate max-w-none dark:prose-invert dark:text-slate-400 prose-headings:scroll-mt-28 prose-headings:font-display prose-headings:font-normal lg:prose-headings:scroll-mt-[8.5rem] prose-lead:text-slate-500 dark:prose-lead:text-slate-400 prose-a:font-semibold dark:prose-a:text-sky-400 prose-a:no-underline prose-a:shadow-[inset_0_-2px_0_0_var(--tw-prose-background,#fff),inset_0_calc(-1*(var(--tw-prose-underline-size,4px)+2px))_0_0_var(--tw-prose-underline,theme(colors.sky.300))] hover:prose-a:[--tw-prose-underline-size:6px] dark:[--tw-prose-background:theme(colors.slate.900)] dark:prose-a:shadow-[inset_0_calc(-1*var(--tw-prose-underline-size,2px))_0_0_var(--tw-prose-underline,theme(colors.sky.800))] dark:hover:prose-a:[--tw-prose-underline-size:6px] prose-pre:rounded-xl prose-pre:bg-slate-900 prose-pre:shadow-lg dark:prose-pre:bg-slate-800/60 dark:prose-pre:shadow-none dark:prose-pre:ring-1 dark:prose-pre:ring-slate-300/10 dark:prose-hr:border-slate-800">
+          
+  <p>Assuming you have <a href="https://kafka.apache.org/quickstart" target="_blank">kafka</a> avaliable at <code>localhost:9092</code> and it is not secured (no TLS or ACLs).</p>
 <h2 id="basic-jms-operations">Basic JMS Operations</h2>
 <ol>
 <li>acquire a release archive</li>
@@ -389,24 +392,22 @@
 <li>shutdown the server by executing the <code>jms-bridge-server-stop</code> script</li>
 </ol>
 <h3 id="by-command">By Command</h3>
-<pre is:raw="" class="astro-code" style="background-color: #ffffff; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;"><code><span class="line"></span>
-<span class="line"><span style="color: #24292F">mkdir jms-bridge-qs</span></span>
-<span class="line"><span style="color: #0550AE">cd</span><span style="color: #24292F"> jms-bridge-qs</span></span>
-<span class="line"><span style="color: #24292F">cp </span><span style="color: #CF222E">~</span><span style="color: #24292F">/Downloads/jms-bridge-</span><span style="color: #CF222E">*</span><span style="color: #24292F">.zip ./</span></span>
-<span class="line"><span style="color: #24292F">unzip jms-bridge-</span><span style="color: #CF222E">*</span></span>
-<span class="line"><span style="color: #CF222E">export</span><span style="color: #24292F"> JAVA_HOME=</span><span style="color: #CF222E">&#x3C;</span><span style="color: #24292F">java-1.8-install-dir</span><span style="color: #CF222E">></span></span>
-<span class="line"><span style="color: #24292F">chmod -R a=rx,o+w bin/</span></span>
-<span class="line"><span style="color: #24292F">bin/jms-bridge-server-start -daemon etc/jms-bridge/quick-start-basic-jms.conf</span><span style="color: #0A3069">`</span></span>
-<span class="line"><span style="color: #0A3069">bin/jms-bridge jms receive --url tcp://localhost:61616 --topic quick-start</span></span></code></pre>
+<pre is:raw="" class="astro-code github-light" style="background-color: #fff; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0"><code><span class="line"><span style="color: #6F42C1">mkdir</span><span style="color: #24292E"> </span><span style="color: #032F62">jms-bridge-qs</span></span>
+<span class="line"><span style="color: #005CC5">cd</span><span style="color: #24292E"> </span><span style="color: #032F62">jms-bridge-qs</span></span>
+<span class="line"><span style="color: #6F42C1">cp</span><span style="color: #24292E"> </span><span style="color: #032F62">~/Downloads/jms-bridge-</span><span style="color: #005CC5">*</span><span style="color: #032F62">.zip</span><span style="color: #24292E"> </span><span style="color: #032F62">./</span></span>
+<span class="line"><span style="color: #6F42C1">unzip</span><span style="color: #24292E"> </span><span style="color: #032F62">jms-bridge-</span><span style="color: #005CC5">*</span></span>
+<span class="line"><span style="color: #D73A49">export</span><span style="color: #24292E"> JAVA_HOME</span><span style="color: #D73A49">=&#x3C;</span><span style="color: #032F62">java-1.8-install-di</span><span style="color: #24292E">r</span><span style="color: #D73A49">></span></span>
+<span class="line"><span style="color: #6F42C1">chmod</span><span style="color: #24292E"> </span><span style="color: #005CC5">-R</span><span style="color: #24292E"> </span><span style="color: #032F62">a=rx,o+w</span><span style="color: #24292E"> </span><span style="color: #032F62">bin/</span></span>
+<span class="line"><span style="color: #6F42C1">bin/jms-bridge-server-start</span><span style="color: #24292E"> </span><span style="color: #005CC5">-daemon</span><span style="color: #24292E"> </span><span style="color: #032F62">etc/jms-bridge/quick-start-basic-jms.conf</span></span>
+<span class="line"><span style="color: #6F42C1">bin/jms-bridge</span><span style="color: #24292E"> </span><span style="color: #032F62">jms</span><span style="color: #24292E"> </span><span style="color: #032F62">receive</span><span style="color: #24292E"> </span><span style="color: #005CC5">--url</span><span style="color: #24292E"> </span><span style="color: #032F62">tcp://localhost:61616</span><span style="color: #24292E"> </span><span style="color: #005CC5">--topic</span><span style="color: #24292E"> </span><span style="color: #032F62">quick-start</span></span></code></pre>
 <p>In a new shell from the same directory</p>
-<pre is:raw="" class="astro-code" style="background-color: #ffffff; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;"><code><span class="line"></span>
-<span class="line"><span style="color: #CF222E">export</span><span style="color: #24292F"> JAVA_HOME=</span><span style="color: #CF222E">&#x3C;</span><span style="color: #24292F">java-1.8-install-dir</span><span style="color: #CF222E">></span></span>
-<span class="line"><span style="color: #24292F">bin/jms-bridge jms send --url tcp://localhost:61616 --topic quick-start</span></span>
-<span class="line"><span style="color: #24292F">my first message</span></span>
-<span class="line"><span style="color: #24292F">my second message</span></span>
-<span class="line"><span style="color: #24292F">quit</span></span></code></pre>
+<pre is:raw="" class="astro-code github-light" style="background-color: #fff; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0"><code><span class="line"><span style="color: #D73A49">export</span><span style="color: #24292E"> JAVA_HOME</span><span style="color: #D73A49">=&#x3C;</span><span style="color: #032F62">java-1.8-install-di</span><span style="color: #24292E">r</span><span style="color: #D73A49">></span></span>
+<span class="line"><span style="color: #6F42C1">bin/jms-bridge</span><span style="color: #24292E"> </span><span style="color: #032F62">jms</span><span style="color: #24292E"> </span><span style="color: #032F62">send</span><span style="color: #24292E"> </span><span style="color: #005CC5">--url</span><span style="color: #24292E"> </span><span style="color: #032F62">tcp://localhost:61616</span><span style="color: #24292E"> </span><span style="color: #005CC5">--topic</span><span style="color: #24292E"> </span><span style="color: #032F62">quick-start</span></span>
+<span class="line"><span style="color: #6F42C1">my</span><span style="color: #24292E"> </span><span style="color: #032F62">first</span><span style="color: #24292E"> </span><span style="color: #032F62">message</span></span>
+<span class="line"><span style="color: #6F42C1">my</span><span style="color: #24292E"> </span><span style="color: #032F62">second</span><span style="color: #24292E"> </span><span style="color: #032F62">message</span></span>
+<span class="line"><span style="color: #6F42C1">quit</span></span></code></pre>
 <p>In the previous shell</p>
-<pre is:raw="" class="astro-code" style="background-color: #ffffff; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;"><code><span class="line"><span style="color: #24292F">bin/jms-bridge-server-stop</span></span></code></pre>
+<pre is:raw="" class="astro-code github-light" style="background-color: #fff; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0"><code><span class="line"><span style="color: #6F42C1">bin/jms-bridge-server-stop</span></span></code></pre>
 <h2 id="kafka-jms-integration">Kafka JMS Integration</h2>
 <p>Assuming you have kafka avaliable at <code>localhost:9092</code> and it is not secured (no TLS or ACLs).</p>
 <p>For this we’ll need to use some of the standard Kafka tooling to manage topics and
@@ -432,27 +433,27 @@ produce/consume from them.</p>
 </ol>
 <h3 id="by-command-1">By Command</h3>
 <p>In original shell</p>
-<pre is:raw="" class="astro-code" style="background-color: #ffffff; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;"><code><span class="line"><span style="color: #24292F">mkdir jms-bridge-qs</span></span>
-<span class="line"><span style="color: #0550AE">cd</span><span style="color: #24292F"> jms-bridge-qs</span></span>
-<span class="line"><span style="color: #24292F">cp </span><span style="color: #CF222E">~</span><span style="color: #24292F">/Downloads/jms-bridge-</span><span style="color: #CF222E">*</span><span style="color: #24292F">.zip ./</span></span>
-<span class="line"><span style="color: #24292F">unzip jms-bridge-</span><span style="color: #CF222E">*</span></span>
-<span class="line"><span style="color: #CF222E">export</span><span style="color: #24292F"> JAVA_HOME=</span><span style="color: #CF222E">&#x3C;</span><span style="color: #24292F">java-1.8-install-dir</span><span style="color: #CF222E">></span></span>
-<span class="line"><span style="color: #24292F">chmod -R a=rx,o+w bin/</span></span>
-<span class="line"><span style="color: #0550AE">cd</span><span style="color: #24292F"> jms-bridge-</span><span style="color: #CF222E">*</span></span>
-<span class="line"><span style="color: #24292F">kafka-topics --bootstrap-server localhost:9092 --create --topic quick-start --partitions 3 --replication-factor 1</span></span>
-<span class="line"><span style="color: #24292F">bin/jms-bridge-server-start etc/jms-bridge/quick-start-kafka-integration.conf</span></span></code></pre>
+<pre is:raw="" class="astro-code github-light" style="background-color: #fff; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0"><code><span class="line"><span style="color: #6F42C1">mkdir</span><span style="color: #24292E"> </span><span style="color: #032F62">jms-bridge-qs</span></span>
+<span class="line"><span style="color: #005CC5">cd</span><span style="color: #24292E"> </span><span style="color: #032F62">jms-bridge-qs</span></span>
+<span class="line"><span style="color: #6F42C1">cp</span><span style="color: #24292E"> </span><span style="color: #032F62">~/Downloads/jms-bridge-</span><span style="color: #005CC5">*</span><span style="color: #032F62">.zip</span><span style="color: #24292E"> </span><span style="color: #032F62">./</span></span>
+<span class="line"><span style="color: #6F42C1">unzip</span><span style="color: #24292E"> </span><span style="color: #032F62">jms-bridge-</span><span style="color: #005CC5">*</span></span>
+<span class="line"><span style="color: #D73A49">export</span><span style="color: #24292E"> JAVA_HOME</span><span style="color: #D73A49">=&#x3C;</span><span style="color: #032F62">java-1.8-install-di</span><span style="color: #24292E">r</span><span style="color: #D73A49">></span></span>
+<span class="line"><span style="color: #6F42C1">chmod</span><span style="color: #24292E"> </span><span style="color: #005CC5">-R</span><span style="color: #24292E"> </span><span style="color: #032F62">a=rx,o+w</span><span style="color: #24292E"> </span><span style="color: #032F62">bin/</span></span>
+<span class="line"><span style="color: #005CC5">cd</span><span style="color: #24292E"> </span><span style="color: #032F62">jms-bridge-</span><span style="color: #005CC5">*</span></span>
+<span class="line"><span style="color: #6F42C1">kafka-topics</span><span style="color: #24292E"> </span><span style="color: #005CC5">--bootstrap-server</span><span style="color: #24292E"> </span><span style="color: #032F62">localhost:9092</span><span style="color: #24292E"> </span><span style="color: #005CC5">--create</span><span style="color: #24292E"> </span><span style="color: #005CC5">--topic</span><span style="color: #24292E"> </span><span style="color: #032F62">quick-start</span><span style="color: #24292E"> </span><span style="color: #005CC5">--partitions</span><span style="color: #24292E"> </span><span style="color: #005CC5">3</span><span style="color: #24292E"> </span><span style="color: #005CC5">--replication-factor</span><span style="color: #24292E"> </span><span style="color: #005CC5">1</span></span>
+<span class="line"><span style="color: #6F42C1">bin/jms-bridge-server-start</span><span style="color: #24292E"> </span><span style="color: #032F62">etc/jms-bridge/quick-start-kafka-integration.conf</span></span></code></pre>
 <p>Open up 4 new shells from the same directory as the original.</p>
 <p>In shell 1</p>
-<pre is:raw="" class="astro-code" style="background-color: #ffffff; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;"><code><span class="line"><span style="color: #24292F">bin/jms-bridge jms receive --topic kafka.quick-start</span></span></code></pre>
+<pre is:raw="" class="astro-code github-light" style="background-color: #fff; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0"><code><span class="line"><span style="color: #6F42C1">bin/jms-bridge</span><span style="color: #24292E"> </span><span style="color: #032F62">jms</span><span style="color: #24292E"> </span><span style="color: #032F62">receive</span><span style="color: #24292E"> </span><span style="color: #005CC5">--topic</span><span style="color: #24292E"> </span><span style="color: #032F62">kafka.quick-start</span></span></code></pre>
 <p>In shell 2</p>
-<pre is:raw="" class="astro-code" style="background-color: #ffffff; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;"><code><span class="line"><span style="color: #24292F">kafka-console-consumer --bootstrap-server localhost:9092 --topic quick-start</span></span></code></pre>
+<pre is:raw="" class="astro-code github-light" style="background-color: #fff; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0"><code><span class="line"><span style="color: #6F42C1">kafka-console-consumer</span><span style="color: #24292E"> </span><span style="color: #005CC5">--bootstrap-server</span><span style="color: #24292E"> </span><span style="color: #032F62">localhost:9092</span><span style="color: #24292E"> </span><span style="color: #005CC5">--topic</span><span style="color: #24292E"> </span><span style="color: #032F62">quick-start</span></span></code></pre>
 <p>In shell 3</p>
-<pre is:raw="" class="astro-code" style="background-color: #ffffff; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;"><code><span class="line"><span style="color: #24292F">bin/jms-bridge jms send --topic kafka.quick-start</span></span>
-<span class="line"><span style="color: #24292F">Hello Kafka</span></span></code></pre>
+<pre is:raw="" class="astro-code github-light" style="background-color: #fff; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0"><code><span class="line"><span style="color: #6F42C1">bin/jms-bridge</span><span style="color: #24292E"> </span><span style="color: #032F62">jms</span><span style="color: #24292E"> </span><span style="color: #032F62">send</span><span style="color: #24292E"> </span><span style="color: #005CC5">--topic</span><span style="color: #24292E"> </span><span style="color: #032F62">kafka.quick-start</span></span>
+<span class="line"><span style="color: #6F42C1">Hello</span><span style="color: #24292E"> </span><span style="color: #032F62">Kafka</span></span></code></pre>
 <p>Observe in shell 2 that the “Hello Kafka” message appears.</p>
 <p>In shell 4</p>
-<pre is:raw="" class="astro-code" style="background-color: #ffffff; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;"><code><span class="line"><span style="color: #24292F">kafka-console-producer --broker-list localhost:9092 --topic quick-start</span></span>
-<span class="line"><span style="color: #24292F">Hello JMS</span></span></code></pre>
+<pre is:raw="" class="astro-code github-light" style="background-color: #fff; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0"><code><span class="line"><span style="color: #6F42C1">kafka-console-producer</span><span style="color: #24292E"> </span><span style="color: #005CC5">--broker-list</span><span style="color: #24292E"> </span><span style="color: #032F62">localhost:9092</span><span style="color: #24292E"> </span><span style="color: #005CC5">--topic</span><span style="color: #24292E"> </span><span style="color: #032F62">quick-start</span></span>
+<span class="line"><span style="color: #6F42C1">Hello</span><span style="color: #24292E"> </span><span style="color: #032F62">JMS</span></span></code></pre>
 <p>Observe in shell 1 that the “Hello JMS” message appears.</p>
 <p>Continue publishing messages from shell 3 and 4 until you are happy.</p>
 <p>Close shells 1, 2, 3, and 4.</p>
@@ -466,78 +467,78 @@ From the JMS client’s point of view nothing is unusual since it already suppor
 The Kafka client, on the other hand, will need to do a little extra work to tie the request to the response.</p>
 <p>This example is done in Java and will require the reader to know enough about java development to finish the code, compile it and then execute it.</p>
 <p>Here’s an example main method for the JMS client:</p>
-<pre is:raw="" class="astro-code" style="background-color: #ffffff; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;"><code><span class="line"></span>
-<span class="line"><span style="color: #24292F">    </span><span style="color: #CF222E">try</span><span style="color: #24292F"> (</span></span>
-<span class="line"><span style="color: #24292F">        </span><span style="color: #6E7781">//acquire a JMS Session</span></span>
-<span class="line"><span style="color: #24292F">        Session</span><span style="color: #953800"> </span><span style="color: #24292F">session</span><span style="color: #953800"> </span><span style="color: #CF222E">=</span><span style="color: #24292F"> amqServer.</span><span style="color: #8250DF">getConnection</span><span style="color: #24292F">().</span><span style="color: #8250DF">createSession</span><span style="color: #24292F">(</span><span style="color: #0550AE">false</span><span style="color: #24292F">, Session.AUTO_ACKNOWLEDGE)</span></span>
-<span class="line"><span style="color: #24292F">    ) {</span></span>
+<pre is:raw="" class="astro-code github-light" style="background-color: #fff; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0"><code><span class="line"><span style="color: #24292E">    </span><span style="color: #D73A49">try</span><span style="color: #24292E"> (</span></span>
+<span class="line"><span style="color: #24292E">        </span><span style="color: #6A737D">//acquire a JMS Session</span></span>
+<span class="line"><span style="color: #24292E">        Session session </span><span style="color: #D73A49">=</span><span style="color: #24292E"> amqServer.</span><span style="color: #6F42C1">getConnection</span><span style="color: #24292E">().</span><span style="color: #6F42C1">createSession</span><span style="color: #24292E">(</span><span style="color: #005CC5">false</span><span style="color: #24292E">, Session.AUTO_ACKNOWLEDGE)</span></span>
+<span class="line"><span style="color: #24292E">    ) {</span></span>
 <span class="line"></span>
-<span class="line"><span style="color: #24292F">      </span><span style="color: #6E7781">// The JMS topic connected to the Kafka topic that our Kafka client will be responding from</span></span>
-<span class="line"><span style="color: #24292F">      Topic</span><span style="color: #953800"> </span><span style="color: #24292F">requestAmqTopic</span><span style="color: #953800"> </span><span style="color: #CF222E">=</span><span style="color: #24292F"> session.</span><span style="color: #8250DF">createTopic</span><span style="color: #24292F">(</span><span style="color: #0A3069">"kafka.quick-start-request"</span><span style="color: #24292F">);</span></span>
+<span class="line"><span style="color: #24292E">      </span><span style="color: #6A737D">// The JMS topic connected to the Kafka topic that our Kafka client will be responding from</span></span>
+<span class="line"><span style="color: #24292E">      Topic requestAmqTopic </span><span style="color: #D73A49">=</span><span style="color: #24292E"> session.</span><span style="color: #6F42C1">createTopic</span><span style="color: #24292E">(</span><span style="color: #032F62">"kafka.quick-start-request"</span><span style="color: #24292E">);</span></span>
 <span class="line"></span>
-<span class="line"><span style="color: #24292F">      TopicSession</span><span style="color: #953800"> </span><span style="color: #24292F">topicSession</span><span style="color: #953800"> </span><span style="color: #CF222E">=</span><span style="color: #24292F"> (TopicSession) session;</span></span>
-<span class="line"><span style="color: #24292F">      TopicRequestor</span><span style="color: #953800"> </span><span style="color: #24292F">requestor</span><span style="color: #953800"> </span><span style="color: #CF222E">=</span><span style="color: #24292F"> </span><span style="color: #CF222E">new</span><span style="color: #24292F"> </span><span style="color: #8250DF">TopicRequestor</span><span style="color: #24292F">(topicSession, requestAmqTopic);</span></span>
+<span class="line"><span style="color: #24292E">      TopicSession topicSession </span><span style="color: #D73A49">=</span><span style="color: #24292E"> (TopicSession) session;</span></span>
+<span class="line"><span style="color: #24292E">      TopicRequestor requestor </span><span style="color: #D73A49">=</span><span style="color: #24292E"> </span><span style="color: #D73A49">new</span><span style="color: #24292E"> </span><span style="color: #6F42C1">TopicRequestor</span><span style="color: #24292E">(topicSession, requestAmqTopic);</span></span>
 <span class="line"></span>
-<span class="line"><span style="color: #24292F">      </span><span style="color: #CF222E">try</span><span style="color: #24292F"> {</span></span>
-<span class="line"><span style="color: #24292F">        String</span><span style="color: #953800"> </span><span style="color: #24292F">request</span><span style="color: #953800"> </span><span style="color: #CF222E">=</span><span style="color: #24292F"> </span><span style="color: #0A3069">"Hello, what's your name?"</span><span style="color: #24292F">;</span></span>
-<span class="line"><span style="color: #24292F">        TextMessage</span><span style="color: #953800"> </span><span style="color: #24292F">tmsg</span><span style="color: #953800"> </span><span style="color: #CF222E">=</span><span style="color: #24292F"> session.</span><span style="color: #8250DF">createTextMessage</span><span style="color: #24292F">(request);</span></span>
-<span class="line"><span style="color: #24292F">        System.out.</span><span style="color: #8250DF">println</span><span style="color: #24292F">(</span><span style="color: #0A3069">"Request: "</span><span style="color: #24292F"> </span><span style="color: #CF222E">+</span><span style="color: #24292F"> request);</span></span>
-<span class="line"><span style="color: #24292F">        Message</span><span style="color: #953800"> </span><span style="color: #24292F">response</span><span style="color: #953800"> </span><span style="color: #CF222E">=</span><span style="color: #24292F"> requestor.</span><span style="color: #8250DF">request</span><span style="color: #24292F">(tmsg);</span></span>
-<span class="line"><span style="color: #24292F">        System.out.</span><span style="color: #8250DF">println</span><span style="color: #24292F">(</span><span style="color: #0A3069">"Response: "</span><span style="color: #24292F"> </span><span style="color: #CF222E">+</span><span style="color: #24292F"> response.</span><span style="color: #8250DF">getBody</span><span style="color: #24292F">(String.class));</span></span>
-<span class="line"><span style="color: #24292F">      } </span><span style="color: #CF222E">catch</span><span style="color: #24292F"> (RuntimeException </span><span style="color: #953800">e</span><span style="color: #24292F">) {</span></span>
-<span class="line"><span style="color: #24292F">        </span><span style="color: #CF222E">throw</span><span style="color: #24292F"> e;</span></span>
-<span class="line"><span style="color: #24292F">      } </span><span style="color: #CF222E">catch</span><span style="color: #24292F"> (Exception </span><span style="color: #953800">e</span><span style="color: #24292F">) {</span></span>
-<span class="line"><span style="color: #24292F">        </span><span style="color: #CF222E">throw</span><span style="color: #24292F"> </span><span style="color: #CF222E">new</span><span style="color: #24292F"> </span><span style="color: #8250DF">RuntimeException</span><span style="color: #24292F">(e);</span></span>
-<span class="line"><span style="color: #24292F">      }</span></span>
+<span class="line"><span style="color: #24292E">      </span><span style="color: #D73A49">try</span><span style="color: #24292E"> {</span></span>
+<span class="line"><span style="color: #24292E">        String request </span><span style="color: #D73A49">=</span><span style="color: #24292E"> </span><span style="color: #032F62">"Hello, what's your name?"</span><span style="color: #24292E">;</span></span>
+<span class="line"><span style="color: #24292E">        TextMessage tmsg </span><span style="color: #D73A49">=</span><span style="color: #24292E"> session.</span><span style="color: #6F42C1">createTextMessage</span><span style="color: #24292E">(request);</span></span>
+<span class="line"><span style="color: #24292E">        System.out.</span><span style="color: #6F42C1">println</span><span style="color: #24292E">(</span><span style="color: #032F62">"Request: "</span><span style="color: #24292E"> </span><span style="color: #D73A49">+</span><span style="color: #24292E"> request);</span></span>
+<span class="line"><span style="color: #24292E">        Message response </span><span style="color: #D73A49">=</span><span style="color: #24292E"> requestor.</span><span style="color: #6F42C1">request</span><span style="color: #24292E">(tmsg);</span></span>
+<span class="line"><span style="color: #24292E">        System.out.</span><span style="color: #6F42C1">println</span><span style="color: #24292E">(</span><span style="color: #032F62">"Response: "</span><span style="color: #24292E"> </span><span style="color: #D73A49">+</span><span style="color: #24292E"> response.</span><span style="color: #6F42C1">getBody</span><span style="color: #24292E">(String.class));</span></span>
+<span class="line"><span style="color: #24292E">      } </span><span style="color: #D73A49">catch</span><span style="color: #24292E"> (RuntimeException </span><span style="color: #E36209">e</span><span style="color: #24292E">) {</span></span>
+<span class="line"><span style="color: #24292E">        </span><span style="color: #D73A49">throw</span><span style="color: #24292E"> e;</span></span>
+<span class="line"><span style="color: #24292E">      } </span><span style="color: #D73A49">catch</span><span style="color: #24292E"> (Exception </span><span style="color: #E36209">e</span><span style="color: #24292E">) {</span></span>
+<span class="line"><span style="color: #24292E">        </span><span style="color: #D73A49">throw</span><span style="color: #24292E"> </span><span style="color: #D73A49">new</span><span style="color: #24292E"> </span><span style="color: #6F42C1">RuntimeException</span><span style="color: #24292E">(e);</span></span>
+<span class="line"><span style="color: #24292E">      }</span></span>
 <span class="line"></span>
-<span class="line"><span style="color: #24292F">      System.out.</span><span style="color: #8250DF">println</span><span style="color: #24292F">(</span><span style="color: #0A3069">"jms disconnected."</span><span style="color: #24292F">);</span></span>
-<span class="line"><span style="color: #24292F">    }</span></span>
-<span class="line"><span style="color: #24292F">  }</span></span></code></pre>
+<span class="line"><span style="color: #24292E">      System.out.</span><span style="color: #6F42C1">println</span><span style="color: #24292E">(</span><span style="color: #032F62">"jms disconnected."</span><span style="color: #24292E">);</span></span>
+<span class="line"><span style="color: #24292E">    }</span></span>
+<span class="line"><span style="color: #24292E">  }</span></span></code></pre>
 <p>Here for the Kafka client:</p>
-<pre is:raw="" class="astro-code" style="background-color: #ffffff; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;"><code><span class="line"></span>
-<span class="line"><span style="color: #24292F">      </span><span style="color: #CF222E">try</span><span style="color: #24292F"> (</span></span>
-<span class="line"><span style="color: #24292F">          KafkaProducer</span><span style="color: #953800">&#x3C;</span><span style="color: #CF222E">byte</span><span style="color: #953800">[], </span><span style="color: #CF222E">String</span><span style="color: #953800">> </span><span style="color: #24292F">kproducer</span><span style="color: #953800"> </span><span style="color: #CF222E">=</span><span style="color: #24292F"> </span><span style="color: #CF222E">new</span><span style="color: #24292F"> KafkaProducer&#x3C;>(</span></span>
-<span class="line"><span style="color: #24292F">             kprops, </span><span style="color: #CF222E">new</span><span style="color: #24292F"> </span><span style="color: #8250DF">ByteArraySerializer</span><span style="color: #24292F">(), </span><span style="color: #CF222E">new</span><span style="color: #24292F"> </span><span style="color: #8250DF">StringSerializer</span><span style="color: #24292F">());</span></span>
-<span class="line"><span style="color: #24292F">          KafkaConsumer</span><span style="color: #953800">&#x3C;</span><span style="color: #CF222E">byte</span><span style="color: #953800">[], </span><span style="color: #CF222E">String</span><span style="color: #953800">> </span><span style="color: #24292F">kconsumer</span><span style="color: #953800"> </span><span style="color: #CF222E">=</span><span style="color: #24292F"> </span><span style="color: #CF222E">new</span><span style="color: #24292F"> KafkaConsumer&#x3C;>(</span></span>
-<span class="line"><span style="color: #24292F">             kprops, </span><span style="color: #CF222E">new</span><span style="color: #24292F"> </span><span style="color: #8250DF">ByteArrayDeserializer</span><span style="color: #24292F">(), </span><span style="color: #CF222E">new</span><span style="color: #24292F"> </span><span style="color: #8250DF">StringDeserializer</span><span style="color: #24292F">());</span></span>
-<span class="line"><span style="color: #24292F">      ) {</span></span>
+<pre is:raw="" class="astro-code github-light" style="background-color: #fff; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0"><code><span class="line"><span style="color: #24292E">      </span><span style="color: #D73A49">try</span><span style="color: #24292E"> (</span></span>
+<span class="line"><span style="color: #24292E">          KafkaProducer&#x3C;</span><span style="color: #D73A49">byte</span><span style="color: #24292E">[], </span><span style="color: #D73A49">String</span><span style="color: #24292E">> kproducer </span><span style="color: #D73A49">=</span><span style="color: #24292E"> </span><span style="color: #D73A49">new</span><span style="color: #24292E"> KafkaProducer&#x3C;>(</span></span>
+<span class="line"><span style="color: #24292E">             kprops, </span><span style="color: #D73A49">new</span><span style="color: #24292E"> </span><span style="color: #6F42C1">ByteArraySerializer</span><span style="color: #24292E">(), </span><span style="color: #D73A49">new</span><span style="color: #24292E"> </span><span style="color: #6F42C1">StringSerializer</span><span style="color: #24292E">());</span></span>
+<span class="line"><span style="color: #24292E">          KafkaConsumer&#x3C;</span><span style="color: #D73A49">byte</span><span style="color: #24292E">[], </span><span style="color: #D73A49">String</span><span style="color: #24292E">> kconsumer </span><span style="color: #D73A49">=</span><span style="color: #24292E"> </span><span style="color: #D73A49">new</span><span style="color: #24292E"> KafkaConsumer&#x3C;>(</span></span>
+<span class="line"><span style="color: #24292E">             kprops, </span><span style="color: #D73A49">new</span><span style="color: #24292E"> </span><span style="color: #6F42C1">ByteArrayDeserializer</span><span style="color: #24292E">(), </span><span style="color: #D73A49">new</span><span style="color: #24292E"> </span><span style="color: #6F42C1">StringDeserializer</span><span style="color: #24292E">());</span></span>
+<span class="line"><span style="color: #24292E">      ) {</span></span>
 <span class="line"></span>
-<span class="line"><span style="color: #24292F">        kconsumer.</span><span style="color: #8250DF">subscribe</span><span style="color: #24292F">(Collections.</span><span style="color: #8250DF">singleton</span><span style="color: #24292F">(</span><span style="color: #0A3069">"quick-start-request"</span><span style="color: #24292F">));</span></span>
+<span class="line"><span style="color: #24292E">        kconsumer.</span><span style="color: #6F42C1">subscribe</span><span style="color: #24292E">(Collections.</span><span style="color: #6F42C1">singleton</span><span style="color: #24292E">(</span><span style="color: #032F62">"quick-start-request"</span><span style="color: #24292E">));</span></span>
 <span class="line"></span>
-<span class="line"><span style="color: #24292F">        </span><span style="color: #CF222E">while</span><span style="color: #24292F"> (</span><span style="color: #0550AE">true</span><span style="color: #24292F">) {</span></span>
-<span class="line"><span style="color: #24292F">          ConsumerRecords</span><span style="color: #953800">&#x3C;</span><span style="color: #CF222E">byte</span><span style="color: #953800">[], </span><span style="color: #CF222E">String</span><span style="color: #953800">> </span><span style="color: #24292F">pollRecords</span><span style="color: #953800"> </span><span style="color: #CF222E">=</span><span style="color: #24292F"> kconsumer.</span><span style="color: #8250DF">poll</span><span style="color: #24292F">(Duration.</span><span style="color: #8250DF">ofMillis</span><span style="color: #24292F">(</span><span style="color: #0550AE">100L</span><span style="color: #24292F">));</span></span>
-<span class="line"><span style="color: #24292F">          </span><span style="color: #CF222E">if</span><span style="color: #24292F"> (pollRecords </span><span style="color: #CF222E">!=</span><span style="color: #24292F"> </span><span style="color: #0550AE">null</span><span style="color: #24292F">) {</span></span>
-<span class="line"><span style="color: #24292F">            pollRecords.</span><span style="color: #8250DF">forEach</span><span style="color: #24292F">(request </span><span style="color: #CF222E">-></span><span style="color: #24292F"> {</span></span>
+<span class="line"><span style="color: #24292E">        </span><span style="color: #D73A49">while</span><span style="color: #24292E"> (</span><span style="color: #005CC5">true</span><span style="color: #24292E">) {</span></span>
+<span class="line"><span style="color: #24292E">          ConsumerRecords&#x3C;</span><span style="color: #D73A49">byte</span><span style="color: #24292E">[], </span><span style="color: #D73A49">String</span><span style="color: #24292E">> pollRecords </span><span style="color: #D73A49">=</span><span style="color: #24292E"> kconsumer.</span><span style="color: #6F42C1">poll</span><span style="color: #24292E">(Duration.</span><span style="color: #6F42C1">ofMillis</span><span style="color: #24292E">(</span><span style="color: #005CC5">100L</span><span style="color: #24292E">));</span></span>
+<span class="line"><span style="color: #24292E">          </span><span style="color: #D73A49">if</span><span style="color: #24292E"> (pollRecords </span><span style="color: #D73A49">!=</span><span style="color: #24292E"> </span><span style="color: #005CC5">null</span><span style="color: #24292E">) {</span></span>
+<span class="line"><span style="color: #24292E">            pollRecords.</span><span style="color: #6F42C1">forEach</span><span style="color: #24292E">(request </span><span style="color: #D73A49">-></span><span style="color: #24292E"> {</span></span>
 <span class="line"></span>
-<span class="line"><span style="color: #24292F">              </span><span style="color: #6E7781">//Extract the JMSReployTo header value, should refer to a temporary topic</span></span>
-<span class="line"><span style="color: #24292F">              Header</span><span style="color: #953800"> </span><span style="color: #24292F">replyTo</span><span style="color: #953800"> </span><span style="color: #CF222E">=</span><span style="color: #24292F"> request.</span><span style="color: #8250DF">headers</span><span style="color: #24292F">().</span><span style="color: #8250DF">lastHeader</span><span style="color: #24292F">(</span><span style="color: #0A3069">"jms.JMSReplyTo"</span><span style="color: #24292F">);</span></span>
-<span class="line"><span style="color: #24292F">              </span><span style="color: #CF222E">final</span><span style="color: #24292F"> </span><span style="color: #CF222E">byte</span><span style="color: #953800">[] </span><span style="color: #24292F">destination</span><span style="color: #953800"> </span><span style="color: #CF222E">=</span><span style="color: #24292F"> replyTo </span><span style="color: #CF222E">!=</span><span style="color: #24292F"> </span><span style="color: #0550AE">null</span></span>
-<span class="line"><span style="color: #24292F">                  </span><span style="color: #CF222E">?</span><span style="color: #24292F"> replyTo.</span><span style="color: #8250DF">value</span><span style="color: #24292F">()</span></span>
-<span class="line"><span style="color: #24292F">                  </span><span style="color: #CF222E">:</span><span style="color: #24292F"> </span><span style="color: #0550AE">null</span><span style="color: #24292F">;</span></span>
+<span class="line"><span style="color: #24292E">              </span><span style="color: #6A737D">//Extract the JMSReployTo header value, should refer to a temporary topic</span></span>
+<span class="line"><span style="color: #24292E">              Header replyTo </span><span style="color: #D73A49">=</span><span style="color: #24292E"> request.</span><span style="color: #6F42C1">headers</span><span style="color: #24292E">().</span><span style="color: #6F42C1">lastHeader</span><span style="color: #24292E">(</span><span style="color: #032F62">"jms.JMSReplyTo"</span><span style="color: #24292E">);</span></span>
+<span class="line"><span style="color: #24292E">              </span><span style="color: #D73A49">final</span><span style="color: #24292E"> </span><span style="color: #D73A49">byte</span><span style="color: #24292E">[] destination </span><span style="color: #D73A49">=</span><span style="color: #24292E"> replyTo </span><span style="color: #D73A49">!=</span><span style="color: #24292E"> </span><span style="color: #005CC5">null</span></span>
+<span class="line"><span style="color: #24292E">                  </span><span style="color: #D73A49">?</span><span style="color: #24292E"> replyTo.</span><span style="color: #6F42C1">value</span><span style="color: #24292E">()</span></span>
+<span class="line"><span style="color: #24292E">                  </span><span style="color: #D73A49">:</span><span style="color: #24292E"> </span><span style="color: #005CC5">null</span><span style="color: #24292E">;</span></span>
 <span class="line"></span>
-<span class="line"><span style="color: #24292F">              String</span><span style="color: #953800"> </span><span style="color: #24292F">responseValue</span><span style="color: #953800"> </span><span style="color: #CF222E">=</span><span style="color: #24292F"> </span><span style="color: #0A3069">"Hi, my name is Kafka"</span><span style="color: #24292F">;</span></span>
-<span class="line"><span style="color: #24292F">              System.out.</span><span style="color: #8250DF">println</span><span style="color: #24292F">(</span><span style="color: #0A3069">" Response: "</span><span style="color: #24292F"> </span><span style="color: #CF222E">+</span><span style="color: #24292F"> responseValue);</span></span>
+<span class="line"><span style="color: #24292E">              String responseValue </span><span style="color: #D73A49">=</span><span style="color: #24292E"> </span><span style="color: #032F62">"Hi, my name is Kafka"</span><span style="color: #24292E">;</span></span>
+<span class="line"><span style="color: #24292E">              System.out.</span><span style="color: #6F42C1">println</span><span style="color: #24292E">(</span><span style="color: #032F62">" Response: "</span><span style="color: #24292E"> </span><span style="color: #D73A49">+</span><span style="color: #24292E"> responseValue);</span></span>
 <span class="line"></span>
-<span class="line"><span style="color: #24292F">              ProducerRecord</span><span style="color: #953800">&#x3C;</span><span style="color: #CF222E">byte</span><span style="color: #953800">[], </span><span style="color: #CF222E">String</span><span style="color: #953800">> </span><span style="color: #24292F">response</span><span style="color: #953800"> </span><span style="color: #CF222E">=</span><span style="color: #24292F"> </span><span style="color: #CF222E">new</span><span style="color: #24292F"> </span><span style="color: #8250DF">ProducerRecord</span><span style="color: #24292F">(</span></span>
-<span class="line"><span style="color: #24292F">                </span><span style="color: #0A3069">"quick-start-response"</span><span style="color: #24292F">, request.</span><span style="color: #8250DF">key</span><span style="color: #24292F">(), responseValue);</span></span>
+<span class="line"><span style="color: #24292E">              ProducerRecord&#x3C;</span><span style="color: #D73A49">byte</span><span style="color: #24292E">[], </span><span style="color: #D73A49">String</span><span style="color: #24292E">> response </span><span style="color: #D73A49">=</span><span style="color: #24292E"> </span><span style="color: #D73A49">new</span><span style="color: #24292E"> </span><span style="color: #6F42C1">ProducerRecord</span><span style="color: #24292E">(</span></span>
+<span class="line"><span style="color: #24292E">                </span><span style="color: #032F62">"quick-start-response"</span><span style="color: #24292E">, request.</span><span style="color: #6F42C1">key</span><span style="color: #24292E">(), responseValue);</span></span>
 <span class="line"></span>
-<span class="line"><span style="color: #24292F">              </span><span style="color: #CF222E">if</span><span style="color: #24292F"> (destination </span><span style="color: #CF222E">!=</span><span style="color: #24292F"> </span><span style="color: #0550AE">null</span><span style="color: #24292F">) {</span></span>
-<span class="line"><span style="color: #24292F">                </span><span style="color: #6E7781">//set the destination to that temporary topic from the request header</span></span>
-<span class="line"><span style="color: #24292F">                response.</span><span style="color: #8250DF">headers</span><span style="color: #24292F">().</span><span style="color: #8250DF">add</span><span style="color: #24292F">(</span><span style="color: #0A3069">"jms.JMSDestination"</span><span style="color: #24292F">, destination);</span></span>
-<span class="line"><span style="color: #24292F">              }</span></span>
+<span class="line"><span style="color: #24292E">              </span><span style="color: #D73A49">if</span><span style="color: #24292E"> (destination </span><span style="color: #D73A49">!=</span><span style="color: #24292E"> </span><span style="color: #005CC5">null</span><span style="color: #24292E">) {</span></span>
+<span class="line"><span style="color: #24292E">                </span><span style="color: #6A737D">//set the destination to that temporary topic from the request header</span></span>
+<span class="line"><span style="color: #24292E">                response.</span><span style="color: #6F42C1">headers</span><span style="color: #24292E">().</span><span style="color: #6F42C1">add</span><span style="color: #24292E">(</span><span style="color: #032F62">"jms.JMSDestination"</span><span style="color: #24292E">, destination);</span></span>
+<span class="line"><span style="color: #24292E">              }</span></span>
 <span class="line"></span>
-<span class="line"><span style="color: #24292F">              </span><span style="color: #6E7781">//synchronous publish for example only, not recommended, use async version with callback instead</span></span>
-<span class="line"><span style="color: #24292F">              kproducer.</span><span style="color: #8250DF">send</span><span style="color: #24292F">(response).</span><span style="color: #8250DF">get</span><span style="color: #24292F">();</span></span>
-<span class="line"><span style="color: #24292F">            });</span></span>
-<span class="line"><span style="color: #24292F">          }</span></span>
-<span class="line"><span style="color: #24292F">        }</span></span>
-<span class="line"><span style="color: #24292F">      }</span></span></code></pre>
+<span class="line"><span style="color: #24292E">              </span><span style="color: #6A737D">//synchronous publish for example only, not recommended, use async version with callback instead</span></span>
+<span class="line"><span style="color: #24292E">              kproducer.</span><span style="color: #6F42C1">send</span><span style="color: #24292E">(response).</span><span style="color: #6F42C1">get</span><span style="color: #24292E">();</span></span>
+<span class="line"><span style="color: #24292E">            });</span></span>
+<span class="line"><span style="color: #24292E">          }</span></span>
+<span class="line"><span style="color: #24292E">        }</span></span>
+<span class="line"><span style="color: #24292E">      }</span></span></code></pre>
 <p>For the example to work some preparatory tasks need to be completed.</p>
 <ol>
 <li>Create the <code>quick-start-request</code> and <code>quick-start-response</code> topics in Kafka.</li>
 <li>Start the JMS Bridge using the <code>etc/jms-bridge/quick-start-kafka-request-reply.conf</code> configuration with the correct <code>bootstrap.servers</code>.</li>
 </ol>
-        </section><dl class="mt-12 flex border-t border-sky-300 pt-6 dark:border-sky-700">
+
+        </section>
+        <dl class="mt-12 flex border-t border-sky-300 pt-6 dark:border-sky-700">
   <div class="mr-auto text-left">
         <dt class="font-display text-sm font-medium text-gray-800 dark:text-gray-200">
           Prev
@@ -561,11 +562,14 @@ The Kafka client, on the other hand, will need to do a little extra work to tie 
         </dd>
       </div>
 </dl>
+      
   </section>
   <nav class="block sm:hidden">
-    <h2 id="more-title" class="font-display text-sm font-medium text-gray-900 dark:text-white mt-4 space-y-3">
+    
+      <h2 id="more-title" class="font-display text-sm font-medium text-gray-900 dark:text-white mt-4 space-y-3">
         More
-      </h2><ol role="list" class="mt-4 space-y-3 text-sm flex flex-col">
+      </h2>
+      <ol role="list" class="mt-4 space-y-3 text-sm flex flex-col">
         <li class="py-1 text-gray-500 dark:text-gray-400 flex items-center">
             <svg viewBox="0 0 24 24" class="w-6 h-6 mr-2" astro-icon="heroicons-outline:pencil"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m15.232 5.232 3.536 3.536m-2.036-5.036a2.5 2.5 0 1 1 3.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
             <a class="hover:text-sky-600 dark:hover:text-sky-300" href="https://github.com/confluentinc/csid-jms-bridge/astrodocs/src/content/docs/get-started/quick-start.md" target="_blank">
@@ -573,6 +577,7 @@ The Kafka client, on the other hand, will need to do a little extra work to tie 
             </a>
           </li>
       </ol>
+    
   </nav>
 </article>
     </div>
@@ -606,9 +611,11 @@ The Kafka client, on the other hand, will need to do a little extra work to tie 
           </a>
         </li>
 </ol>
+      
       <h2 id="more-title" class="font-display text-sm font-medium text-gray-900 dark:text-white mt-4 space-y-3">
         More
-      </h2><ol role="list" class="mt-4 space-y-3 text-sm flex flex-col">
+      </h2>
+      <ol role="list" class="mt-4 space-y-3 text-sm flex flex-col">
         <li class="py-1 text-gray-500 dark:text-gray-400 flex items-center">
             <svg viewBox="0 0 24 24" class="w-6 h-6 mr-2" astro-icon="heroicons-outline:pencil"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m15.232 5.232 3.536 3.536m-2.036-5.036a2.5 2.5 0 1 1 3.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
             <a class="hover:text-sky-600 dark:hover:text-sky-300" href="https://github.com/confluentinc/csid-jms-bridge/astrodocs/src/content/docs/get-started/quick-start.md" target="_blank">
@@ -616,11 +623,13 @@ The Kafka client, on the other hand, will need to do a little extra work to tie 
             </a>
           </li>
       </ol>
+    
     </div>
   </nav>
 </div>
     </aside>
   </main>
+
       
       <div class="h-24 lg:h-16"></div>
 <footer class="text-gray-600 dark:text-gray-400">

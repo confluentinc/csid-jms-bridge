@@ -23,21 +23,19 @@ Assuming you have <a href="https://kafka.apache.org/quickstart" target="_blank">
 ### By Command
 
 ```shell
-
 mkdir jms-bridge-qs
 cd jms-bridge-qs
 cp ~/Downloads/jms-bridge-*.zip ./
 unzip jms-bridge-*
 export JAVA_HOME=<java-1.8-install-dir>
 chmod -R a=rx,o+w bin/
-bin/jms-bridge-server-start -daemon etc/jms-bridge/quick-start-basic-jms.conf`
+bin/jms-bridge-server-start -daemon etc/jms-bridge/quick-start-basic-jms.conf
 bin/jms-bridge jms receive --url tcp://localhost:61616 --topic quick-start
 ```
 
 In a new shell from the same directory
 
 ```shell
-
 export JAVA_HOME=<java-1.8-install-dir>
 bin/jms-bridge jms send --url tcp://localhost:61616 --topic quick-start
 my first message
@@ -146,7 +144,6 @@ This example is done in Java and will require the reader to know enough about ja
 Here's an example main method for the JMS client:
 
 ```java
-
     try (
         //acquire a JMS Session
         Session session = amqServer.getConnection().createSession(false, Session.AUTO_ACKNOWLEDGE)
@@ -178,7 +175,6 @@ Here's an example main method for the JMS client:
 Here for the Kafka client:
 
 ```java
-
       try (
           KafkaProducer<byte[], String> kproducer = new KafkaProducer<>(
              kprops, new ByteArraySerializer(), new StringSerializer());

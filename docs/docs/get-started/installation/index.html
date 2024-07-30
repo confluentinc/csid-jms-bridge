@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width">
     <link rel="icon" type="image/x-icon" href="https://didactic-dollop-j819mr3.pages.github.io/favicon.svg">
-    <meta name="generator" content="Astro v2.1.5">
+    <meta name="generator" content="Astro v2.10.15">
     <script>
       if (
         localStorage.theme === 'dark' ||
@@ -20,7 +20,7 @@
       [x-cloak] { display: none !important; }
     </style>
     
-    <link rel="stylesheet" href="/astro/404.77eb0992.css" /><script type="module" src="/astro/page.0fc6666a.js"></script></head>
+    <link rel="stylesheet" href="/astro/404.c0e3bd7d.css" /><script type="module" src="/astro/page.e0da8779.js"></script></head>
     <body class="dark:bg-gray-900">
       
       <div class="relative h-16 w-full">
@@ -216,7 +216,8 @@
     </div>
   </nav>
 </div>
-      <main class="relative mx-auto flex max-w-8xl justify-center sm:px-2 lg:px-8 xl:px-12 bg-white dark:bg-slate-900">
+      
+  <main class="relative mx-auto flex max-w-8xl justify-center sm:px-2 lg:px-8 xl:px-12 bg-white dark:bg-slate-900">
     <aside id="grid-left" class="grid-sidebar flex" title="Site Navigation">
       <div class="hidden lg:sticky lg:top-16 lg:-ml-6 lg:block lg:h-[calc(100vh-4rem)] lg:flex-none lg:overflow-y-auto lg:py-16 lg:pl-6 bg-sky-50 dark:bg-gray-800">
   <nav aria-labelledby="grid-left" class="text-base lg:text-sm w-64 pr-8 xl:w-72 xl:pr-16">
@@ -420,8 +421,10 @@
         </li>
 </ol>
     </nav>
-    <section class="prose prose-slate max-w-none dark:prose-invert dark:text-slate-400 prose-headings:scroll-mt-28 prose-headings:font-display prose-headings:font-normal lg:prose-headings:scroll-mt-[8.5rem] prose-lead:text-slate-500 dark:prose-lead:text-slate-400 prose-a:font-semibold dark:prose-a:text-sky-400 prose-a:no-underline prose-a:shadow-[inset_0_-2px_0_0_var(--tw-prose-background,#fff),inset_0_calc(-1*(var(--tw-prose-underline-size,4px)+2px))_0_0_var(--tw-prose-underline,theme(colors.sky.300))] hover:prose-a:[--tw-prose-underline-size:6px] dark:[--tw-prose-background:theme(colors.slate.900)] dark:prose-a:shadow-[inset_0_calc(-1*var(--tw-prose-underline-size,2px))_0_0_var(--tw-prose-underline,theme(colors.sky.800))] dark:hover:prose-a:[--tw-prose-underline-size:6px] prose-pre:rounded-xl prose-pre:bg-slate-900 prose-pre:shadow-lg dark:prose-pre:bg-slate-800/60 dark:prose-pre:shadow-none dark:prose-pre:ring-1 dark:prose-pre:ring-slate-300/10 dark:prose-hr:border-slate-800">
-          <h2 id="prerequisites">Prerequisites</h2>
+    
+        <section class="prose prose-slate max-w-none dark:prose-invert dark:text-slate-400 prose-headings:scroll-mt-28 prose-headings:font-display prose-headings:font-normal lg:prose-headings:scroll-mt-[8.5rem] prose-lead:text-slate-500 dark:prose-lead:text-slate-400 prose-a:font-semibold dark:prose-a:text-sky-400 prose-a:no-underline prose-a:shadow-[inset_0_-2px_0_0_var(--tw-prose-background,#fff),inset_0_calc(-1*(var(--tw-prose-underline-size,4px)+2px))_0_0_var(--tw-prose-underline,theme(colors.sky.300))] hover:prose-a:[--tw-prose-underline-size:6px] dark:[--tw-prose-background:theme(colors.slate.900)] dark:prose-a:shadow-[inset_0_calc(-1*var(--tw-prose-underline-size,2px))_0_0_var(--tw-prose-underline,theme(colors.sky.800))] dark:hover:prose-a:[--tw-prose-underline-size:6px] prose-pre:rounded-xl prose-pre:bg-slate-900 prose-pre:shadow-lg dark:prose-pre:bg-slate-800/60 dark:prose-pre:shadow-none dark:prose-pre:ring-1 dark:prose-pre:ring-slate-300/10 dark:prose-hr:border-slate-800">
+          
+  <h2 id="prerequisites">Prerequisites</h2>
 <ol>
 <li>Unix based operating system</li>
 <li>Java JDK 1.8 or newer</li>
@@ -433,11 +436,11 @@ Either one must manually build it or ask for a copy of it from a Confluent repre
 <p>Installing from the archive is a manual process and is only supported on unix based systems.</p>
 <p>Once the archive is acquired you will need a place to unzip it.
 I suggest <code>/opt</code> or <code>/usr/local</code>.</p>
-<pre is:raw="" class="astro-code" style="background-color: #ffffff; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;"><code><span class="line"><span style="color: #0550AE">cd</span><span style="color: #24292F"> /usr/local</span></span>
-<span class="line"><span style="color: #24292F">unzip jms-bridge-1.0.0-M1.zip</span></span></code></pre>
+<pre is:raw="" class="astro-code github-light" style="background-color: #fff; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0"><code><span class="line"><span style="color: #005CC5">cd</span><span style="color: #24292E"> </span><span style="color: #032F62">/usr/local</span></span>
+<span class="line"><span style="color: #6F42C1">unzip</span><span style="color: #24292E"> </span><span style="color: #032F62">jms-bridge-1.0.0-M1.zip</span></span></code></pre>
 <p>Once unzipped you should have a folder named <code>jms-bridge-&#x3C;version></code> and the content of that folder should look like:</p>
-<pre is:raw="" class="astro-code" style="background-color: #ffffff; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;"><code><span class="line"><span style="color: #24292F">jms-bridge-1.0.0-M1-SNAPSHOT $</span><span style="color: #CF222E">></span><span style="color: #24292F"> ls</span></span>
-<span class="line"><span style="color: #24292F">bin   etc   lib  share</span></span></code></pre>
+<pre is:raw="" class="astro-code github-light" style="background-color: #fff; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0"><code><span class="line"><span style="color: #6F42C1">jms-bridge-1.0.0-M1-SNAPSHOT</span><span style="color: #24292E"> $</span><span style="color: #D73A49">></span><span style="color: #24292E"> </span><span style="color: #032F62">ls</span></span>
+<span class="line"><span style="color: #6F42C1">bin</span><span style="color: #24292E">   </span><span style="color: #032F62">etc</span><span style="color: #24292E">   </span><span style="color: #032F62">lib</span><span style="color: #24292E">  </span><span style="color: #032F62">share</span></span></code></pre>
 <p>Those directories follow the standard linux conventions for naming.</p>
 <ul>
 <li><code>bin</code> contains executables</li>
@@ -446,21 +449,21 @@ I suggest <code>/opt</code> or <code>/usr/local</code>.</p>
 <li><code>share</code> contains docs, libraries and jars</li>
 </ul>
 <p>Update the permissions appropriately</p>
-<pre is:raw="" class="astro-code" style="background-color: #ffffff; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;"><code><span class="line"><span style="color: #24292F">chmod -R a=rx,u+w bin/</span></span>
-<span class="line"><span style="color: #24292F">chmod -R a=r,u+w etc/ share/</span></span></code></pre>
+<pre is:raw="" class="astro-code github-light" style="background-color: #fff; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0"><code><span class="line"><span style="color: #6F42C1">chmod</span><span style="color: #24292E"> </span><span style="color: #005CC5">-R</span><span style="color: #24292E"> </span><span style="color: #032F62">a=rx,u+w</span><span style="color: #24292E"> </span><span style="color: #032F62">bin/</span></span>
+<span class="line"><span style="color: #6F42C1">chmod</span><span style="color: #24292E"> </span><span style="color: #005CC5">-R</span><span style="color: #24292E"> </span><span style="color: #032F62">a=r,u+w</span><span style="color: #24292E"> </span><span style="color: #032F62">etc/</span><span style="color: #24292E"> </span><span style="color: #032F62">share/</span></span></code></pre>
 <h2 id="manual-start">Manual Start</h2>
 <p>To start the JMS-Bridge there is the <code>jms-bridge-server-start</code> script that can be called.
 One argument is required and that is the path to the <code>jms-bridge.properties</code> file, a default one can be found in the <code>etc/jms-bridge/</code> directory.</p>
-<pre is:raw="" class="astro-code" style="background-color: #ffffff; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;"><code><span class="line"><span style="color: #24292F">bin/jms-bridge-server-start etc/jms-bridge/jms-bridge.properties</span></span></code></pre>
+<pre is:raw="" class="astro-code github-light" style="background-color: #fff; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0"><code><span class="line"><span style="color: #6F42C1">bin/jms-bridge-server-start</span><span style="color: #24292E"> </span><span style="color: #032F62">etc/jms-bridge/jms-bridge.properties</span></span></code></pre>
 <p>By default it will run in the foreground and can be killed with <code>^C</code>.
 Alternatively you can start it in the background using the <code>-daemon</code> option.</p>
-<pre is:raw="" class="astro-code" style="background-color: #ffffff; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;"><code><span class="line"><span style="color: #24292F">bin/jms-bridge-server-start -daemon etc/jms-bridge/jms-bridge.properties</span></span></code></pre>
+<pre is:raw="" class="astro-code github-light" style="background-color: #fff; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0"><code><span class="line"><span style="color: #6F42C1">bin/jms-bridge-server-start</span><span style="color: #24292E"> </span><span style="color: #005CC5">-daemon</span><span style="color: #24292E"> </span><span style="color: #032F62">etc/jms-bridge/jms-bridge.properties</span></span></code></pre>
 <p>As a companion to the <code>jms-bridge-server-start</code> script there is a <code>jms-bridge-server-stop</code> script which can be used to stop the JMS-Bridge.</p>
-<pre is:raw="" class="astro-code" style="background-color: #ffffff; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;"><code><span class="line"><span style="color: #24292F">bin/jms-bridge-server-stop</span></span></code></pre>
-<pre is:raw="" class="astro-code" style="background-color: #ffffff; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;"><code><span class="line"><span style="color: #24292F">    Default location of runtime files of interest:</span></span>
+<pre is:raw="" class="astro-code github-light" style="background-color: #fff; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0"><code><span class="line"><span style="color: #6F42C1">bin/jms-bridge-server-stop</span></span></code></pre>
+<pre is:raw="" class="astro-code github-light" style="background-color: #fff; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0"><code><span class="line"><span style="color: #24292E">    Default location of runtime files of interest:</span></span>
 <span class="line"></span>
-<span class="line"><span style="color: #24292F">     * Log files  -> `./logs`</span></span>
-<span class="line"><span style="color: #24292F">     * Data files -> `./data`</span></span></code></pre>
+<span class="line"><span style="color: #24292E">     * Log files  -> `./logs`</span></span>
+<span class="line"><span style="color: #24292E">     * Data files -> `./data`</span></span></code></pre>
 <h2 id="systemd">Systemd</h2>
 <p>It is possible to run it via systemd but I leave that as an exercise for the reader for now.</p>
 <h2 id="environment-variables">Environment Variables</h2>
@@ -485,7 +488,7 @@ Includes GC settings.</p>
 <h3 id="jms_bridge_log4j_opts">JMS_BRIDGE_LOG4J_OPTS</h3>
 <p>Logging options, based on <a href="https://logging.apache.org/log4j/2.x/manual">log4j2</a>.</p>
 <p>For example to specify a custom logging configuration file you can set this property to</p>
-<pre is:raw="" class="astro-code" style="background-color: #ffffff; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;"><code><span class="line"><span style="color: #CF222E">export</span><span style="color: #24292F"> JMS_BRIDGE_LOG4J_OPTS=</span><span style="color: #0A3069">"-Dlog4j2.configurationFile=file:/path/to/log4j2.xml"</span></span></code></pre>
+<pre is:raw="" class="astro-code github-light" style="background-color: #fff; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0"><code><span class="line"><span style="color: #D73A49">export</span><span style="color: #24292E"> JMS_BRIDGE_LOG4J_OPTS</span><span style="color: #D73A49">=</span><span style="color: #032F62">"-Dlog4j2.configurationFile=file:/path/to/log4j2.xml"</span></span></code></pre>
 <p>Alternatively to modify the logging you can edit the <code>etc/jms-bridge/log4j2.xml</code> file directly.</p>
 <p>Included with the install is an example rolling file log4j2 configuration, <code>log4j2-rolling.xml</code>.</p>
 <p>The <code>log4j2-cli.xml</code> file configures logging for the <a href="cli">jms-bridge CLI</a> command, you may
@@ -496,7 +499,9 @@ modify that as needed.</p>
 <p>Sets the path to the directory in which log files will be written.</p>
 <p>Default: <code>./logs</code></p>
 <h3 id=""></h3>
-        </section><dl class="mt-12 flex border-t border-sky-300 pt-6 dark:border-sky-700">
+
+        </section>
+        <dl class="mt-12 flex border-t border-sky-300 pt-6 dark:border-sky-700">
   <div class="mr-auto text-left">
         <dt class="font-display text-sm font-medium text-gray-800 dark:text-gray-200">
           Prev
@@ -520,11 +525,14 @@ modify that as needed.</p>
         </dd>
       </div>
 </dl>
+      
   </section>
   <nav class="block sm:hidden">
-    <h2 id="more-title" class="font-display text-sm font-medium text-gray-900 dark:text-white mt-4 space-y-3">
+    
+      <h2 id="more-title" class="font-display text-sm font-medium text-gray-900 dark:text-white mt-4 space-y-3">
         More
-      </h2><ol role="list" class="mt-4 space-y-3 text-sm flex flex-col">
+      </h2>
+      <ol role="list" class="mt-4 space-y-3 text-sm flex flex-col">
         <li class="py-1 text-gray-500 dark:text-gray-400 flex items-center">
             <svg viewBox="0 0 24 24" class="w-6 h-6 mr-2" astro-icon="heroicons-outline:pencil"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m15.232 5.232 3.536 3.536m-2.036-5.036a2.5 2.5 0 1 1 3.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
             <a class="hover:text-sky-600 dark:hover:text-sky-300" href="https://github.com/confluentinc/csid-jms-bridge/astrodocs/src/content/docs/get-started/installation.md" target="_blank">
@@ -532,6 +540,7 @@ modify that as needed.</p>
             </a>
           </li>
       </ol>
+    
   </nav>
 </article>
     </div>
@@ -613,9 +622,11 @@ modify that as needed.</p>
           </a>
         </li>
 </ol>
+      
       <h2 id="more-title" class="font-display text-sm font-medium text-gray-900 dark:text-white mt-4 space-y-3">
         More
-      </h2><ol role="list" class="mt-4 space-y-3 text-sm flex flex-col">
+      </h2>
+      <ol role="list" class="mt-4 space-y-3 text-sm flex flex-col">
         <li class="py-1 text-gray-500 dark:text-gray-400 flex items-center">
             <svg viewBox="0 0 24 24" class="w-6 h-6 mr-2" astro-icon="heroicons-outline:pencil"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m15.232 5.232 3.536 3.536m-2.036-5.036a2.5 2.5 0 1 1 3.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
             <a class="hover:text-sky-600 dark:hover:text-sky-300" href="https://github.com/confluentinc/csid-jms-bridge/astrodocs/src/content/docs/get-started/installation.md" target="_blank">
@@ -623,11 +634,13 @@ modify that as needed.</p>
             </a>
           </li>
       </ol>
+    
     </div>
   </nav>
 </div>
     </aside>
   </main>
+
       
       <div class="h-24 lg:h-16"></div>
 <footer class="text-gray-600 dark:text-gray-400">
