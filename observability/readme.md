@@ -11,6 +11,8 @@ To enable the prometheus export in docker, set these environment variables:
 
 And make sure the `jmx-prometheus-javaagent/*` library if copied to `/usr/share/java/`
 
+Mappings from JMX beans to Prometheus counters are in `observability/docker-examples/jms-bridge/image/docker/etc/jmx-prometheus-config.yml`.
+
 TODO: explain how to enable outside of docker
 
 ## Examples

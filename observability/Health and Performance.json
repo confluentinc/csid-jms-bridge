@@ -219,7 +219,7 @@
       },
       "gridPos": {
         "h": 5,
-        "w": 6,
+        "w": 3,
         "x": 6,
         "y": 0
       },
@@ -251,7 +251,59 @@
           "legendFormat": "connections",
           "range": false,
           "refId": "Artemis Connection Count"
+        }
+      ],
+      "title": "Artemis Connections",
+      "type": "gauge"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
         },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 3,
+        "x": 9,
+        "y": 0
+      },
+      "id": 8,
+      "options": {
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      },
+      "pluginVersion": "10.0.3",
+      "targets": [
         {
           "datasource": {
             "type": "prometheus",
@@ -267,7 +319,7 @@
           "refId": "Artemis Messages Expired"
         }
       ],
-      "title": "Artemis",
+      "title": "Expired Msgs",
       "type": "gauge"
     },
     {
@@ -372,7 +424,7 @@
           "refId": "Artemis Journal Buffer Size"
         }
       ],
-      "title": "Artemis Memory & Connections",
+      "title": "Artemis Memory & Buffer Size",
       "type": "timeseries"
     },
     {
@@ -440,7 +492,7 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 16,
+        "h": 11,
         "w": 12,
         "x": 0,
         "y": 5
@@ -507,7 +559,279 @@
           "refId": "A"
         }
       ],
-      "title": "Kafka",
+      "title": "Kafka Request and Process Rates",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 28,
+            "gradientMode": "opacity",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 11
+      },
+      "id": 9,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "rate(artemis_messages_added{queue=~\".+\"}[$__rate_interval])",
+          "instant": false,
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "rate(artemis_messages_acknowledged{queue=~\".+\"}[$__rate_interval])",
+          "hide": false,
+          "instant": false,
+          "range": true,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "artemis_message_count{queue=~\".+\"}",
+          "hide": false,
+          "instant": false,
+          "range": true,
+          "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "rate(artemis_address_size{address!~\".*activemq.*\"}[$__rate_interval])",
+          "hide": false,
+          "instant": false,
+          "range": true,
+          "refId": "D"
+        }
+      ],
+      "title": "Queue Add/Ack/Size",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 4,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineStyle": {
+              "fill": "solid"
+            },
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": 3600000,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 11,
+        "w": 12,
+        "x": 0,
+        "y": 16
+      },
+      "id": 7,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "builder",
+          "expr": "kafka_producer_producer_node_metrics{name=\"incoming-byte-total\"}",
+          "instant": true,
+          "key": "Q-7fa62d57-9ba8-4d18-9fb0-4d482a7af0a5-9",
+          "range": true,
+          "refId": "Producer Incoming Bytes Total"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "builder",
+          "expr": "kafka_producer_producer_node_metrics{name=\"outgoing-byte-total\"}",
+          "instant": true,
+          "key": "Q-e1017cdd-4d66-4dfe-86dc-04f219eb7417-12",
+          "range": true,
+          "refId": "Producer Outgoing Bytes Total"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "builder",
+          "expr": "kafka_consumer_consumer_node_metrics{name=\"incoming-byte-total\"}",
+          "hide": false,
+          "instant": false,
+          "range": true,
+          "refId": "Consumer Incoming Bytes Total"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "builder",
+          "expr": "kafka_consumer_consumer_node_metrics{name=\"outgoing-byte-total\"}",
+          "hide": false,
+          "instant": false,
+          "range": true,
+          "refId": "Consumer Outgoing Bytes Total"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "sum(kafka_producer_producer_topic_metrics{name=\"byte-rate\"}) by (topic)",
+          "hide": false,
+          "instant": false,
+          "range": true,
+          "refId": "Byte Rate"
+        }
+      ],
+      "title": "Kafka I/O Totals",
       "type": "timeseries"
     },
     {
@@ -575,7 +899,7 @@
         "h": 10,
         "w": 12,
         "x": 12,
-        "y": 11
+        "y": 19
       },
       "id": 3,
       "options": {
@@ -597,9 +921,12 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "builder",
+          "exemplar": false,
           "expr": "jvm_memory_bytes_used",
           "instant": true,
+          "interval": "",
           "key": "Q-df9ce06b-4de3-4d85-921e-96bda51f3ee3-7",
+          "legendFormat": "",
           "range": true,
           "refId": "JVM Bytes Used"
         },
@@ -659,6 +986,6 @@
   "timezone": "",
   "title": "Health and Performance",
   "uid": "e60dded1-eac1-40fe-8dd4-0e2465353d8e",
-  "version": 24,
+  "version": 38,
   "weekStart": ""
 }
