@@ -129,6 +129,7 @@
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
       },
+      "description": "",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -182,6 +183,7 @@
           "expr": "rate(artemis_number_of_messages{service=\"jms-bridge\", address=\"kafka.test\", env=\"local\", instance=\"live-jms-bridge:8888\"}[$__rate_interval])",
           "instant": true,
           "key": "Q-f8e442c2-5275-4d49-93f8-25eb911ae5da-6",
+          "legendFormat": "the sum of messages on queue(s), including messages in delivery",
           "range": false,
           "refId": "Artemis Number of Messages"
         }
@@ -517,9 +519,12 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "builder",
+          "exemplar": false,
           "expr": "kafka_producer_producer_node_metrics{name=\"request-rate\", node_id=\"node-1\"}",
-          "instant": true,
+          "format": "time_series",
+          "instant": false,
           "key": "Q-7fa62d57-9ba8-4d18-9fb0-4d482a7af0a5-9",
+          "legendFormat": "__auto",
           "range": true,
           "refId": "Kafka Producer Request Rate"
         },
@@ -530,8 +535,9 @@
           },
           "editorMode": "builder",
           "expr": "kafka_consumer_consumer_node_metrics{name=\"request-rate\", node_id=\"node-1\"}",
-          "instant": true,
+          "instant": false,
           "key": "Q-e40fa495-4542-4b02-ac40-79f63021e511-10",
+          "legendFormat": "__auto",
           "range": true,
           "refId": "Kafka Consumer Request Rate"
         },
@@ -541,22 +547,13 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "builder",
-          "expr": "kafka_streams_stream_task_metrics{name=\"process-rate\"}",
-          "instant": true,
+          "exemplar": false,
+          "expr": "kafka_streams_stream_task_metrics{name=\"process-rate\", instance=\"live-jms-bridge:8888\", service=\"jms-bridge\"}",
+          "instant": false,
           "key": "Q-f9313de1-e7d4-44ec-8384-220fae0160be-11",
+          "legendFormat": "__auto",
           "range": true,
           "refId": "Kafka Streams Process Rate"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "expr": "",
-          "instant": true,
-          "key": "Q-e1017cdd-4d66-4dfe-86dc-04f219eb7417-12",
-          "range": true,
-          "refId": "A"
         }
       ],
       "title": "Kafka Request and Process Rates",
@@ -986,6 +983,6 @@
   "timezone": "",
   "title": "Health and Performance",
   "uid": "e60dded1-eac1-40fe-8dd4-0e2465353d8e",
-  "version": 38,
+  "version": 40,
   "weekStart": ""
 }
