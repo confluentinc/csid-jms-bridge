@@ -99,3 +99,58 @@ docker compose start live-jms-bridge
 
 if you look at live-jms-bridge logs you'll see the log `AMQ221035: Live Server Obtained live lock` indicating that the
 live server has taken back over. and that the backup server logs has `AMQ221031: backup announced`.
+
+## Testing HA with ToxiProxy for Kafka connectivity loss from one node.
+
+### Step 1 - setup node to go through proxy.
+update `docker-compose.yml` for the live or backup jms node to use toxiproxy:9093 instead of kafka:9092 for the node that you want to be able to control Kafka connectivity for.
+```bash
+JMSBRIDGE_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+```
+to
+```bash
+JMSBRIDGE_KAFKA_BOOTSTRAP_SERVERS: toxiproxy:9093
+```
+
+### Step 2 - start Kafka and ToxiProxy docker containers
+
+```bash
+docker compose up -d kafka
+docker compose up -d toxiproxy
+```
+
+### Step 3 - create a proxy rule for routing traffic to Kafka
+
+```bash
+docker run --rm --network=jms-bridge-ha_default --entrypoint="/toxiproxy-cli" -it ghcr.io/shopify/toxiproxy -h toxiproxy:8474 create -l 0.0.0.0:9093 -u kafka:9093 kafka
+```
+
+### Step 4 - when ready to kill connectivity from node configured for use of proxy to Kafka - run the following command
+
+```bash
+docker run --rm --network=jms-bridge-ha_default --entrypoint="/toxiproxy-cli" -it ghcr.io/shopify/toxiproxy -h toxiproxy:8474 delete kafka 
+```
+
+### Step 5 - Verify the logs / that failback / failover happened as expected
+Check logs for the live and backup jms bridge nodes, consumer and producer for clients to see the failover / failback process.
+```bash
+docker compose logs -f live-jms-bridge
+```
+```bash
+docker compose logs -f backup-jms-bridge
+```
+```bash
+docker compose logs -f producer
+```
+```bash
+docker compose logs -f consumer
+```
+
+### Step 6 - Optionally - recreate the proxy rule to restore connectivity / test failback. 
+```bash
+docker run --rm --network=jms-bridge-ha_default --entrypoint="/toxiproxy-cli" -it ghcr.io/shopify/toxiproxy -h toxiproxy:8474 create -l 0.0.0.0:9093 -u kafka:9093 kafka
+```
+Restart the crashed node as needed.
+```bash
+docker compose up -d
+```

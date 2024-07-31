@@ -84,7 +84,7 @@ public class LeaderCoordinator<A extends Assignment, M extends MemberIdentity>
 
     do {
       if (coordinatorUnknown()) {
-        ensureCoordinatorReady(time.timer(Long.MAX_VALUE));
+        ensureCoordinatorReady(time.timer(timeout));
         now = time.milliseconds();
       }
 

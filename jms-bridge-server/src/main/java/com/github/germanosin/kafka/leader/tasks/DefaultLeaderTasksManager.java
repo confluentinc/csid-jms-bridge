@@ -135,6 +135,11 @@ public class DefaultLeaderTasksManager<M extends MemberIdentity>
   }
 
   @Override
+  public void onCoordinatorUnavailable() {
+    //noop
+  }
+
+  @Override
   public boolean isAlive(Timer timer) {
     for (Map.Entry<String, Future<?>> ownTask : ownTasks.entrySet()) {
       Future<?> future = ownTask.getValue();

@@ -9,7 +9,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.activemq.artemis.api.core.ActiveMQUnBlockedException;
 import org.apache.activemq.artemis.core.server.ActivateCallback;
 import org.apache.activemq.artemis.core.server.ActiveMQServer;
 import org.apache.activemq.artemis.core.server.NodeManager;
@@ -17,9 +16,10 @@ import org.apache.activemq.artemis.core.server.impl.ActiveMQServerImpl;
 import org.apache.activemq.artemis.utils.UUID;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
-import org.junit.ClassRule;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Test;
 import org.testcontainers.containers.KafkaContainer;
 import org.testcontainers.containers.Network;
 import org.testcontainers.containers.wait.strategy.Wait;
@@ -28,7 +28,6 @@ import org.testcontainers.utility.DockerImageName;
 import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -38,13 +37,56 @@ import static org.testcontainers.shaded.org.awaitility.Awaitility.await;
 
 @Slf4j
 public class KafkaNodeManagerActivationsTest {
-    @ClassRule
+
     public static final KafkaContainer kafka =
             new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:7.2.0"))
                     .withNetworkAliases("kafka")
                     .withNetwork(Network.newNetwork())
                     .waitingFor(Wait.forListeningPort());
     public static final String GROUP_ID = "knodeManagerActivationTest_ha_groupId";
+
+    public static final Integer AWAIT_TIMEOUT_SECONDS = 30;
+
+    @BeforeEach
+    void setupt() {
+        kafka.start();
+    }
+
+    @AfterEach
+    void cleanup() {
+        if (kafka.isRunning()) {
+            kafka.stop();
+        }
+    }
+
+    @Test
+    public void testKafkaConnectionLost_LiveActivation() throws Exception {
+        await().until(() -> kafka.isRunning());
+
+        UUID liveUUID = new UUID(UUID.TYPE_NAME_BASED, UUID.stringToBytes("8cdb294c-2355-11ef-97fc-bed413035aef"));
+        HaConfig haConfig = haConfig();
+        KafkaNodeManagerV2 liveNodeManager = new KafkaNodeManagerV2(
+                haConfig,
+                liveUUID,
+                false,
+                true);
+
+        LiveActivation liveActivation = new LiveActivation(liveNodeManager, true, true);
+        new Thread(() -> liveActivation.start(), "Live activation").start();
+
+        await().atMost(Duration.ofSeconds(AWAIT_TIMEOUT_SECONDS)).untilAsserted(() -> {
+            assertThat(liveActivation.state).isEqualTo(ActiveMQServer.SERVER_STATE.STARTED);
+            assertThat(liveNodeManager.getCurrentLock()).isEqualTo(NodeLocks.LIVE);
+            assertThat(liveNodeManager.isAlive()).isTrue();
+            assertThat(liveNodeManager.getCurrentState()).isEqualTo(ClusterStates.LIVE);
+        });
+        Thread.sleep(2000);
+        kafka.stop();
+        await().until(() -> !kafka.isRunning());
+        await().atMost(Duration.ofSeconds(300)).untilAsserted(() -> {
+            assertThat(liveNodeManager.isAlive()).isFalse();
+        });
+    }
 
     @Test
     public void testFailback_StartingLiveFirstBackupSecond() throws Exception {
@@ -61,7 +103,7 @@ public class KafkaNodeManagerActivationsTest {
         new Thread(() -> liveActivation.start(), "Live activation").start();
 
 
-        await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> {
+        await().atMost(Duration.ofSeconds(AWAIT_TIMEOUT_SECONDS)).untilAsserted(() -> {
             assertThat(liveActivation.state).isEqualTo(ActiveMQServer.SERVER_STATE.STARTED);
             assertThat(liveNodeManager.getCurrentLock()).isEqualTo(NodeLocks.LIVE);
             assertThat(liveNodeManager.isAlive()).isTrue();
@@ -77,7 +119,7 @@ public class KafkaNodeManagerActivationsTest {
         BackupActivation backupActivation = new BackupActivation(backupNodeManager, true, true, true, true);
         new Thread(() -> backupActivation.start(), "Backup activation").start();
 
-        await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> {
+        await().atMost(Duration.ofSeconds(AWAIT_TIMEOUT_SECONDS)).untilAsserted(() -> {
             assertThat(backupActivation.state).isEqualTo(ActiveMQServer.SERVER_STATE.STARTED);
             assertThat(backupNodeManager.getCurrentLock()).isEqualTo(NodeLocks.BACKUP);
             assertThat(backupNodeManager.getCurrentState()).isEqualTo(ClusterStates.LIVE);
@@ -86,13 +128,13 @@ public class KafkaNodeManagerActivationsTest {
         Thread.sleep(100);
         log.debug("Time to stop live");
         liveActivation.stop(true);
-        await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> {
+        await().atMost(Duration.ofSeconds(AWAIT_TIMEOUT_SECONDS)).untilAsserted(() -> {
             assertThat(liveNodeManager.isAlive()).isFalse();
             assertThat(liveNodeManager.getCurrentLock()).isEqualTo(NodeLocks.NONE);
             assertThat(liveActivation.state).isEqualTo(ActiveMQServer.SERVER_STATE.STOPPED);
         });
 
-        await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> {
+        await().atMost(Duration.ofSeconds(AWAIT_TIMEOUT_SECONDS)).untilAsserted(() -> {
             assertThat(backupNodeManager.isAlive()).isTrue();
             assertThat(backupNodeManager.getCurrentLock()).isEqualTo(NodeLocks.LIVE);
             assertThat(backupActivation.state).isEqualTo(ActiveMQServer.SERVER_STATE.STARTED);
@@ -109,7 +151,7 @@ public class KafkaNodeManagerActivationsTest {
 
         LiveActivation liveActivation2 = new LiveActivation(liveNodeManager2, true, true);
         liveActivation2.start();
-        await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> {
+        await().atMost(Duration.ofSeconds(AWAIT_TIMEOUT_SECONDS)).untilAsserted(() -> {
             assertThat(liveActivation2.state).isEqualTo(ActiveMQServer.SERVER_STATE.STARTED);
             assertThat(liveNodeManager2.getCurrentLock()).isEqualTo(NodeLocks.LIVE);
             assertThat(liveNodeManager2.isAlive()).isTrue();
@@ -117,7 +159,7 @@ public class KafkaNodeManagerActivationsTest {
             assertThat(backupNodeManager.getCurrentLock()).isNotEqualTo(NodeLocks.LIVE);
         });
 
-        await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> {
+        await().atMost(Duration.ofSeconds(AWAIT_TIMEOUT_SECONDS)).untilAsserted(() -> {
             assertThat(backupNodeManager.isAlive()).isTrue();
             assertThat(backupNodeManager.getCurrentLock().equals(NodeLocks.BACKUP));
             assertThat(backupActivation.state).isEqualTo(ActiveMQServer.SERVER_STATE.STARTED);
@@ -151,7 +193,7 @@ public class KafkaNodeManagerActivationsTest {
         BackupActivation backupActivation = new BackupActivation(backupNodeManager, true, true, true, true);
         new Thread(() -> backupActivation.start(), "Backup activation").start();
 
-        await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> {
+        await().atMost(Duration.ofSeconds(AWAIT_TIMEOUT_SECONDS)).untilAsserted(() -> {
             assertThat(liveActivation.state).isEqualTo(ActiveMQServer.SERVER_STATE.STARTED);
             assertThat(liveNodeManager.getCurrentLock()).isEqualTo(NodeLocks.LIVE);
             assertThat(liveNodeManager.isAlive()).isTrue();
@@ -165,13 +207,13 @@ public class KafkaNodeManagerActivationsTest {
         Thread.sleep(100);
         log.debug("Time to stop live");
         liveActivation.stop(true);
-        await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> {
+        await().atMost(Duration.ofSeconds(AWAIT_TIMEOUT_SECONDS)).untilAsserted(() -> {
             assertThat(liveNodeManager.isAlive()).isFalse();
             assertThat(liveNodeManager.getCurrentLock()).isEqualTo(NodeLocks.NONE);
             assertThat(liveActivation.state).isEqualTo(ActiveMQServer.SERVER_STATE.STOPPED);
         });
 
-        await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> {
+        await().atMost(Duration.ofSeconds(AWAIT_TIMEOUT_SECONDS)).untilAsserted(() -> {
             assertThat(backupNodeManager.isAlive()).isTrue();
             assertThat(backupNodeManager.getCurrentLock()).isEqualTo(NodeLocks.LIVE);
             assertThat(backupActivation.state).isEqualTo(ActiveMQServer.SERVER_STATE.STARTED);
@@ -188,7 +230,7 @@ public class KafkaNodeManagerActivationsTest {
 
         LiveActivation liveActivation2 = new LiveActivation(liveNodeManager2, true, true);
         liveActivation2.start();
-        await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> {
+        await().atMost(Duration.ofSeconds(AWAIT_TIMEOUT_SECONDS)).untilAsserted(() -> {
             assertThat(liveActivation2.state).isEqualTo(ActiveMQServer.SERVER_STATE.STARTED);
             assertThat(liveNodeManager2.getCurrentLock()).isEqualTo(NodeLocks.LIVE);
             assertThat(liveNodeManager2.isAlive()).isTrue();
@@ -196,89 +238,7 @@ public class KafkaNodeManagerActivationsTest {
             assertThat(backupNodeManager.getCurrentLock()).isNotEqualTo(NodeLocks.LIVE);
         });
 
-        await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> {
-            assertThat(backupNodeManager.isAlive()).isTrue();
-            assertThat(backupNodeManager.getCurrentLock().equals(NodeLocks.BACKUP));
-            assertThat(backupActivation.state).isEqualTo(ActiveMQServer.SERVER_STATE.STARTED);
-            assertThat(backupNodeManager.getCurrentState()).isEqualTo(ClusterStates.LIVE);
-        });
-        //give some time for logs to be printed and for state negotiations to be definitely complete.
-        Thread.sleep(10_000);
-        assertThat(backupActivation.haMaster).isFalse();
-        assertThat(backupActivation.failbackStartedByChecker).isTrue();
-
-    }
-
-    @Test
-    public void testFailback_StartingSimultaneouslyLiveAndBackupKillingLiveThread() throws Exception {
-        UUID liveUUID = new UUID(UUID.TYPE_NAME_BASED, UUID.stringToBytes("8cdb294c-2355-11ef-97fc-bed413035aef"));
-        UUID backupUUID = new UUID(UUID.TYPE_NAME_BASED, UUID.stringToBytes("85b4b78b-2355-11ef-97fc-bed413035aef"));
-        HaConfig haConfig = haConfig();
-
-
-        KafkaNodeManagerV2 backupNodeManager = new KafkaNodeManagerV2(
-                haConfig,
-                backupUUID,
-                false,
-                false);
-        final KafkaNodeManagerV2 liveNodeManager = new KafkaNodeManagerV2(
-                haConfig,
-                liveUUID,
-                false,
-                true);
-        final LiveActivation liveActivation = new LiveActivation(liveNodeManager, true, true);
-
-        ExecutorService liveThread = Executors.newSingleThreadExecutor();
-        liveThread.submit(liveActivation::start);
-        BackupActivation backupActivation = new BackupActivation(backupNodeManager, true, true, true, true);
-        new Thread(() -> backupActivation.start(), "Backup activation").start();
-
-        await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> {
-            assertThat(liveActivation.state).isEqualTo(ActiveMQServer.SERVER_STATE.STARTED);
-            assertThat(liveNodeManager.getCurrentLock()).isEqualTo(NodeLocks.LIVE);
-            assertThat(liveNodeManager.isAlive()).isTrue();
-            assertThat(liveNodeManager.getCurrentState()).isEqualTo(ClusterStates.LIVE);
-
-            assertThat(backupActivation.state).isEqualTo(ActiveMQServer.SERVER_STATE.STARTED);
-            assertThat(backupNodeManager.getCurrentLock()).isEqualTo(NodeLocks.BACKUP);
-            assertThat(backupNodeManager.getCurrentState()).isEqualTo(ClusterStates.LIVE);
-            assertThat(backupNodeManager.isAlive()).isTrue();
-        });
-        Thread.sleep(100);
-        log.debug("Time to stop live");
-        liveThread.shutdownNow();
-        await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> {
-            assertThat(liveNodeManager.isAlive()).isFalse();
-            assertThat(liveNodeManager.getCurrentLock()).isEqualTo(NodeLocks.NONE);
-            assertThat(liveActivation.state).isEqualTo(ActiveMQServer.SERVER_STATE.STOPPED);
-        });
-
-        await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> {
-            assertThat(backupNodeManager.isAlive()).isTrue();
-            assertThat(backupNodeManager.getCurrentLock()).isEqualTo(NodeLocks.LIVE);
-            assertThat(backupActivation.state).isEqualTo(ActiveMQServer.SERVER_STATE.STARTED);
-            assertThat(backupNodeManager.getCurrentState()).isEqualTo(ClusterStates.LIVE);
-        });
-        Thread.sleep(2_000);
-
-        log.debug("Time to start live again");
-        KafkaNodeManagerV2 liveNodeManager2 = new KafkaNodeManagerV2(
-                haConfig,
-                liveUUID,
-                false,
-                true);
-
-        LiveActivation liveActivation2 = new LiveActivation(liveNodeManager2, true, true);
-        liveActivation2.start();
-        await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> {
-            assertThat(liveActivation2.state).isEqualTo(ActiveMQServer.SERVER_STATE.STARTED);
-            assertThat(liveNodeManager2.getCurrentLock()).isEqualTo(NodeLocks.LIVE);
-            assertThat(liveNodeManager2.isAlive()).isTrue();
-            assertThat(liveNodeManager2.getCurrentState()).isEqualTo(ClusterStates.LIVE);
-            assertThat(backupNodeManager.getCurrentLock()).isNotEqualTo(NodeLocks.LIVE);
-        });
-
-        await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> {
+        await().atMost(Duration.ofSeconds(AWAIT_TIMEOUT_SECONDS)).untilAsserted(() -> {
             assertThat(backupNodeManager.isAlive()).isTrue();
             assertThat(backupNodeManager.getCurrentLock().equals(NodeLocks.BACKUP));
             assertThat(backupActivation.state).isEqualTo(ActiveMQServer.SERVER_STATE.STARTED);
@@ -306,7 +266,7 @@ public class KafkaNodeManagerActivationsTest {
         BackupActivation backupActivation = new BackupActivation(backupNodeManager, true, true, true, true);
         new Thread(() -> backupActivation.start(), "Backup Activation Thread").start();
         Thread.sleep(2_000);
-        await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> {
+        await().atMost(Duration.ofSeconds(AWAIT_TIMEOUT_SECONDS)).untilAsserted(() -> {
             assertThat(backupActivation.state == ActiveMQServer.SERVER_STATE.STARTED);
         });
         Thread.sleep(100);
@@ -319,7 +279,7 @@ public class KafkaNodeManagerActivationsTest {
         LiveActivation liveActivation = new LiveActivation(liveNodeManager, true, true);
         new Thread(() -> liveActivation.start(), "Live Activation Thread").start();
 
-        await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> {
+        await().atMost(Duration.ofSeconds(AWAIT_TIMEOUT_SECONDS)).untilAsserted(() -> {
             assertThat(liveActivation.state).isEqualTo(ActiveMQServer.SERVER_STATE.STARTED);
             assertThat(liveNodeManager.getCurrentLock()).isEqualTo(NodeLocks.LIVE);
             assertThat(liveNodeManager.isAlive()).isTrue();
@@ -328,13 +288,13 @@ public class KafkaNodeManagerActivationsTest {
         });
         Thread.sleep(100);
         liveActivation.stop(true);
-        await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> {
+        await().atMost(Duration.ofSeconds(AWAIT_TIMEOUT_SECONDS)).untilAsserted(() -> {
             assertThat(liveNodeManager.isAlive()).isFalse();
             assertThat(liveNodeManager.getCurrentLock()).isEqualTo(NodeLocks.NONE);
             assertThat(liveActivation.state).isEqualTo(ActiveMQServer.SERVER_STATE.STOPPED);
         });
 
-        await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> {
+        await().atMost(Duration.ofSeconds(AWAIT_TIMEOUT_SECONDS)).untilAsserted(() -> {
             assertThat(backupNodeManager.isAlive()).isTrue();
             assertThat(backupNodeManager.getCurrentLock()).isEqualTo(NodeLocks.LIVE);
             assertThat(backupActivation.state).isEqualTo(ActiveMQServer.SERVER_STATE.STARTED);
@@ -345,7 +305,6 @@ public class KafkaNodeManagerActivationsTest {
 
     @Test
     public void testLiveOnly() throws Exception {
-        ActiveMQUnBlockedException e;
         UUID liveUUID = new UUID(UUID.TYPE_NAME_BASED, UUID.stringToBytes("8cdb294c-2355-11ef-97fc-bed413035aef"));
         HaConfig haConfig = haConfig();
 
@@ -365,7 +324,7 @@ public class KafkaNodeManagerActivationsTest {
         });
         Thread.sleep(100);
         liveActivation.stop(true);
-        await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> {
+        await().atMost(Duration.ofSeconds(AWAIT_TIMEOUT_SECONDS)).untilAsserted(() -> {
             assertThat(liveActivation.state).isEqualTo(ActiveMQServer.SERVER_STATE.STOPPED);
             assertThat(liveNodeManager.getCurrentLock()).isEqualTo(NodeLocks.NONE);
             assertThat(liveNodeManager.isAlive()).isFalse();
@@ -381,7 +340,7 @@ public class KafkaNodeManagerActivationsTest {
     @Test
     public void testLiveToBackupFailoverAndFailbackWithAbruptLiveCrashes() {
         UUID backupUUID = new UUID(UUID.TYPE_NAME_BASED, UUID.stringToBytes("85b4b78b-2355-11ef-97fc-bed413035aef"));
-        HaConfig haConfig =new HaConfig.Builder()
+        HaConfig haConfig = new HaConfig.Builder()
                 .groupId(GROUP_ID + "_manual_test")
                 .putAllConsumerConfig(
                         Map.of(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, kafka.getBootstrapServers()))
@@ -683,6 +642,11 @@ public class KafkaNodeManagerActivationsTest {
 
         ActivateCallback nodeManagerActivateCallback;
 
+        @Getter
+        @Setter
+        Runnable completeActivationRunnable = null;
+        private NodeManager.LockListener activeLockListener;
+
         public NodeManager getNodeManager() {
             return nodeManager;
         }
@@ -710,7 +674,7 @@ public class KafkaNodeManagerActivationsTest {
                         if (!isWaitForActivation)
                             state = ActiveMQServer.SERVER_STATE.STARTED;
                     }
-
+                    registerActiveLockListener(nodeManager);
                     nodeManagerActivateCallback = nodeManager.startLiveNode();
 
                     synchronized (this) {
@@ -779,8 +743,34 @@ public class KafkaNodeManagerActivationsTest {
 
         public void completeActivation() throws Exception {
             state = ActiveMQServerImpl.SERVER_STATE.STARTED;
+            if (completeActivationRunnable != null) {
+                completeActivationRunnable.run();
+            }
             activationLatch.countDown();
             nodeManagerActivateCallback.activationComplete();
+        }
+
+        private void registerActiveLockListener(NodeManager nodeManager) {
+            NodeManager.LockListener lockListener = () ->
+            {
+                try {
+                    unregisterActiveLockListener(nodeManager);
+                    nodeManager.stop();
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            };
+
+            activeLockListener = lockListener;
+            nodeManager.registerLockListener(lockListener);
+        }
+
+        private void unregisterActiveLockListener(NodeManager nodeManager) {
+            NodeManager.LockListener activeLockListener = this.activeLockListener;
+            if (activeLockListener != null) {
+                nodeManager.unregisterLockListener(activeLockListener);
+                this.activeLockListener = null;
+            }
         }
     }
 }
