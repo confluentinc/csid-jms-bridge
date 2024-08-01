@@ -4,7 +4,6 @@ import io.confluent.amq.ConfluentAmqServer;
 import io.confluent.amq.config.BridgeConfig;
 import io.confluent.amq.config.RoutingConfig;
 import io.confluent.amq.persistence.kafka.KafkaIO;
-import io.confluent.amq.persistence.kafka.KafkaIntegration;
 import org.apache.activemq.artemis.core.message.impl.CoreMessage;
 import org.apache.activemq.artemis.core.persistence.StorageManager;
 import org.apache.activemq.artemis.core.postoffice.PostOffice;
@@ -19,8 +18,12 @@ import org.mockito.quality.Strictness;
 
 import java.util.Optional;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.anyBoolean;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class})
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -46,7 +49,7 @@ public class KafkaExchangeEgressTests {
                .buildPartial();
        KafkaExchangeEgress egress = new KafkaExchangeEgress(config, mockAmqServer, mockKafkaExchange,mockKafkaIo);
        ConsumerRecord<byte[], byte[]> record = new ConsumerRecord<>(
-                "topic", 0, 0L, "key".getBytes(), null);
+                "topic", 0, 0L, "key".getBytes(UTF_8), null);
 
 
        KafkaTopicExchange kte = new KafkaTopicExchange.Builder()

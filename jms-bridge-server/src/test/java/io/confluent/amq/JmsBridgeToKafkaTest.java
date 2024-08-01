@@ -6,7 +6,6 @@ package io.confluent.amq;
 
 import com.google.common.io.Resources;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
-import io.confluent.amq.config.BridgeClientId;
 import io.confluent.amq.config.BridgeConfig;
 import io.confluent.amq.config.BridgeConfigFactory;
 import io.confluent.amq.config.RoutingConfig;
@@ -16,8 +15,6 @@ import io.confluent.amq.test.ArtemisTestServer;
 import io.confluent.amq.test.ArtemisTestServer.Factory;
 import io.confluent.amq.test.KafkaContainerHelper;
 import io.confluent.amq.test.TestSupport;
-import io.confluent.csid.common.utils.accelerator.Accelerator;
-import io.confluent.csid.common.utils.accelerator.Owner;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.serialization.LongDeserializer;
@@ -38,8 +35,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 @SuppressWarnings("checkstyle:ClassDataAbstractionCoupling")
 @SuppressFBWarnings({"MS_PKGPROTECT", "MS_SHOULD_BE_FINAL"})
-@Tag("IntegrationTest")
-public class JmsBridgeToKafkaTests extends AbstractContainerTest {
+public class JmsBridgeToKafkaTest extends AbstractContainerTest {
 
     public KafkaContainerHelper.AdminHelper adminHelper = getContainerHelper().adminHelper();
 
@@ -69,6 +65,12 @@ public class JmsBridgeToKafkaTests extends AbstractContainerTest {
         bridgeKafkaProps = new Properties();
         bridgeKafkaProps.setProperty(
                 ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, getContainerHelper().bootstrapServers());
+    }
+
+    @AfterEach
+    public void tearDown(){
+        producerHelper.close();
+        consumerHelper.close();
     }
 
     @Test

@@ -22,7 +22,7 @@ global_job_config:
       value: "-Dmaven.repo.local=.m2"
 
 
-      
+
 blocks:
   - name: Setup
     dependencies: [ ]
@@ -50,13 +50,19 @@ blocks:
           commands:
             # Again, -q to reduce output spam. Replace with command
             # that executes tests
-            - ./mvnw -q --batch-mode -PunitTests test
-        #   - name: Integration Tests
-        #     commands:
-        #         # Again, -q to reduce output spam. Replace with command
-        #         # that executes tests
-        #         - ./mvnw -q --batch-mode -PintegrationTests test -Dlicense.skip
+            - ./mvnw -q --batch-mode -Ptest test
+        - name: Integration Tests
+          commands:
+            # Again, -q to reduce output spam. Replace with command
+            # that executes tests
+            - ./mvnw -q -Pintegration integration-test
       epilogue:
         always:
           commands:
-            - test-results publish **/target/surefire-reports/*.xml
+            - test-results publish **/target/*-reports/*.xml
+after_pipeline:
+  task:
+    jobs:
+      - name: Publish Results
+        commands:
+          - test-results gen-pipeline-report
