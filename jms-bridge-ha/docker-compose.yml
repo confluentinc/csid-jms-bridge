@@ -1,0 +1,113 @@
+---
+services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:${CP_VERSION}
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 32181
+      ZOOKEEPER_TICK_TIME: 2000
+
+  kafka:
+    image: confluentinc/cp-enterprise-kafka:${CP_VERSION}
+    ports:
+      - "29092:29092"
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:32181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_PROXY:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_PROXY://toxiproxy:9093,PLAINTEXT_HOST://localhost:29092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 100
+    entrypoint:
+      - bash
+      - -c
+      - |
+        /etc/confluent/docker/run &
+        # wait for kafka to be ready
+        echo "Waiting for Kafka to be ready..."
+        cub kafka-ready -b  kafka:9092 1 60
+        # Create topics
+        kafka-topics --create --if-not-exists --topic test --partitions 1 --replication-factor 1  --bootstrap-server kafka:9092
+        sleep infinity
+  toxiproxy:
+    image: ghcr.io/shopify/toxiproxy
+    ports:
+      - "8474:8474"
+  live-jms-bridge:
+    image: ${JMSBRIDGE_IMAGE_BASE}confluentinc/jms-bridge-docker:${JMSBRIDGE_VERSION}
+    hostname: live-jms-bridge
+    container_name: live-jms-bridge
+    depends_on:
+      - kafka
+      - toxiproxy
+    ports:
+      - "61616:61616"
+      - "50006:50006"
+    volumes:
+      - ./shared-store:/var/cache/jms-bridge
+    environment:
+      JMS_BRIDGE_OPTS: "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:50006"
+      BROKER_XML: "broker-live-ha.xml"
+      LOG_IO_CONFLUENT_AMQ: INFO
+      LOG_ORG_APACHE_ACTIVEMQ: INFO
+      JMSBRIDGE_ID: local-docker # must be the same as the backup bridge to cluster together
+      JMSBRIDGE_KAFKA_BOOTSTRAP_SERVERS: kafka:9092 # change to toxiproxy:9093 to test with kafka connectivity loss / routing through proxy.
+      JMSBRIDGE_STREAMS_STATE_DIR: streams-live
+      JMSBRIDGE_JOURNALS_TOPIC_REPLICATION: 1
+      JMSBRIDGE_ROUTING_TOPICS_0_MATCH: ".*"
+      JMSBRIDGE_ROUTING_TOPICS_0_MESSAGE_TYPE: BYTES
+
+
+  backup-jms-bridge:
+    image: ${JMSBRIDGE_IMAGE_BASE}confluentinc/jms-bridge-docker:${JMSBRIDGE_VERSION}
+    hostname: backup-jms-bridge
+    container_name: backup-jms-bridge
+    depends_on:
+      - kafka
+    ports:
+      - "61617:61617"
+      - "50005:50005"
+    volumes:
+      - ./shared-store:/var/cache/jms-bridge
+    environment:
+      JMS_BRIDGE_OPTS: "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:50005"
+      BROKER_XML: "broker-backup-ha.xml"
+      LOG_IO_CONFLUENT_AMQ: INFO
+      LOG_ORG_APACHE_ACTIVEMQ: INFO
+      JMSBRIDGE_ID: local-docker # must be the same as the live bridge to cluster together
+      JMSBRIDGE_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      JMSBRIDGE_STREAMS_STATE_DIR: streams-backup
+      JMSBRIDGE_JOURNALS_TOPIC_REPLICATION: 1
+      JMSBRIDGE_ROUTING_TOPICS_0_MATCH: ".*"
+      JMSBRIDGE_ROUTING_TOPICS_0_MESSAGE_TYPE: BYTES
+
+  producer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        JAVA_FILE: Producer.java
+    container_name: producer
+    command: [ "-t", "test", "-d", "(tcp://live-jms-bridge:61616,tcp://backup-jms-bridge:61617)?ha=true&connection.sendTimeout=5000&retryInterval=1000&retryIntervalMultiplier=1.0&reconnectAttempts=-1&failoverOnServerShutdown=true;", "hello" ]
+    depends_on:
+      - live-jms-bridge
+      - backup-jms-bridge
+      - consumer
+    restart: on-failure
+
+  consumer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        JAVA_FILE: Consumer.java
+    container_name: consumer
+    command: [ "-t", "test", "-s", "(tcp://live-jms-bridge:61616,tcp://backup-jms-bridge:61617)?ha=true&retryInterval=1000&retryIntervalMultiplier=1.0&reconnectAttempts=-1;" ]
+    depends_on:
+      - live-jms-bridge
+      - backup-jms-bridge
+    restart: on-failure

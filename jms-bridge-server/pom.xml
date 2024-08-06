@@ -6,7 +6,7 @@
     <parent>
         <artifactId>jms-bridge-pom</artifactId>
         <groupId>io.confluent</groupId>
-        <version>3.3.4-SNAPSHOT</version>
+        <version>3.3.5-SNAPSHOT</version>
     </parent>
 
     <properties>
@@ -123,6 +123,14 @@
                     </execution>
                 </executions>
             </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-failsafe-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+            </plugin>
         </plugins>
     </build>
 
@@ -233,6 +241,12 @@
         <dependency>
             <groupId>io.confluent.csid.common</groupId>
             <artifactId>utils</artifactId>
+            <version>${csid.common.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.confluent.csid.common</groupId>
+            <artifactId>test-utils</artifactId>
+            <version>${csid.common.version}</version>
         </dependency>
 
         <!-- Kafka Support -->

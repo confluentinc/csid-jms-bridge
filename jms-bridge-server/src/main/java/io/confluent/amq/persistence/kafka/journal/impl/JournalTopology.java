@@ -144,7 +144,7 @@ public class JournalTopology {
                 .withOffsetResetPolicy(AutoOffsetReset.EARLIEST));
 
     addGlobalStore();
-    addEpochPunch(journalStream);
+    //addEpochPunch(journalStream);
     journalStream = journalStream
         .filter((k, v) -> v != null, Named.as(journal.prefix("TombstoneFilter")));
 

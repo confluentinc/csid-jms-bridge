@@ -44,7 +44,7 @@ public abstract class AbstractContainerTest {
     }
   }
 
-  protected static synchronized KafkaContainerHelper getContainerHelper() {
+  public static synchronized KafkaContainerHelper getContainerHelper() {
     if (adminClient == null) {
       Properties props = new Properties();
       props.setProperty(

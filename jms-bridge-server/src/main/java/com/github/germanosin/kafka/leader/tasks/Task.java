@@ -4,4 +4,5 @@ public interface Task extends Runnable, AutoCloseable {
   boolean isAlive();
 
   boolean isStarted();
+
 }

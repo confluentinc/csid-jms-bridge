@@ -34,7 +34,7 @@ class BridgeConfigFactoryTest {
         "localhost:9092", config.kafka().get(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG));
     assertEquals(
         "localhost:9092", config.streams().get(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG));
-    assertEquals(1, config.streams().size());
+    assertEquals(2, config.streams().size());
     assertTrue(config.streams().containsKey("bootstrap.servers"));
 
     assertEquals(Duration.ofSeconds(60), config.journals().readyTimeout());

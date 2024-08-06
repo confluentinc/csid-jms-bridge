@@ -1,0 +1,37 @@
+---
+services:
+  producer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        JAVA_FILE_NAME: Producer
+    depends_on:
+      - live
+      - backup
+    volumes:
+      - .:/app
+  live:
+    image: apache/activemq-artemis:latest
+    environment:
+      ARTEMIS_USER: artemis
+      ARTEMIS_PASSWORD: artemis
+      ANONYMOUS_LOGIN: true
+    ports:
+      - "61616:61616"
+      - "8161:8161"
+    volumes:
+      - ./shared-store:/var/lib/artemis-instance/data
+      - ./artemis-config/live-broker.xml:/var/lib/artemis-instance/etc-override/broker.xml
+  backup:
+    image: apache/activemq-artemis:latest
+    environment:
+      ARTEMIS_USER: artemis
+      ARTEMIS_PASSWORD: artemis
+      ANONYMOUS_LOGIN: true
+    ports:
+      - "61617:61617"
+      - "8162:8161"
+    volumes:
+      - ./shared-store:/var/lib/artemis-instance/data
+      - ./artemis-config/backup-broker.xml:/var/lib/artemis-instance/etc-override/broker.xml

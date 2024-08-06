@@ -6,6 +6,9 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.HashSet;
+import java.util.Set;
+
 @Data
 @Builder
 @NoArgsConstructor
@@ -16,6 +19,7 @@ public class HostMemberIdentity implements MemberIdentity {
   private String host;
   @Builder.Default
   private boolean leaderEligibility = true;
+  private boolean preferredLive;
 
   @JsonIgnore
   public String getId() {
@@ -26,4 +30,5 @@ public class HostMemberIdentity implements MemberIdentity {
   public boolean getLeaderEligibility() {
     return leaderEligibility;
   }
+
 }

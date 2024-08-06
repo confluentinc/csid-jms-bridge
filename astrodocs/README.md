@@ -1,116 +1,55 @@
-# CSID JMS Bridge Documentation
+# Starlight Starter Kit: Basics
 
-Uses the following integrations:
+[![Built with Starlight](https://astro.badg.es/v2/built-with-starlight/tiny.svg)](https://starlight.astro.build)
 
-- @astrojs/mdx
-- @astrojs/image
-- @astrojs/sitemap
-- @astrojs/rss
-- @astrojs/tailwind
-- @astrojs/alpinejs
-- astro-icon
-- astro-seo
-- astro-robots-txt
+```
+npm create astro@latest -- --template starlight
+```
 
-## Features
+[![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/github/withastro/starlight/tree/main/examples/basics)
+[![Open with CodeSandbox](https://assets.codesandbox.io/github/button-edit-lime.svg)](https://codesandbox.io/p/sandbox/github/withastro/starlight/tree/main/examples/basics)
+[![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/withastro/starlight&create_from_path=examples/basics)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fwithastro%2Fstarlight%2Ftree%2Fmain%2Fexamples%2Fbasics&project-name=my-starlight-docs&repository-name=my-starlight-docs)
 
-- Full-featured blog with frontmatter (title, description, author, date, image, tags)
-- High performance low overhead with minimal Javascript (AlpineJS)
-- Full text client based search of blog pages via lunrjs (search index only loaded on first invocation of search on a page)
-- Index page and individual pages for authors, categories and tags, including pagination
-- Support for RSS feed, sitemap and robots.txt
-- SVG design (unDraw, Hero Patterns, Iconify)
-- Support for code syntax highlighting
-- Full SEO support including Open Graph, Twitter Cards and Schema.org via JSON-LD
-- Full support for Light and dark UI modes, as well as following system preferences, in accordance to TailwindCSS recommendation
-- Customised 404 error page
-- Display math equations using KaTeX via remark-math/rehype-katex (enclosed in `$`...`$` or `$$`...`$$`)
-- Display Mermaid, Markmap, PlantUML diagrams (authored as a code block with language `mermaid`, `markmap` and `plantuml`)
-- Display map at geo coordinates and zoom level using `Map` component (need to also include `extra: ['map']` is frontmatter to load CSS/JS assets for page)
-- Calculates and show reading time for blog posts
-- CSS/JS assets of external libraries loaded only when needed on a per page and per package basis - no unnecessary bloat
-- Photo gallery and lightbox using PhotoSwipe (including display of EXIF tags)
-- Carousel component using Swiper
-- Documentation pages (modelled after astro docs starter but using Tailwind)
-
-## External Packages
-
-The start uses the following external packages:
-
-- [Astro](https://astro.build/)
-- [TypeScript](https://www.typescriptlang.org/)
-- [TailwindCSS](https://tailwindcss.com) and [TailwindUI](https://tailwindui.com)
-- [Iconify](https://iconify.design/)
-- [Hero Patterns](https://heropatterns.com/)
-- [unDraw](https://undraw.co/) for illustrations
-- [MDX](https://mdxjs.com/) and [Markdown](https://www.markdownguide.org/)
-- [Schema.org](https://schema.org/) and [JSON for Linking Data](https://json-ld.org/), type-checked using [schema-dts](https://github.com/google/schema-dts)
-- [Open Graph](https://ogp.me/) used by [Facebook](https://developers.facebook.com/docs/sharing/webmasters/#markup)
-- [Twitter Cards](https://developer.twitter.com/en/docs/twitter-for-websites/cards/overview/abouts-cards)
-- [AlpineJS](https://alpinejs.dev)
-- Local full text search using [Lunr](https://lunrjs.com)
-- Math equations using [KaTeX](https://katex.org) via [remark-math and rehype-katex](https://github.com/remarkjs/remark-math)
-- Diagrams using [Mermaid](https://mermaid-js.github.io/mermaid/#/), [Markmap](https://markmap.js.org) and [PlantUML](https://plantuml.com)
-- Open Street Map using [Leaflet](https://leafletjs.com/)
-- [reading-time](https://github.com/ngryman/reading-time)
-- [PhotoSwipe](https://photoswipe.com)
-- [exifr](https://mutiny.cz/exifr/)
-- [Swiper](https://swiperjs.com/)
-
-It follows the [JAMstack architecture](https://jamstack.org) by automatically building a static version from the Git repository. The demo is deployed on Github Pages.
+> 🧑‍🚀 **Seasoned astronaut?** Delete this file. Have fun!
 
 ## 🚀 Project Structure
 
-Inside this starter, you'll see the following folders and files:
+Inside of your Astro + Starlight project, you'll see the following folders and files:
 
-```text
-/
+```
+.
 ├── public/
-│   └── favicon.ico
 ├── src/
-│   ├── components/
-│   │   └── header.astro
+│   ├── assets/
 │   ├── content/
-│   │   └── doc/
-│   │       └── documentation-page.md
-│   ├── images/
-│   │   ├── image.png
-│   │   └── gallery/
-│   │       └── gallery-name/
-│   │           └── image.jpg
-│   ├── layouts/
-│   │   ├── base.astro
-│   │   └── doc.astro
-│   ├── pages/
-│   │   ├── index.astro
-│   │   └── 404.astro
-│   └── config.ts
-└── package.json
+│   │   ├── docs/
+│   │   └── config.ts
+│   └── env.d.ts
+├── astro.config.mjs
+├── package.json
+└── tsconfig.json
 ```
 
-Astro looks for `.astro`, `.md` or `.mdx` files in the `src/pages/` directory. Each page is exposed as a route based on its file name.
+Starlight looks for `.md` or `.mdx` files in the `src/content/docs/` directory. Each file is exposed as a route based on its file name.
 
-`src/components/` is where we put any Astro components and similarly `src/layouts/` for layouts.
+Images can be added to `src/assets/` and embedded in Markdown with a relative link.
 
-Images can be placed in `src/images/`.
-
-Documentation content are created as collections of Markdown or MDX files in `src/content`.
-
-Any static assets, eg. images, can be placed in the `public/` directory.
+Static assets, like favicons, can be placed in the `public/` directory.
 
 ## 🧞 Commands
 
 All commands are run from the root of the project, from a terminal:
 
-| Command             | Action                                             |
-| :------------------ | :------------------------------------------------- |
-| `yarn`              | Installs dependencies                              |
-| `yarn dev`          | Starts local dev server at `localhost:3000`        |
-| `yarn build`        | Build your production site to `../docs/`           |
-| `yarn preview`      | Preview your build locally, before deploying       |
-| `yarn format`       | Pretty print the source code                       |
-| `yarn lint`         | Check the source code for errors                   |
-| `yarn astro ...`    | Run CLI commands like `astro add`, `astro preview` |
-| `yarn astro --help` | Get help using the Astro CLI                       |
+| Command                   | Action                                           |
+| :------------------------ | :----------------------------------------------- |
+| `npm install`             | Installs dependencies                            |
+| `npm run dev`             | Starts local dev server at `localhost:4321`      |
+| `npm run build`           | Build your production site to `./dist/`          |
+| `npm run preview`         | Preview your build locally, before deploying     |
+| `npm run astro ...`       | Run CLI commands like `astro add`, `astro check` |
+| `npm run astro -- --help` | Get help using the Astro CLI                     |
 
-`yarn` can be replaced with `npm run` if you prefer.
+## 👀 Want to learn more?
+
+Check out [Starlight’s docs](https://starlight.astro.build/), read [the Astro documentation](https://docs.astro.build), or jump into the [Astro Discord server](https://astro.build/chat).

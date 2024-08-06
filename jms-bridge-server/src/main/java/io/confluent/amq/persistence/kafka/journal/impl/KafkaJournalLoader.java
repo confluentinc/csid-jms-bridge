@@ -22,6 +22,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.activemq.artemis.core.journal.PreparedTransactionInfo;
 import org.apache.activemq.artemis.core.journal.RecordInfo;
 import org.apache.kafka.streams.KeyValue;
+import org.apache.kafka.streams.errors.InvalidStateStoreException;
 import org.apache.kafka.streams.state.KeyValueIterator;
 import org.apache.kafka.streams.state.ReadOnlyKeyValueStore;
 
@@ -179,16 +180,42 @@ public class KafkaJournalLoader {
 
     List<JournalEntry> txRefList = new LinkedList<>();
 
-    try (KeyValueIterator<JournalEntryKey, JournalEntry> kvIter = store.all()) {
-      while (kvIter.hasNext()) {
+    int retryAttempt = 0;
+    int maxRetries = 5;
+    while (true) {
+        try {
+            try (KeyValueIterator<JournalEntryKey, JournalEntry> kvIter = store.all()) {
+                while (kvIter.hasNext()) {
 
-        KeyValue<JournalEntryKey, JournalEntry> kv = kvIter.next();
-        JournalEntry entry = kv.value;
-        if (entry.hasTransactionReference()) {
-          txRefList.add(entry);
+                    KeyValue<JournalEntryKey, JournalEntry> kv = kvIter.next();
+                    JournalEntry entry = kv.value;
+                    if (entry.hasTransactionReference()) {
+                        txRefList.add(entry);
+                    }
+                }
+            }
+            break;
+        } catch (InvalidStateStoreException ignored) {
+            // store not yet ready for querying
+            if (ignored.getMessage().contains("migrated to another instance")) {
+                SLOG.logger().warn("State store is not being processed by this this instance.", ignored);
+                return;
+            } else {
+                if (retryAttempt < maxRetries) {
+                    SLOG.logger().warn("State store may not be ready, will retry", ignored);
+                    retryAttempt++;
+                    try {
+                        Thread.sleep(1000);
+                    } catch (InterruptedException e) {
+                        throw new RuntimeException(e);
+                    }
+                } else {
+                   throw new RuntimeException(ignored);
+                }
+            }
         }
-      }
     }
+
 
     for (JournalEntry txRefEntry : txRefList) {
       TransactionReference txref = txRefEntry.getTransactionReference();

@@ -1,0 +1,144 @@
+
+---
+lowercaseOutputName: true
+lowercaseOutputLabelNames: true
+rules:
+  # Artemis metrics
+  - pattern: "^org.apache.activemq.artemis<broker=\"([^\"]*)\"><>([^:]*):\\s(.*)"
+    attrNameSnakeCase: true
+    name: artemis_$2
+    type: COUNTER
+
+  - pattern: "^org.apache.activemq.artemis<broker=\"([^\"]*)\",\\s*component=addresses,\\s*address=\"([^\"]*)\"><>([^:]*):\\s(.*)"
+    attrNameSnakeCase: true
+    name: artemis_$3
+    type: COUNTER
+    labels:
+      address: $2
+
+  - pattern: "^org.apache.activemq.artemis<broker=\"([^\"]*)\",\\s*component=addresses,\\s*address=\"([^\"]*)\",\\s*subcomponent=(queue|topic)s,\\s*routing-type=\"([^\"]*)\",\\s*(queue|topic)=\"([^\"]*)\"><>([^: ]*):\\s(.*)"
+    attrNameSnakeCase: true
+    name: artemis_$7
+    type: COUNTER
+    labels:
+      address: $2
+      "$5": $6
+
+    ### Kafka Consumer, 2 and 3 attributes, guages and counters
+  - pattern : "kafka.consumer<type=(.+), (.+)=(.+), (.+)=(.+)><>([^:]*total):\\s(.*)"
+    name: kafka_consumer_$1
+    lowercaseOutputName: true
+    type: COUNTER
+    labels:
+      "$2": $3
+      "$4": $5 
+      name: $6
+
+  - pattern : "kafka.consumer<type=(.+), (.+)=(.+), (.+)=(.+)><>([^:]*(?:max|avg|rate)):\\s(.*)"
+    name: kafka_consumer_$1
+    lowercaseOutputName: true
+    type: GAUGE
+    labels:
+      "$2": $3
+      "$4": $5 
+      name: $6
+
+  - pattern : "kafka.consumer<type=(.+), (.+)=(.+), (.+)=(.+), (.+)=(.+)><>([^:]*total):\\s(.*)"
+    name: kafka_consumer_$1
+    lowercaseOutputName: true
+    type: COUNTER
+    labels:
+      "$2": $3
+      "$4": $5 
+      "$6": $7 
+      name: $8
+
+  - pattern : "kafka.consumer<type=(.+), (.+)=(.+), (.+)=(.+), (.+)=(.+)><>([^:]*(?:max|avg|rate)):\\s(.*)"
+    name: kafka_consumer_$1
+    lowercaseOutputName: true
+    type: GAUGE
+    labels:
+      "$2": $3
+      "$4": $5 
+      "$6": $7 
+      name: $8
+
+    ### Kafka Producer, 2 and 3 attributes, guages and counters
+  - pattern : "kafka.producer<type=(.+), (.+)=(.+), (.+)=(.+)><>([^:]*total):\\s(.*)"
+    name: kafka_producer_$1
+    lowercaseOutputName: true
+    type: COUNTER
+    labels:
+      "$2": $3
+      "$4": $5 
+      name: $6
+
+  - pattern : "kafka.producer<type=(.+), (.+)=(.+), (.+)=(.+)><>([^:]*(?:max|avg|rate)):\\s(.*)"
+    name: kafka_producer_$1
+    lowercaseOutputName: true
+    type: GAUGE
+    labels:
+      "$2": $3
+      "$4": $5 
+      name: $6
+
+  - pattern : "kafka.producer<type=(.+), (.+)=(.+), (.+)=(.+), (.+)=(.+)><>([^:]*total):\\s(.*)"
+    name: kafka_producer_$1
+    lowercaseOutputName: true
+    type: COUNTER
+    labels:
+      "$2": $3
+      "$4": $5 
+      "$6": $7 
+      name: $8
+
+  - pattern : "kafka.producer<type=(.+), (.+)=(.+), (.+)=(.+), (.+)=(.+)><>([^:]*(?:max|avg|rate)):\\s(.*)"
+    name: kafka_producer_$1
+    lowercaseOutputName: true
+    type: GAUGE
+    labels:
+      "$2": $3
+      "$4": $5 
+      "$6": $7 
+      name: $8
+
+    ### Kafka Streams, 2 and 3 attributes, guages and counters
+  - pattern : "kafka.streams<type=(.+), (.+)=(.+), (.+)=(.+)><>([^:]*total):\\s(.*)"
+    name: kafka_streams_$1
+    lowercaseOutputName: true
+    type: COUNTER
+    labels:
+      "$2": $3
+      "$4": $5 
+      name: $6
+
+  - pattern : "kafka.streams<type=(.+), (.+)=(.+), (.+)=(.+)><>([^:]*(?:max|avg|rate)):\\s(.*)"
+    name: kafka_streams_$1
+    lowercaseOutputName: true
+    type: GAUGE
+    labels:
+      "$2": $3
+      "$4": $5 
+      name: $6
+
+  - pattern : "kafka.streams<type=(.+), (.+)=(.+), (.+)=(.+), (.+)=(.+)><>([^:]*total):\\s(.*)"
+    name: kafka_streams_$1
+    lowercaseOutputName: true
+    type: COUNTER
+    labels:
+      "$2": $3
+      "$4": $5 
+      "$6": $7 
+      name: $8
+
+  - pattern : "kafka.streams<type=(.+), (.+)=(.+), (.+)=(.+), (.+)=(.+)><>([^:]*(?:max|avg|rate)):\\s(.*)"
+    name: kafka_streams_$1
+    lowercaseOutputName: true
+    type: GAUGE
+    labels:
+      "$2": $3
+      "$4": $5 
+      "$6": $7 
+      name: $8
+
+

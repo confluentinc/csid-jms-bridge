@@ -47,7 +47,7 @@ public interface BridgeClientId {
 
         public Builder() {
             acceleratorId(Accelerator.JMS_BRIDGE.getAcceleratorId());
-            acceleratorOwner(Owner.PIE_LABS.name());
+            acceleratorOwner("BWC");
             acceleratorVersion(BridgeConfigFactory.getBridgeVersion());
         }
     }

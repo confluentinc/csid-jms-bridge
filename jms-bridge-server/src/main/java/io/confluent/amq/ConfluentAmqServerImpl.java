@@ -4,14 +4,13 @@
 
 package io.confluent.amq;
 
+import io.confluent.amq.cli.AutoKillSwitch;
 import io.confluent.amq.config.BridgeConfig;
 import io.confluent.amq.exchange.KafkaExchangeManager;
 import io.confluent.amq.logging.StructuredLogger;
 import io.confluent.amq.persistence.kafka.KafkaIntegration;
 import io.confluent.amq.persistence.kafka.KafkaJournalStorageManager;
-import io.confluent.amq.server.kafka.KNodeManager;
-import java.io.File;
-import javax.management.MBeanServer;
+import io.confluent.amq.server.kafka.nodemanager.KafkaNodeManagerV2;
 import org.apache.activemq.artemis.core.config.HAPolicyConfiguration;
 import org.apache.activemq.artemis.core.persistence.StorageManager;
 import org.apache.activemq.artemis.core.server.ActiveMQServer;
@@ -20,13 +19,21 @@ import org.apache.activemq.artemis.core.server.ServiceRegistry;
 import org.apache.activemq.artemis.core.server.impl.ActiveMQServerImpl;
 import org.apache.activemq.artemis.spi.core.security.ActiveMQSecurityManager;
 
-public class ConfluentAmqServerImpl extends ActiveMQServerImpl implements ConfluentAmqServer {
+import javax.management.MBeanServer;
+import java.io.File;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.util.UUID;
 
+public class ConfluentAmqServerImpl extends ActiveMQServerImpl implements ConfluentAmqServer {
+  private static final String DEFAULT_KILL_DURATION_MINUTES = String.valueOf(60 * 8);
   private static final StructuredLogger SLOG = StructuredLogger.with(b -> b
-      .loggerClass(DelegatingConfluentAmqServer.class));
+          .loggerClass(DelegatingConfluentAmqServer.class));
 
   private final KafkaIntegration kafkaIntegration;
   private final KafkaExchangeManager kafkaExchangeManager;
+
+  private final AutoKillSwitch killSwitch;
 
   public ConfluentAmqServerImpl() {
     throw new IllegalStateException("Configuration required.");
@@ -37,41 +44,46 @@ public class ConfluentAmqServerImpl extends ActiveMQServerImpl implements Conflu
   }
 
   public ConfluentAmqServerImpl(final JmsBridgeConfiguration configuration,
-      final ActiveMQServer parentServer) {
+                                final ActiveMQServer parentServer) {
     this(configuration, null, null, parentServer);
   }
 
   public ConfluentAmqServerImpl(final JmsBridgeConfiguration configuration,
-      final MBeanServer mbeanServer) {
+                                final MBeanServer mbeanServer) {
     this(configuration, mbeanServer, null);
   }
 
   public ConfluentAmqServerImpl(final JmsBridgeConfiguration configuration,
-      final ActiveMQSecurityManager securityManager) {
+                                final ActiveMQSecurityManager securityManager) {
     this(configuration, null, securityManager);
   }
 
   public ConfluentAmqServerImpl(final JmsBridgeConfiguration configuration,
-      final MBeanServer mbeanServer,
-      final ActiveMQSecurityManager securityManager) {
+                                final MBeanServer mbeanServer,
+                                final ActiveMQSecurityManager securityManager) {
     this(configuration, mbeanServer, securityManager, null);
   }
 
   public ConfluentAmqServerImpl(final JmsBridgeConfiguration configuration,
-      final MBeanServer mbeanServer,
-      final ActiveMQSecurityManager securityManager, final ActiveMQServer parentServer) {
+                                final MBeanServer mbeanServer,
+                                final ActiveMQSecurityManager securityManager, final ActiveMQServer parentServer) {
     this(configuration, mbeanServer, securityManager, parentServer, null);
   }
 
   public ConfluentAmqServerImpl(final JmsBridgeConfiguration configuration,
-      final MBeanServer mbeanServer,
-      final ActiveMQSecurityManager securityManager, final ActiveMQServer parentServer,
-      final ServiceRegistry serviceRegistry) {
+                                final MBeanServer mbeanServer,
+                                final ActiveMQSecurityManager securityManager, final ActiveMQServer parentServer,
+                                final ServiceRegistry serviceRegistry) {
 
     super(configuration, mbeanServer, securityManager, parentServer, serviceRegistry);
+
+    String killHours = System
+            .getenv().getOrDefault("AUTO_KILL_SWITCH_TIME_MINUTES", DEFAULT_KILL_DURATION_MINUTES);
+    killSwitch = new AutoKillSwitch("ActiveMQ Server Shutdown",
+            Duration.ofMinutes(Integer.parseInt(killHours)), () -> this.stop(true));
     kafkaIntegration = new KafkaIntegration(configuration);
     kafkaExchangeManager = new KafkaExchangeManager(
-        configuration.getBridgeConfig(), kafkaIntegration.getKafkaIO());
+            configuration.getBridgeConfig(), kafkaIntegration.getKafkaIO());
     this.registerBrokerPlugin(kafkaExchangeManager);
   }
 
@@ -146,11 +158,7 @@ public class ConfluentAmqServerImpl extends ActiveMQServerImpl implements Conflu
   }
 
   private void beforeStart() {
-    try {
-      kafkaIntegration.start();
-    } catch (Exception e) {
-      throw new RuntimeException(e);
-    }
+    //do nothing
   }
 
   private JmsBridgeConfiguration getJmsBridgeConfiguration() {
@@ -160,12 +168,19 @@ public class ConfluentAmqServerImpl extends ActiveMQServerImpl implements Conflu
   @Override
   protected NodeManager createNodeManager(File directory, boolean replicatingBackup) {
     NodeManager manager;
+    boolean isPreferredLive = false;
 
     final JmsBridgeConfiguration configuration = getJmsBridgeConfiguration();
     final HAPolicyConfiguration.TYPE haType =
         configuration.getHAPolicyConfiguration() == null
             ? null
             : configuration.getHAPolicyConfiguration().getType();
+
+    if (haType == HAPolicyConfiguration.TYPE.SHARED_STORE_MASTER ||
+        haType == HAPolicyConfiguration.TYPE.LIVE_ONLY ||
+        haType == null) {
+        isPreferredLive = true;
+    }
 
     if (haType == HAPolicyConfiguration.TYPE.SHARED_STORE_MASTER
         || haType == HAPolicyConfiguration.TYPE.SHARED_STORE_SLAVE) {
@@ -178,7 +193,7 @@ public class ConfluentAmqServerImpl extends ActiveMQServerImpl implements Conflu
         throw new IllegalArgumentException(
             "replicating backup is not necessary while using kafka persistence");
       }
-      manager = createKNodeManager(configuration, replicatingBackup);
+      manager = createKNodeManager(configuration, replicatingBackup, isPreferredLive);
 
     } else if (haType == null || haType == HAPolicyConfiguration.TYPE.LIVE_ONLY) {
 
@@ -187,7 +202,7 @@ public class ConfluentAmqServerImpl extends ActiveMQServerImpl implements Conflu
           .message("Detected no Shared Store HA options on Kafka store"));
 
       //LIVE_ONLY should be the default HA option when HA isn't configured
-      manager = createKNodeManager(configuration, replicatingBackup);
+      manager = createKNodeManager(configuration, replicatingBackup, isPreferredLive);
 
     } else {
       SLOG.error(b -> b
@@ -201,9 +216,13 @@ public class ConfluentAmqServerImpl extends ActiveMQServerImpl implements Conflu
   }
 
   private NodeManager createKNodeManager(
-      JmsBridgeConfiguration jmsBridgeConfiguration, boolean replicatedBackup) {
-
-    return new KNodeManager(jmsBridgeConfiguration, kafkaIntegration, replicatedBackup);
+      JmsBridgeConfiguration jmsBridgeConfiguration, boolean replicatedBackup, boolean isPreferredLive) {
+   return new KafkaNodeManagerV2(
+            jmsBridgeConfiguration.getBridgeConfig().haConfig(),
+            //Derive nodeId from bridgeId. Node Id has to be same for all members of the Master/Slave set.
+            org.apache.activemq.artemis.utils.UUIDGenerator.getInstance().fromJavaUUID(
+                   UUID.nameUUIDFromBytes( kafkaIntegration.getBridgeId().getBytes(StandardCharsets.UTF_8))),
+            replicatedBackup, isPreferredLive);
   }
 
   @Override
@@ -226,8 +245,8 @@ public class ConfluentAmqServerImpl extends ActiveMQServerImpl implements Conflu
   public void resetNodeManager() throws Exception {
     SLOG.info(b -> b.event("ResetNodeManager"));
     NodeManager nodeManager = getNodeManager();
-    if (nodeManager instanceof KNodeManager) {
-      ((KNodeManager) nodeManager).reset();
+    if (nodeManager instanceof KafkaNodeManagerV2) {
+      ((KafkaNodeManagerV2) nodeManager).reset();
     } else {
       super.resetNodeManager();
     }

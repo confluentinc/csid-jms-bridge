@@ -27,4 +27,5 @@ public interface AssignmentManager<A extends Assignment, M extends MemberIdentit
 
   boolean await(Duration timeout) throws LeaderTimeoutException, InterruptedException;
 
+  void onCoordinatorUnavailable();
 }

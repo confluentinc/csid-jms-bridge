@@ -10,7 +10,9 @@ import java.time.Duration;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
@@ -106,6 +108,7 @@ public class LeaderClientExecutorTest {
 
     working.close();
   }
+
 
   @Test
   public void testLeader() throws LeaderTimeoutException, LeaderException {

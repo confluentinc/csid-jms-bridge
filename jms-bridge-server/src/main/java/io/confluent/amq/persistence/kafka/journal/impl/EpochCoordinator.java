@@ -120,7 +120,7 @@ public class EpochCoordinator implements
 
     int previousId = EPOCH_ID.getAndSet(metadata.generationId());
     if (previousId == -1) {
-      INITIAL_EPOCH_ID.compareAndSet(-1, metadata.generationId());
+//      INITIAL_EPOCH_ID.compareAndSet(-1, metadata.generationId());
       EPOCH_FOUND_LATCH.countDown();
     }
   }

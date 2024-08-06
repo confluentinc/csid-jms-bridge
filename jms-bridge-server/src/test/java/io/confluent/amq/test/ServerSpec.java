@@ -21,9 +21,12 @@ public interface ServerSpec {
 
   boolean useVanilla();
 
+  boolean isBackup();
+
   class Builder extends ServerSpec_Builder {
 
     public Builder() {
+      this.isBackup(false);
       this.useVanilla(false);
     }
 

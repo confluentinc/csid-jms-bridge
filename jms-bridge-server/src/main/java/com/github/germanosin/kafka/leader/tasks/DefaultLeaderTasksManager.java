@@ -19,6 +19,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
@@ -38,6 +39,8 @@ public class DefaultLeaderTasksManager<M extends MemberIdentity>
 
   private final CountDownLatch joinedLatch = new CountDownLatch(1);
 
+  private final AtomicInteger memberCount = new AtomicInteger(0);
+
   private static void systemExit(DefaultLeaderTasksManager<?> manager) {
     log.error("Abnormal process termination");
     System.exit(1);
@@ -55,6 +58,7 @@ public class DefaultLeaderTasksManager<M extends MemberIdentity>
 
   @Override
   public Map<M, TaskAssignment> assign(List<M> identities) {
+    memberCount.set(identities.size());
     Map<M, List<String>> result = new HashMap<>();
 
     Iterator<String> iterator = this.tasks.keySet().iterator();
@@ -63,8 +67,11 @@ public class DefaultLeaderTasksManager<M extends MemberIdentity>
     while (iterator.hasNext()) {
       String task = iterator.next();
       M member = identities.get(i++ % identities.size());
-      List<String> memberTasks = result.computeIfAbsent(member, (m) -> new ArrayList<>());
-      memberTasks.add(task);
+
+      if (isEligible(identities, member, task)) {
+        List<String> memberTasks = result.computeIfAbsent(member, (m) -> new ArrayList<>());
+        memberTasks.add(task);
+      }
     }
 
     TaskAssignment build = TaskAssignment.builder()
@@ -80,6 +87,10 @@ public class DefaultLeaderTasksManager<M extends MemberIdentity>
                 .build()
         )
     );
+  }
+
+  public boolean isEligible(List<M> identities, M candidate, String taskKey) {
+    return true;
   }
 
   @Override
@@ -124,6 +135,11 @@ public class DefaultLeaderTasksManager<M extends MemberIdentity>
   }
 
   @Override
+  public void onCoordinatorUnavailable() {
+    //noop
+  }
+
+  @Override
   public boolean isAlive(Timer timer) {
     for (Map.Entry<String, Future<?>> ownTask : ownTasks.entrySet()) {
       Future<?> future = ownTask.getValue();
@@ -139,6 +155,10 @@ public class DefaultLeaderTasksManager<M extends MemberIdentity>
     }
 
     return ownTasks.values().stream().noneMatch(Future::isDone);
+  }
+
+  public int getMemberCount() {
+    return memberCount.get();
   }
 
   private void submitTask(String task) {

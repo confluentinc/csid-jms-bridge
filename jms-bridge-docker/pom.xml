@@ -5,7 +5,7 @@
     <parent>
         <artifactId>jms-bridge-pom</artifactId>
         <groupId>io.confluent</groupId>
-        <version>3.3.4-SNAPSHOT</version>
+        <version>3.3.5-SNAPSHOT</version>
     </parent>
 
 
@@ -16,6 +16,7 @@
         <docker.skip-build>${skip.docker.build}</docker.skip-build>
         <docker.skip-test>${skip.docker.test}</docker.skip-test>
         <docker.registry>placeholder/</docker.registry>  <!-- Registry for this build. Must specify a value, or exec plugin throws NPE :((( -->
+        <docker.platforms>linux/amd64</docker.platforms>
         <docker.tag>${project.version}</docker.tag>  <!-- Tag for this build -->
         <docker.upstream-registry>${docker.registry}</docker.upstream-registry>  <!-- Registry for base images -->
         <docker.upstream-tag>${docker.tag}</docker.upstream-tag>  <!-- Tag for base images -->
@@ -161,8 +162,6 @@
                         </executions>
                     </plugin>
 
-
-
                     <plugin>
                         <groupId>org.codehaus.mojo</groupId>
                         <artifactId>exec-maven-plugin</artifactId>
@@ -217,6 +216,37 @@
                                     <executable>tox</executable>
                                 </configuration>
                             </execution>
+                            <execution>
+                                <id>docker-build</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>exec</goal>
+                                </goals>
+                                <configuration>
+                                    <executable>docker</executable>
+                                    <workingDirectory>${project.basedir}</workingDirectory>
+                                    <arguments>
+                                        <argument>build</argument>
+                                        <!-- multi-platform builds require containerd image store https://docs.docker.com/desktop/containerd/#enable-the-containerd-image-store -->
+                                        <argument>--platform=${docker.platforms}</argument>
+                                        <argument>-t</argument>
+                                        <argument>${docker.registry}confluentinc/${project.artifactId}:${docker.tag}
+                                        </argument>
+                                        <argument>--build-arg</argument>
+                                        <argument>DOCKER_UPSTREAM_REGISTRY=${docker.upstream-registry}</argument>
+                                        <argument>--build-arg</argument>
+                                        <argument>DOCKER_UPSTREAM_TAG=${docker.upstream-tag}</argument>
+                                        <argument>--build-arg</argument>
+                                        <argument>PROJECT_VERSION=${project.version}</argument>
+                                        <argument>--build-arg</argument>
+                                        <argument>ARTIFACT_ID=${project.artifactId}</argument>
+                                        <argument>-f</argument>
+                                        <argument>${project.basedir}/${docker.file}</argument>
+                                        <argument>${project.basedir}</argument>
+                                    </arguments>
+                                    <skip>${docker.skip-build}</skip>
+                                </configuration>
+                            </execution>
                         </executions>
 
                         <configuration>
@@ -234,37 +264,6 @@
                                 <version>${io.confluent.license-file-generator.version}</version>
                             </dependency>
                         </dependencies>
-                    </plugin>
-
-                    <plugin>
-                        <groupId>com.spotify</groupId>
-                        <artifactId>dockerfile-maven-plugin</artifactId>
-                        <executions>
-                            <execution>
-                                <id>package</id>
-                                <goals>
-                                    <goal>build</goal>
-                                </goals>
-                                <configuration>
-                                    <buildArgs>
-                                        <ARTIFACT_ID>${project.artifactId}</ARTIFACT_ID>
-                                        <BUILD_NUMBER>${BUILD_NUMBER}</BUILD_NUMBER>
-                                        <DOCKER_REGISTRY>${docker.registry}</DOCKER_REGISTRY>
-                                        <DOCKER_TAG>${docker.tag}</DOCKER_TAG>
-                                        <DOCKER_UPSTREAM_REGISTRY>${docker.upstream-registry}</DOCKER_UPSTREAM_REGISTRY>
-                                        <DOCKER_UPSTREAM_TAG>${docker.upstream-tag}</DOCKER_UPSTREAM_TAG>
-                                        <GIT_COMMIT>${GIT_COMMIT}</GIT_COMMIT>
-                                        <PROJECT_VERSION>${project.version}</PROJECT_VERSION>
-                                        <SCALA_VERSION>${kafka.scala.version}</SCALA_VERSION>
-                                    </buildArgs>
-                                    <skip>${docker.skip-build}</skip>
-                                    <tag>${docker.tag}</tag>
-                                    <repository>${docker.registry}confluentinc/${project.artifactId}</repository>
-                                    <pullNewerImage>${docker.pull-image}</pullNewerImage>
-                                    <dockerfile>${docker.file}</dockerfile>
-                                </configuration>
-                            </execution>
-                        </executions>
                     </plugin>
                 </plugins>
             </build>

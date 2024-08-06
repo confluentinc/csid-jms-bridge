@@ -1,0 +1,88 @@
+---
+services:
+  live-jms-bridge:
+    image: jms-bridge:3.3.4.8
+    hostname: live-jms-bridge
+    container_name: live-jms-bridge
+    ports:
+      - "61616:61616"
+      - "50006:50006"
+      - "8888:8888"
+    volumes:
+      - ./shared-store:/var/cache/jms-bridge
+    environment:
+      JMS_BRIDGE_OPTS: "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:50006"
+      BROKER_XML: "broker.xml"
+      LOG_IO_CONFLUENT_AMQ: INFO
+      LOG_ORG_APACHE_ACTIVEMQ: INFO
+#      JMSBRIDGE_JMX_PORT: 1234
+      JMSBRIDGE_ID: local-docker # must be the same as the backup bridge to cluster together
+      JMSBRIDGE_KAFKA_BOOTSTRAP_SERVERS: broker:29092
+      JMSBRIDGE_STREAMS_STATE_DIR: streams-live
+      JMSBRIDGE_JOURNALS_TOPIC_REPLICATION: 1
+      JMSBRIDGE_ROUTING_TOPICS_0_MATCH: ".*"
+      JMSBRIDGE_ROUTING_TOPICS_0_MESSAGE_TYPE: BYTES
+    networks:
+      - network
+
+#  backup-jms-bridge:
+#    image: jms-bridge:3.3.4.8
+#    hostname: backup-jms-bridge
+#    container_name: backup-jms-bridge
+#    ports:
+#      - "61617:61617"
+#      - "50005:50005"
+#      - "8889:8888"
+#    volumes:
+#      - ./shared-store:/var/cache/jms-bridge
+#    environment:
+#      JMS_BRIDGE_OPTS: "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:50005"
+#      BROKER_XML: "broker-backup-ha.xml"
+#      LOG_IO_CONFLUENT_AMQ: INFO
+#      LOG_ORG_APACHE_ACTIVEMQ: INFO
+##      JMSBRIDGE_JMX_PORT: 1235
+#      JMSBRIDGE_ID: local-docker # must be the same as the live bridge to cluster together
+#      JMSBRIDGE_KAFKA_BOOTSTRAP_SERVERS: broker:29092
+#      JMSBRIDGE_STREAMS_STATE_DIR: streams-backup
+#      JMSBRIDGE_JOURNALS_TOPIC_REPLICATION: 1
+#      JMSBRIDGE_ROUTING_TOPICS_0_MATCH: ".*"
+#      JMSBRIDGE_ROUTING_TOPICS_0_MESSAGE_TYPE: BYTES
+#    networks:
+#      - network
+
+  producer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        JAVA_FILE: Producer.java
+    container_name: producer
+    command: [ "-t", "test", "-d", "(tcp://live-jms-bridge:61616,tcp://backup-jms-bridge:61617)?ha=true&connection.sendTimeout=5000&retryInterval=1000&retryIntervalMultiplier=1.0&reconnectAttempts=-1&failoverOnServerShutdown=true;", "hello" ]
+    depends_on:
+      - live-jms-bridge
+#      - backup-jms-bridge
+      - consumer
+    restart: on-failure
+    networks:
+      - network
+
+  consumer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        JAVA_FILE: Consumer.java
+    container_name: consumer
+    command: [ "-t", "test", "-s", "(tcp://live-jms-bridge:61616,tcp://backup-jms-bridge:61617)?ha=true&retryInterval=1000&retryIntervalMultiplier=1.0&reconnectAttempts=-1;" ]
+    depends_on:
+      - live-jms-bridge
+#      - backup-jms-bridge
+    restart: on-failure
+    networks:
+      - network
+
+networks:
+  network:
+    driver: bridge
+    name: docker-cluster_default
+    external: true

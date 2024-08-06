@@ -141,6 +141,7 @@ public class KafkaIntegration {
   public synchronized void start() throws Exception {
     this.kafkaIO.start();
     this.journalProcessor.start();
+
     SLOG.info(
         b -> b.event("Starting").markSuccess());
   }
