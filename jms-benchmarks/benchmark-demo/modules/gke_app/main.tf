@@ -7,6 +7,37 @@ terraform {
   }
 }
 
+resource "kubernetes_storage_class" "app" {
+  // only add a storage class if storage variable is set. should be 0 or 1
+  count = alltrue([for app in var.apps : app.storage != null]) ? 1 : 0
+  metadata {
+    name = "ssd"
+  }
+  storage_provisioner = "kubernetes.io/gce-pd"
+  parameters = {
+    type = "pd-ssd"
+  }
+}
+
+resource "kubernetes_persistent_volume_claim" "app" {
+  for_each = {for app in var.apps : app.name => app if app.storage != null}
+
+  metadata {
+    name = "${each.key}-pvc"
+  }
+
+  spec {
+    access_modes = ["ReadWriteOnce"]
+    resources {
+      requests = {
+        storage = each.value.storage
+      }
+    }
+    storage_class_name = kubernetes_storage_class.app[0].metadata[0].name
+  }
+}
+
+
 resource "kubernetes_config_map" "app" {
   for_each = {for app in var.apps : app.name => app if app.file_config != null}
 
@@ -17,6 +48,21 @@ resource "kubernetes_config_map" "app" {
   data = {
     for file in (each.value.file_config != null ? each.value.file_config : []) :
     file.file_name => file.file_content
+  }
+
+  lifecycle {
+    ignore_changes = [
+      data,
+    ]
+  }
+}
+
+locals {
+  config_map_checksums = {
+    for name, app in var.apps : name => base64sha256(join("", [
+      for file in (app.file_config != null ? app.file_config : []) :
+      file.file_content
+    ])) if app.file_config != null
   }
 }
 
@@ -40,23 +86,25 @@ resource "kubernetes_deployment" "app" {
         labels = {
           app = each.value.name
         }
+        annotations = {
+          configmap-checksum = lookup(local.config_map_checksums, each.key, "")
+        }
       }
 
       spec {
         container {
-          image = each.value.image
+          image             = each.value.image
           image_pull_policy = "Always"
-          name  = each.value.name
+          name              = each.value.name
 
           resources {
             limits = {
-              cpu               = each.value.cpu != null ? each.value.cpu : "500m"
-              memory            = each.value.memory != null ? each.value.memory : "2Gi"
+              cpu    = each.value.cpu != null ? each.value.cpu : "500m"
+              memory = each.value.memory != null ? each.value.memory : "2Gi"
             }
             requests = {
-              cpu               = each.value.cpu != null ? each.value.cpu : "500m"
-              memory            = each.value.memory != null ? each.value.memory : "2Gi"
-              ephemeral-storage = each.value.storage != null ? each.value.storage : "1Gi"
+              cpu    = each.value.cpu != null ? each.value.cpu : "500m"
+              memory = each.value.memory != null ? each.value.memory : "2Gi"
             }
           }
 
@@ -65,7 +113,7 @@ resource "kubernetes_deployment" "app" {
             for_each = each.value.port
             content {
               container_port = port.value
-              name = "port-${port.key}"
+              name           = "port-${port.key}"
             }
           }
 
@@ -77,6 +125,15 @@ resource "kubernetes_deployment" "app" {
             }
           }
 
+          // Add volume mount for PVC
+          dynamic "volume_mount" {
+            for_each = each.value.storage != null ? [each.key] : []
+            content {
+              name = "${each.key}-pvc"
+              // TODO: This should be configurable
+              mount_path = "/var/cache/jms-bridge"
+            }
+          }
 
           dynamic "env" {
             for_each = each.value.env != null ? each.value.env : {}
@@ -90,6 +147,8 @@ resource "kubernetes_deployment" "app" {
           command = each.value.command
           args    = each.value.args
         }
+
+        // Add config map volumes
         dynamic "volume" {
           for_each = each.value.file_config != null ? each.value.file_config : []
           content {
@@ -97,6 +156,18 @@ resource "kubernetes_deployment" "app" {
 
             config_map {
               name = kubernetes_config_map.app[each.value.name].metadata[0].name
+            }
+          }
+        }
+
+        // Add PVC volume
+        dynamic "volume" {
+          for_each = each.value.storage != null ? [each.key] : []
+          content {
+            name = "${each.key}-pvc"
+
+            persistent_volume_claim {
+              claim_name = kubernetes_persistent_volume_claim.app[each.key].metadata[0].name
             }
           }
         }
@@ -123,7 +194,7 @@ resource "kubernetes_service" "default" {
     dynamic "port" {
       for_each = each.value.port
       content {
-        name = "port-${port.key}"
+        name        = "port-${port.key}"
         port        = port.value
         target_port = port.value
       }

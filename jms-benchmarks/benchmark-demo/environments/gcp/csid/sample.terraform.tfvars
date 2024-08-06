@@ -35,7 +35,7 @@ gke_jmsbridge_apps = [
       "JMSBRIDGE_STREAMS_PRODUCER_LINGER_MS" : "100"
       "JMSBRIDGE_STREAMS_PRODUCER_MAX_REQUEST_SIZE" : "2097152"
       "JMSBRIDGE_ROUTING_METADATA_REFRESH_MS" : "60000"
-      "JMSBRIDGE_ROUTING_TOPICS_0_MATCH" : ".*"
+      "JMSBRIDGE_ROUTING_TOPICS_0_MATCH" : "^test-.*"
       "JMSBRIDGE_ROUTING_TOPICS_0_MESSAGE_TYPE" : "BYTES"
     }
     # 1 cpu core per 4gi of memory
@@ -87,17 +87,17 @@ gke_benchmark_drivers = [
       {
         file_name    = "my-workload.yaml"
         file_content = <<-EOT
-name: max-rate-100-topics-1-partition-64kb
+name: max-rate-10-topics-1-partition-1kb
 
-topics: 100
+topics: 10
 partitionsPerTopic: 1
-messageSize: 65536
-#payloadFile: "payload/payload-1Kb.data"
+messageSize: 1024
+
 useRandomizedPayloads: true
 randomBytesRatio: 0.5
-randomizedPayloadPoolSize: 100
+randomizedPayloadPoolSize: 10000
 
-subscriptionsPerTopic: 1
+subscriptionsPerTopic: 65
 consumerPerSubscription: 1
 producersPerTopic: 1
 
@@ -105,7 +105,7 @@ producersPerTopic: 1
 producerRate: 10000000
 
 consumerBacklogSizeGB: 0
-testDurationMinutes: 5
+testDurationMinutes: 30
 EOT
         mount_path   = "/benchmark/workloads"
       }
