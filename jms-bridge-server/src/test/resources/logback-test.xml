@@ -10,7 +10,11 @@
         </encoder>
     </appender>
 
-    <logger name="io.confluent.amq" level="TRACE" additivity="false">
+    <logger name="io.confluent.amq" level="DEBUG" additivity="false">
+        <appender-ref ref="stdout"/>
+    </logger>
+
+    <logger name = "io.confluent.amq.exchange" level="TRACE" additivity="false">
         <appender-ref ref="stdout"/>
     </logger>
 

@@ -4,6 +4,14 @@
 
 package io.confluent.amq.exchange;
 
+import io.confluent.amq.config.BridgeConfig;
+import io.confluent.amq.logging.StructuredLogger;
+import io.confluent.amq.persistence.kafka.KafkaIO;
+import java.util.Collections;
+import java.util.EnumSet;
+import java.util.List;
+import java.util.Map;
+import javax.annotation.Nullable;
 import org.apache.activemq.artemis.api.core.ICoreMessage;
 import org.apache.activemq.artemis.api.core.Message;
 import org.apache.activemq.artemis.core.filter.Filter;
@@ -17,17 +25,6 @@ import org.apache.kafka.clients.producer.Callback;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.clients.producer.RecordMetadata;
-
-import io.confluent.amq.config.BridgeConfig;
-import io.confluent.amq.logging.StructuredLogger;
-import io.confluent.amq.persistence.kafka.KafkaIO;
-
-import java.util.Collections;
-import java.util.EnumSet;
-import java.util.List;
-import java.util.Map;
-import javax.annotation.Nullable;
-
 
 public class KafkaExchangeIngress implements Consumer {
 
@@ -153,7 +150,7 @@ public class KafkaExchangeIngress implements Consumer {
     ICoreMessage coreMessage = reference.getMessage().toCore();
     String bridgeId = config.id();
 
-    Map<String, byte[]> headers = Headers.convertHeaders(coreMessage, bridgeId, false);
+    Map<String, byte[]> headers = Headers.convertHeaders(coreMessage, bridgeId, true);
     byte[] key = extractKey(headers);
     byte[] value = extractValue(coreMessage);
     ProducerRecord<byte[], byte[]> record = new ProducerRecord<>(
