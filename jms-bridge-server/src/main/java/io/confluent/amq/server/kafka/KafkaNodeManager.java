@@ -480,6 +480,11 @@ public class KafkaNodeManager extends NodeManager implements AssignmentManager<L
     }
 
     @Override
+    public void onCoordinatorUnavailable() {
+        //noop
+    }
+
+    @Override
     public void close() throws Exception {
         this.currentLock = NodeLocks.NONE;
 

@@ -8,6 +8,7 @@ import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.activemq.artemis.api.core.SimpleString;
 import org.apache.activemq.artemis.core.server.ActivateCallback;
+import org.apache.activemq.artemis.core.server.ActiveMQLockAcquisitionTimeoutException;
 import org.apache.activemq.artemis.core.server.NodeManager;
 import org.apache.activemq.artemis.core.server.impl.CleaningActivateCallback;
 import org.apache.activemq.artemis.utils.UUID;
@@ -227,7 +228,9 @@ public class KafkaNodeManagerV2 extends NodeManager implements AssignmentManager
         log.debug("CrashLiveServer >>>>>>>>>> nodeId {}, memberId {}", getNodeId(), getMemberId());
         if (currentLock == NodeLocks.LIVE) {
             try {
-                performClusterStateChange(null, NodeLocks.LIVE, null);
+                if (!leaderElector.isStoppedOrStopping()) {
+                    performClusterStateChange(null, NodeLocks.LIVE, null);
+                }
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
@@ -300,6 +303,7 @@ public class KafkaNodeManagerV2 extends NodeManager implements AssignmentManager
             //Join the cluster, but not request anything yet.
             performClusterStateChange(null, null, null);
         }
+
         super.start();
         isAlive = true;
     }
@@ -307,7 +311,6 @@ public class KafkaNodeManagerV2 extends NodeManager implements AssignmentManager
     @Override
     public synchronized void stop() throws Exception {
         log.debug("stop >>>>>>>>> nodeId {}, memberId {}", getNodeId(), getMemberId());
-        super.stop();
         isAlive = false;
         if (this.joinedLatch != null) {
             this.joinedLatch.countDown();
@@ -316,8 +319,14 @@ public class KafkaNodeManagerV2 extends NodeManager implements AssignmentManager
         if (this.leaderElector != null) {
             this.leaderElector.close();
             this.leaderElector = null;
-
         }
+        this.lastSeenClusterState = null;
+        this.initialization.set(true);
+        this.requestedLock = NodeLocks.NONE;
+        this.currentLock = NodeLocks.NONE;
+        this.currentState = ClusterStates.NOT_STARTED;
+        this.interrupt = false;
+        super.stop();
     }
 
 
@@ -332,11 +341,11 @@ public class KafkaNodeManagerV2 extends NodeManager implements AssignmentManager
         interrupt = true;
     }
 
-    private void requestClusterStateChange(NodeLocks requestedLock, NodeLocks releasedLock, ClusterStates requestedClusterState) throws LeaderException, InterruptedException {
+    private void requestClusterStateChange(NodeLocks requestedLock, NodeLocks releasedLock, ClusterStates requestedClusterState) throws InterruptedException {
         requestClusterStateChange(requestedLock, releasedLock, requestedClusterState, false);
     }
 
-    private void requestClusterStateChange(NodeLocks requestedLock, NodeLocks releasedLock, ClusterStates requestedClusterState, boolean stateUpdate) throws LeaderException, InterruptedException {
+    private void requestClusterStateChange(NodeLocks requestedLock, NodeLocks releasedLock, ClusterStates requestedClusterState, boolean stateUpdate) throws InterruptedException {
         if (joinedLatch != null && !stateUpdate) {
             joinedLatch.await();
         }
@@ -369,12 +378,12 @@ public class KafkaNodeManagerV2 extends NodeManager implements AssignmentManager
         }
         try {
             leaderElector.await();
-        } catch (LeaderTimeoutException e) {
-            throw new NodeManagerException(e);
+        } catch (LeaderTimeoutException | LeaderException e) {
+            throw new NodeManagerException(new ActiveMQLockAcquisitionTimeoutException(e.getMessage()));
         }
     }
 
-    private void performClusterStateChange(NodeLocks requestedLock, NodeLocks releasedLock, ClusterStates requestedClusterState) throws LeaderException, InterruptedException {
+    private void performClusterStateChange(NodeLocks requestedLock, NodeLocks releasedLock, ClusterStates requestedClusterState) throws InterruptedException {
         requestClusterStateChange(requestedLock, releasedLock, requestedClusterState);
         //Only wail and clear requests if there was anything requested in the first place, otherwise it is just an initial join / connect to listen to existing states
         if (requestedLock != null || releasedLock != null || requestedClusterState != null) {
@@ -604,8 +613,14 @@ public class KafkaNodeManagerV2 extends NodeManager implements AssignmentManager
     }
 
     @Override
+    public void onCoordinatorUnavailable() {
+        log.debug("onCoordinatorUnavailable >>>>>>>>> nodeId {}, memberId {}", getNodeId(), getMemberId());
+        super.notifyLostLock();
+    }
+
+    @Override
     public void close() throws Exception {
-        this.currentLock = NodeLocks.NONE;
+        stop();
     }
 
     public void reset() {

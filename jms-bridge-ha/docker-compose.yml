@@ -15,9 +15,9 @@ services:
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:32181
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_PROXY:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_PROXY://toxiproxy:9093,PLAINTEXT_HOST://localhost:29092
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
@@ -33,13 +33,17 @@ services:
         # Create topics
         kafka-topics --create --if-not-exists --topic test --partitions 1 --replication-factor 1  --bootstrap-server kafka:9092
         sleep infinity
-
+  toxiproxy:
+    image: ghcr.io/shopify/toxiproxy
+    ports:
+      - "8474:8474"
   live-jms-bridge:
     image: ${JMSBRIDGE_IMAGE_BASE}confluentinc/jms-bridge-docker:${JMSBRIDGE_VERSION}
     hostname: live-jms-bridge
     container_name: live-jms-bridge
     depends_on:
       - kafka
+      - toxiproxy
     ports:
       - "61616:61616"
       - "50006:50006"
@@ -51,7 +55,7 @@ services:
       LOG_IO_CONFLUENT_AMQ: INFO
       LOG_ORG_APACHE_ACTIVEMQ: INFO
       JMSBRIDGE_ID: local-docker # must be the same as the backup bridge to cluster together
-      JMSBRIDGE_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      JMSBRIDGE_KAFKA_BOOTSTRAP_SERVERS: kafka:9092 # change to toxiproxy:9093 to test with kafka connectivity loss / routing through proxy.
       JMSBRIDGE_STREAMS_STATE_DIR: streams-live
       JMSBRIDGE_JOURNALS_TOPIC_REPLICATION: 1
       JMSBRIDGE_ROUTING_TOPICS_0_MATCH: ".*"

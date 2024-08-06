@@ -34,8 +34,8 @@ public class KafkaLeaderElector<A extends Assignment, M extends MemberIdentity>
   private static final AtomicInteger BD_CLIENT_ID_SEQUENCE = new AtomicInteger(1);
   private static final String METRIC_GRP_PREFIX = "kafka.betdev";
 
-  private static final Duration REBALANCE_TIMEOUT = Duration.ofMinutes(5);
-  private static final Duration SESSION_TIMEOUT = Duration.ofSeconds(10);
+  private static final Duration REBALANCE_TIMEOUT = Duration.ofSeconds(30);
+  private static final Duration SESSION_TIMEOUT = Duration.ofSeconds(30);
   private static final Duration HEARTBEAT_INTERVAL = Duration.ofSeconds(3);
 
   private final ConsumerNetworkClient client;
@@ -43,6 +43,8 @@ public class KafkaLeaderElector<A extends Assignment, M extends MemberIdentity>
   private final KafkaLeaderProperties properties;
   private final Metrics metrics;
   private final AtomicBoolean stopped = new AtomicBoolean(false);
+  private final AtomicBoolean stopping = new AtomicBoolean(false);
+
   private final AtomicInteger restarts = new AtomicInteger(0);
   private final AtomicBoolean forceRejoin = new AtomicBoolean(false);
   private final AtomicReference<String> maybeLeave = new AtomicReference<>(null);
@@ -192,9 +194,10 @@ public class KafkaLeaderElector<A extends Assignment, M extends MemberIdentity>
 
   private void poller() {
     try {
-      while (!stopped.get()) {
+      Timer coordinatorUnknownTimer=null;
+      while (!stopped.get() && !stopping.get()) {
         try (LeaderCoordinator<A, M> coordinator = createCoordinator()) {
-          while (!stopped.get()) {
+          while (!stopped.get() && !stopping.get()) {
             if (forceRejoin.get()) {
               coordinator.updateIdentity(this.identity);
               coordinator.requestRejoin("Rejoin requested");
@@ -204,6 +207,22 @@ public class KafkaLeaderElector<A extends Assignment, M extends MemberIdentity>
               maybeLeave.set(null);
             }
             coordinator.poll(500);
+            if (coordinator.coordinatorUnknown()) {
+              if (coordinatorUnknownTimer == null) {
+                coordinatorUnknownTimer = Time.SYSTEM.timer(this.sessionTimeout.toMillis());
+              } else {
+                  coordinatorUnknownTimer.update();
+                  if(coordinatorUnknownTimer.isExpired()) {
+                   log.warn("Leader Elector - Timed out. Coordinator Unknown");
+                   //Notify node manager that locks are lost as we lost connectivity with coordinator / kafka
+                    stopping.set(true);
+                    assignmentManager.onCoordinatorUnavailable();
+                    break;
+               }
+              }
+            } else {
+                coordinatorUnknownTimer = null;
+            }
             Timer timer = Time.SYSTEM.timer(this.rebalanceTimeout.toMillis());
             if (!assignmentManager.isInitialisation() && !this.stopped.get()) {
               if (!assignmentManager.isAlive(timer)) {
@@ -254,13 +273,6 @@ public class KafkaLeaderElector<A extends Assignment, M extends MemberIdentity>
       client.wakeup();
     }
 
-    try {
-      assignmentManager.close();
-    } catch (Exception e) {
-      log.error("Error on task-manager close", e);
-    }
-
-    this.stopped.set(true);
     pollingThread.interrupt();
     Instant start = Instant.now();
     while (
@@ -282,6 +294,7 @@ public class KafkaLeaderElector<A extends Assignment, M extends MemberIdentity>
     } else {
       log.debug("The Group member has stopped.");
     }
+    this.stopped.set(true);
   }
 
   private static void closeQuietly(AutoCloseable closeable,
@@ -307,5 +320,9 @@ public class KafkaLeaderElector<A extends Assignment, M extends MemberIdentity>
       identity = updatedIdentity;
     }
     this.forceRejoin.set(true);
+  }
+
+  public boolean isStoppedOrStopping() {
+    return stopped.get() || stopping.get();
   }
 }
