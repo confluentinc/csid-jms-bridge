@@ -26,7 +26,7 @@ public interface KafkaTopicExchange {
 
   @IgnoredByEquals
   default String ingressQueueName() {
-    return CompositeAddress.toFullyQualified(amqAddressName(), KAFKA_QUEUE_NAME);
+    return CompositeAddress.toFullyQualified(amqAddressName(), kafkaTopicName() + "-" + KAFKA_QUEUE_NAME);
   }
 
   class Builder extends KafkaTopicExchange_Builder {
