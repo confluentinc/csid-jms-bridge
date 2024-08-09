@@ -24,6 +24,7 @@ RUN chmod +x /usr/bin/docker/run /usr/bin/jms-bridge* \
     && chown appuser:appuser /var/log/jms-bridge \
     && chmod -R 755 /var/log/jms-bridge
 
+RUN curl -H "Accept: application/zip" https://repo1.maven.org/maven2/org/jolokia/jolokia-agent-jvm/2.0.3/jolokia-agent-jvm-2.0.3-javaagent.jar -o /usr/share/java/jms-bridge/jolokia-agent-jvm-2.0.3-javaagent.jar
 
 USER appuser
 

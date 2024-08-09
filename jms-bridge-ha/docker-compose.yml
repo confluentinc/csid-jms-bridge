@@ -33,10 +33,12 @@ services:
         # Create topics
         kafka-topics --create --if-not-exists --topic test --partitions 1 --replication-factor 1  --bootstrap-server kafka:9092
         sleep infinity
+
   toxiproxy:
     image: ghcr.io/shopify/toxiproxy
     ports:
       - "8474:8474"
+
   live-jms-bridge:
     image: ${JMSBRIDGE_IMAGE_BASE}confluentinc/jms-bridge-docker:${JMSBRIDGE_VERSION}
     hostname: live-jms-bridge
@@ -47,10 +49,12 @@ services:
     ports:
       - "61616:61616"
       - "50006:50006"
+      - "7777:7777"
     volumes:
       - ./shared-store:/var/cache/jms-bridge
     environment:
-      JMS_BRIDGE_OPTS: "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:50006"
+      JOLOKIA_PORT: 7777
+      JOLOKIA_HOST: "live-jms-bridge"
       BROKER_XML: "broker-live-ha.xml"
       LOG_IO_CONFLUENT_AMQ: INFO
       LOG_ORG_APACHE_ACTIVEMQ: INFO
@@ -111,3 +115,14 @@ services:
       - live-jms-bridge
       - backup-jms-bridge
     restart: on-failure
+
+  hawtio:
+    container_name: hawtio
+    image: znio/hawtio:latest
+    ports:
+      - '8081:8080'
+    environment:
+      - HAWTIO_JAVA_OPTS=
+        -Dhawtio.proxyDisableCertificateValidation=true
+        -Dhawtio.authenticationEnabled=false
+        -Dhawtio.proxyWhitelist=live-jms-bridge,backup-jms-bridge

@@ -57,7 +57,7 @@ fi
 : "${JMS_BRIDGE_JVM_PERFORMANCE_OPTS:=""}"
 : "${JMX_PORT:=""}"
 : "${JAVA_HOME:=""}"
-
+: "${JOLOKIA_HOST:="localhost"}"
 # Development jars. `mvn package` should collect all the required dependency jars here
 for project in "jms-bridge"; do
     for dir in "$base_dir/$project/target/$project"-*-development; do
@@ -100,6 +100,24 @@ fi
 # JMX port to use
 if [ ! -z "$JMX_PORT" ]; then
   JMS_BRIDGE_JMX_OPTS="$JMS_BRIDGE_JMX_OPTS -Dcom.sun.management.jmxremote.port=$JMX_PORT "
+fi
+
+JMS_BRIDGE_JOLOKIA_OPTS=""
+# Jolokia port to use / enables Jolokia javaagent if present in lib folder
+if [ ! -z "$JOLOKIA_PORT" ]; then
+  #find lib dir path - either JMS_BRIDGE_LIB_DIR or base_dir/share/java/jms-bridge
+  AGENT_PATH="$JMS_BRIDGE_LIB_DIR"
+  if [ ! -d "$AGENT_PATH" ]; then
+    AGENT_PATH="$base_dir/share/java/jms-bridge"
+  fi
+  # found lib dir - check if we have javaagent jar
+  AGENT_FILE=""
+  if [ -d "$AGENT_PATH" ]; then
+    AGENT_FILE=$(find $AGENT_PATH -type f -maxdepth 1 -name "jolokia-agent*.jar" | head -1)
+  fi
+  if [ ! -z "$AGENT_FILE" ]; then
+    JMS_BRIDGE_JOLOKIA_OPTS="-javaagent:$AGENT_FILE=port=$JOLOKIA_PORT,host=$JOLOKIA_HOST"
+  fi
 fi
 
 # Generic jvm settings you want to add
@@ -158,7 +176,7 @@ OPTIONS+=($JMS_BRIDGE_GC_LOG_OPTS)
 if [ "x$DAEMON_MODE" = "xtrue" ]; then
   DAEMON_STDOUT_FILE="$LOG_DIR/jms-bridge.out"
   echo "Writing console output to $DAEMON_STDOUT_FILE"
-  nohup "$JAVA" -cp "$JMS_BRIDGE_CLASSPATH" "${OPTIONS[@]}" "$MAIN" "$@" 2>&1 < /dev/null > "$DAEMON_STDOUT_FILE" &
+  nohup "$JAVA" "$JMS_BRIDGE_JOLOKIA_OPTS" -cp "$JMS_BRIDGE_CLASSPATH" "${OPTIONS[@]}" "$MAIN" "$@" 2>&1 < /dev/null > "$DAEMON_STDOUT_FILE" &
 else
-  exec "$JAVA" -cp "$JMS_BRIDGE_CLASSPATH" "${OPTIONS[@]}" "$MAIN" "$@"
+  exec "$JAVA" "$JMS_BRIDGE_JOLOKIA_OPTS" -cp "$JMS_BRIDGE_CLASSPATH" "${OPTIONS[@]}" "$MAIN" "$@"
 fi
