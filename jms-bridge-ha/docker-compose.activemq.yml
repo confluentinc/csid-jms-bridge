@@ -1,16 +1,5 @@
 ---
 services:
-  producer:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      args:
-        JAVA_FILE_NAME: Producer
-    depends_on:
-      - live
-      - backup
-    volumes:
-      - .:/app
   live:
     image: apache/activemq-artemis:latest
     environment:
@@ -35,3 +24,43 @@ services:
     volumes:
       - ./shared-store:/var/lib/artemis-instance/data
       - ./artemis-config/backup-broker.xml:/var/lib/artemis-instance/etc-override/broker.xml
+
+  producer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        JAVA_FILE: Producer.java
+    container_name: producer
+    command: [ "-t", "test", "-d", "(tcp://live:61616,tcp://backup:61617)?ha=true&connection.sendTimeout=5000&retryInterval=1000&retryIntervalMultiplier=1.0&reconnectAttempts=-1&failoverOnServerShutdown=true;", "hello" ]
+    depends_on:
+      - live
+      - backup
+      - consumer
+    restart: on-failure
+
+  consumer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        JAVA_FILE: Consumer.java
+    container_name: consumer
+    command: [ "-t", "test", "-s", "(tcp://live:61616,tcp://backup:61617)?ha=true&retryInterval=1000&retryIntervalMultiplier=1.0&reconnectAttempts=-1;" ]
+    depends_on:
+      - live
+      - backup
+    restart: on-failure
+
+  consumer-2:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        JAVA_FILE: Consumer.java
+    container_name: consumer-2
+    command: [ "-t", "test", "-s", "(tcp://live:61616,tcp://backup:61617)?ha=true&retryInterval=1000&retryIntervalMultiplier=1.0&reconnectAttempts=-1;" ]
+    depends_on:
+      - live
+      - backup
+    restart: on-failure

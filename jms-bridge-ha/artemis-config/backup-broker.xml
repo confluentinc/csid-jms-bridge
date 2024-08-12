@@ -107,7 +107,6 @@
                     <queue name="ExpiryQueue"/>
                 </anycast>
             </address>
-
         </addresses>
 
         <ha-policy>

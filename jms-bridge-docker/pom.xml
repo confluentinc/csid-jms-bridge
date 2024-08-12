@@ -243,6 +243,7 @@
                                         <argument>-f</argument>
                                         <argument>${project.basedir}/${docker.file}</argument>
                                         <argument>${project.basedir}</argument>
+                                        <argument>--no-cache</argument>
                                     </arguments>
                                     <skip>${docker.skip-build}</skip>
                                 </configuration>

@@ -49,15 +49,18 @@ services:
     ports:
       - "61616:61616"
       - "50006:50006"
-      - "7777:7777"
     volumes:
       - ./shared-store:/var/cache/jms-bridge
+      - ../config/broker-live-ha.xml:/etc/jms-bridge/broker.xml
     environment:
       JOLOKIA_PORT: 7777
       JOLOKIA_HOST: "live-jms-bridge"
+      JMS_BRIDGE_OPTS: "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:50006"
       BROKER_XML: "broker-live-ha.xml"
       LOG_IO_CONFLUENT_AMQ: INFO
       LOG_ORG_APACHE_ACTIVEMQ: INFO
+      LOG_IO_CONFLUENT_AMQ_PERSISTENCE_KAFKA: TRACE
+      LOG_ORG_APACHE_ACTIVEMQ_ARTEMIS_CORE_CLIENT: OFF
       JMSBRIDGE_ID: local-docker # must be the same as the backup bridge to cluster together
       JMSBRIDGE_KAFKA_BOOTSTRAP_SERVERS: kafka:9092 # change to toxiproxy:9093 to test with kafka connectivity loss / routing through proxy.
       JMSBRIDGE_STREAMS_STATE_DIR: streams-live
@@ -78,10 +81,14 @@ services:
     volumes:
       - ./shared-store:/var/cache/jms-bridge
     environment:
+      JOLOKIA_PORT: 7777
+      JOLOKIA_HOST: "backup-jms-bridge"
       JMS_BRIDGE_OPTS: "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:50005"
       BROKER_XML: "broker-backup-ha.xml"
       LOG_IO_CONFLUENT_AMQ: INFO
+      LOG_IO_CONFLUENT_AMQ_PERSISTENCE_KAFKA: TRACE
       LOG_ORG_APACHE_ACTIVEMQ: INFO
+      LOG_ORG_APACHE_ACTIVEMQ_ARTEMIS_CORE_CLIENT: OFF
       JMSBRIDGE_ID: local-docker # must be the same as the live bridge to cluster together
       JMSBRIDGE_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       JMSBRIDGE_STREAMS_STATE_DIR: streams-backup
@@ -98,9 +105,7 @@ services:
     container_name: producer
     command: [ "-t", "test", "-d", "(tcp://live-jms-bridge:61616,tcp://backup-jms-bridge:61617)?ha=true&connection.sendTimeout=5000&retryInterval=1000&retryIntervalMultiplier=1.0&reconnectAttempts=-1&failoverOnServerShutdown=true;", "hello" ]
     depends_on:
-      - live-jms-bridge
-      - backup-jms-bridge
-      - consumer
+      - kafka
     restart: on-failure
 
   consumer:
@@ -112,8 +117,7 @@ services:
     container_name: consumer
     command: [ "-t", "test", "-s", "(tcp://live-jms-bridge:61616,tcp://backup-jms-bridge:61617)?ha=true&retryInterval=1000&retryIntervalMultiplier=1.0&reconnectAttempts=-1;" ]
     depends_on:
-      - live-jms-bridge
-      - backup-jms-bridge
+      - kafka
     restart: on-failure
 
   hawtio:

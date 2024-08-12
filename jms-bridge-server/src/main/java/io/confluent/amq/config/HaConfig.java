@@ -10,7 +10,7 @@ import static io.confluent.amq.config.BridgeConfigFactory.flattenConfig;
 
 @FreeBuilder
 public interface HaConfig {
-    int DEFAULT_INIT_TIMEOUT_MS = 5000;
+    int DEFAULT_INIT_TIMEOUT_MS = 30000;
     String DEFAULT_GROUP_ID = "ha_consumer_group";
 
     String groupId();

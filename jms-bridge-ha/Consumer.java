@@ -40,8 +40,8 @@ class Consumer implements Callable<Integer> {
             connection.setClientID("consumer-" + UUID.randomUUID());
             connection.start();
             Session session = connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
-            Topic consumeTopic = session.createTopic("kafka." + topic);
-            MessageConsumer consumer = session.createDurableSubscriber(consumeTopic, "jbangConsumer");
+            Queue consumeTopic = session.createQueue("KafkaTest");
+            MessageConsumer consumer = session.createConsumer(consumeTopic);
 
             while (true) {
                 try {

@@ -120,7 +120,8 @@ public interface LogSpec {
       }
       return this.putTokens("entryType", "AnnotationReference")
           .putTokens("messageId", annotations.getMessageId())
-          .putTokens("annotationCount", annotations.getEntryReferencesCount());
+          .putTokens("annotationCount", annotations.getEntryReferencesCount())
+          .putTokens("annotationsList", annotations.getEntryReferencesList());
     }
 
     public Builder addJournalRecord(JournalRecord record) {

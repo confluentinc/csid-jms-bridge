@@ -40,8 +40,7 @@ class Producer implements Callable<Integer> {
         InitialContext initialContext = new InitialContext(properties);
         ConnectionFactory cf = (ConnectionFactory) initialContext.lookup("ConnectionFactory");
         try (Session session = cf.createConnection().createSession()) {
-            Topic requestTopic = session.createTopic("kafka." + topic);
-            TopicSession topicSession = (TopicSession) session;
+            Queue requestTopic = session.createQueue("KafkaTest");
             MessageProducer producer = session.createProducer(requestTopic);
             producer.setDeliveryMode(DeliveryMode.PERSISTENT);
 
@@ -50,9 +49,9 @@ class Producer implements Callable<Integer> {
                 try {
                     numMessages++;
                     System.out.println(String.format("Sending message: %s %d ", message, numMessages));
-                    TextMessage tmsg = topicSession.createTextMessage(String.format("%s %d", message, numMessages));
+                    TextMessage tmsg = session.createTextMessage(String.format("%s %d", message, numMessages));
                     producer.send(tmsg);
-                    Thread.sleep(1000);
+                    Thread.sleep(200);
                 } catch (InterruptedException interruptedException) {
                     System.out.println("Interrupted!");
                     break;
