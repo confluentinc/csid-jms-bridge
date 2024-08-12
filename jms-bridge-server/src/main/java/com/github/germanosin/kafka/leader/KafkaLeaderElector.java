@@ -13,6 +13,7 @@ import org.apache.kafka.clients.ApiVersions;
 import org.apache.kafka.clients.ClientUtils;
 import org.apache.kafka.clients.CommonClientConfigs;
 import org.apache.kafka.clients.Metadata;
+import org.apache.kafka.clients.MetadataRecoveryStrategy;
 import org.apache.kafka.clients.NetworkClient;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.internals.ConsumerNetworkClient;
@@ -25,7 +26,6 @@ import org.apache.kafka.common.network.Selector;
 import org.apache.kafka.common.utils.LogContext;
 import org.apache.kafka.common.utils.Time;
 import org.apache.kafka.common.utils.Timer;
-
 
 @Slf4j
 public class KafkaLeaderElector<A extends Assignment, M extends MemberIdentity>
@@ -40,6 +40,7 @@ public class KafkaLeaderElector<A extends Assignment, M extends MemberIdentity>
 
   private final ConsumerNetworkClient client;
   private final Long retryBackoffMs;
+  private final Long retryBackoffMaxMs;
   private final KafkaLeaderProperties properties;
   private final Metrics metrics;
   private final AtomicBoolean stopped = new AtomicBoolean(false);
@@ -98,9 +99,11 @@ public class KafkaLeaderElector<A extends Assignment, M extends MemberIdentity>
     );
 
     this.retryBackoffMs = clientConfig.getLong(CommonClientConfigs.RETRY_BACKOFF_MS_CONFIG);
+    this.retryBackoffMaxMs = clientConfig.getLong(CommonClientConfigs.RETRY_BACKOFF_MAX_MS_CONFIG);
 
     Metadata metadata = new Metadata(
         this.retryBackoffMs,
+        this.retryBackoffMaxMs,
         clientConfig.getLong(CommonClientConfigs.METADATA_MAX_AGE_CONFIG),
         this.logContext,
         new ClusterResourceListeners()
@@ -145,8 +148,8 @@ public class KafkaLeaderElector<A extends Assignment, M extends MemberIdentity>
         this.time,
         true,
         new ApiVersions(),
-        logContext
-    );
+        logContext,
+        MetadataRecoveryStrategy.REBOOTSTRAP);
 
     this.client = new ConsumerNetworkClient(
         this.logContext,
@@ -179,6 +182,7 @@ public class KafkaLeaderElector<A extends Assignment, M extends MemberIdentity>
         METRIC_GRP_PREFIX,
         this.time,
         this.retryBackoffMs,
+        this.retryBackoffMaxMs,
         this.identity,
         assignmentManager,
         this.leaderProtocol

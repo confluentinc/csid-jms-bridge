@@ -44,6 +44,7 @@ public class LeaderCoordinator<A extends Assignment, M extends MemberIdentity>
       String metricGrpPrefix,
       Time time,
       long retryBackoffMs,
+      long retryBackoffMaxMs,
       M identity,
       AssignmentManager<A, M> assignmentManager,
       LeaderProtocol<A, M> leaderProtocol
@@ -56,6 +57,7 @@ public class LeaderCoordinator<A extends Assignment, M extends MemberIdentity>
             groupId,
             Optional.empty(),
             retryBackoffMs,
+            retryBackoffMaxMs,
             true
         ),
         logContext,
