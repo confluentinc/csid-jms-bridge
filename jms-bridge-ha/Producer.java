@@ -3,7 +3,7 @@
 //DEPS org.apache.activemq:artemis-jms-client-all:2.33.0
 //DEPS org.slf4j:slf4j-api:2.0.13
 //DEPS org.slf4j:slf4j-simple:2.0.13
-//JAVA 11
+//JAVA 17
 
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
