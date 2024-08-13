@@ -108,6 +108,20 @@ class BridgeConfigFactoryTest {
     assertEquals("unknown", version);
   }
 
+  @Test
+  public void testKafkaHaEnableByDefault() {
+    BridgeConfig config = getConfig("kafka-ha.conf");
+    assertEquals("minimal", config.id());
+    assertTrue(config.kafkaHaDisabled().isEmpty());
+  }
+
+  @Test
+  public void testKafkaHaDisabled() {
+    BridgeConfig config = getConfig("kafka-ha-disabled.conf");
+    assertEquals("minimal", config.id());
+    assertTrue(config.kafkaHaDisabled().orElse(false));
+  }
+
   private BridgeConfig getConfig(String configName) {
     URL testConfig = Resources.getResource("config/" + configName);
     return BridgeConfigFactory.gatherConfiguration(testConfig);

@@ -3,7 +3,7 @@
 //DEPS org.apache.activemq:artemis-jms-client-all:2.33.0
 //DEPS org.slf4j:slf4j-api:2.0.13
 //DEPS org.slf4j:slf4j-simple:2.0.13
-//JAVA 11
+//JAVA 17
 
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
@@ -40,8 +40,7 @@ class Producer implements Callable<Integer> {
         InitialContext initialContext = new InitialContext(properties);
         ConnectionFactory cf = (ConnectionFactory) initialContext.lookup("ConnectionFactory");
         try (Session session = cf.createConnection().createSession()) {
-            Topic requestTopic = session.createTopic("kafka." + topic);
-            TopicSession topicSession = (TopicSession) session;
+            Queue requestTopic = session.createQueue("kafka." + topic);
             MessageProducer producer = session.createProducer(requestTopic);
             producer.setDeliveryMode(DeliveryMode.PERSISTENT);
 
@@ -50,7 +49,7 @@ class Producer implements Callable<Integer> {
                 try {
                     numMessages++;
                     System.out.println(String.format("Sending message: %s %d ", message, numMessages));
-                    TextMessage tmsg = topicSession.createTextMessage(String.format("%s %d", message, numMessages));
+                    TextMessage tmsg = session.createTextMessage(String.format("%s %d", message, numMessages));
                     producer.send(tmsg);
                     Thread.sleep(1000);
                 } catch (InterruptedException interruptedException) {

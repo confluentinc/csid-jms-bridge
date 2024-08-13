@@ -12,11 +12,16 @@ import io.confluent.amq.persistence.kafka.KafkaIntegration;
 import io.confluent.amq.persistence.kafka.KafkaJournalStorageManager;
 import io.confluent.amq.server.kafka.nodemanager.KafkaNodeManagerV2;
 import org.apache.activemq.artemis.core.config.HAPolicyConfiguration;
+import org.apache.activemq.artemis.core.config.StoreConfiguration;
+import org.apache.activemq.artemis.core.config.storage.DatabaseStorageConfiguration;
 import org.apache.activemq.artemis.core.persistence.StorageManager;
 import org.apache.activemq.artemis.core.server.ActiveMQServer;
 import org.apache.activemq.artemis.core.server.NodeManager;
 import org.apache.activemq.artemis.core.server.ServiceRegistry;
 import org.apache.activemq.artemis.core.server.impl.ActiveMQServerImpl;
+import org.apache.activemq.artemis.core.server.impl.FileLockNodeManager;
+import org.apache.activemq.artemis.core.server.impl.InVMNodeManager;
+import org.apache.activemq.artemis.core.server.impl.jdbc.JdbcNodeManager;
 import org.apache.activemq.artemis.spi.core.security.ActiveMQSecurityManager;
 
 import javax.management.MBeanServer;
@@ -167,6 +172,14 @@ public class ConfluentAmqServerImpl extends ActiveMQServerImpl implements Conflu
 
   @Override
   protected NodeManager createNodeManager(File directory, boolean replicatingBackup) {
+    if (getJmsBridgeConfiguration().getBridgeConfig().kafkaHaDisabled().orElse(false)) {
+      return createVanillaNodeManager(directory, replicatingBackup);
+    } else {
+      return createKafkaNodeManager(directory, replicatingBackup);
+    }
+  }
+
+  private NodeManager createKafkaNodeManager(File directory, boolean replicatingBackup) {
     NodeManager manager;
     boolean isPreferredLive = false;
 
@@ -212,6 +225,31 @@ public class ConfluentAmqServerImpl extends ActiveMQServerImpl implements Conflu
       throw new IllegalArgumentException("Kafka persistence allows only Shared Store HA options");
     }
 
+    return manager;
+  }
+
+  private NodeManager createVanillaNodeManager(File directory, boolean replicatingBackup) {
+    NodeManager manager;
+    if (!getConfiguration().isPersistenceEnabled()) {
+      manager = new InVMNodeManager(replicatingBackup);
+    } else if (getConfiguration().getStoreConfiguration() != null && getConfiguration().getStoreConfiguration().getStoreType() == StoreConfiguration.StoreType.DATABASE) {
+      final HAPolicyConfiguration.TYPE haType = getConfiguration().getHAPolicyConfiguration() == null ? null : getConfiguration().getHAPolicyConfiguration().getType();
+      if (haType == HAPolicyConfiguration.TYPE.SHARED_STORE_MASTER || haType == HAPolicyConfiguration.TYPE.SHARED_STORE_SLAVE) {
+        if (replicatingBackup) {
+          throw new IllegalArgumentException("replicatingBackup is not supported yet while using JDBC persistence");
+        }
+        final DatabaseStorageConfiguration dbConf = (DatabaseStorageConfiguration) getConfiguration().getStoreConfiguration();
+        manager = JdbcNodeManager.with(dbConf, scheduledPool, executorFactory);
+      } else if (haType == null || haType == HAPolicyConfiguration.TYPE.LIVE_ONLY) {
+        SLOG.debug(b -> b.event("CreateNodeManager").message("Detected no Shared Store HA options on JDBC store"));
+        //LIVE_ONLY should be the default HA option when HA isn't configured
+        manager = new FileLockNodeManager(directory, replicatingBackup, getConfiguration().getJournalLockAcquisitionTimeout(), scheduledPool);
+      } else {
+        throw new IllegalArgumentException("JDBC persistence allows only Shared Store HA options");
+      }
+    } else {
+      manager = new FileLockNodeManager(directory, replicatingBackup, getConfiguration().getJournalLockAcquisitionTimeout(), scheduledPool);
+    }
     return manager;
   }
 

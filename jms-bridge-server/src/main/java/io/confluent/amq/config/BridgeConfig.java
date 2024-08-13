@@ -22,6 +22,8 @@ public interface BridgeConfig {
 
   String id();
 
+  Optional<Boolean> kafkaHaDisabled();
+
   Optional<String> partnerSFDCId();
 
   BridgeClientId clientId();
@@ -75,6 +77,9 @@ public interface BridgeConfig {
                       .partnerSFDCId(this.partnerSFDCId())
                       .bridgeId(this.id())
                       .build());
+      if(bridgeConfig.hasPath("kafka.ha.disabled")) {
+        this.kafkaHaDisabled(bridgeConfig.getBoolean("kafka.ha.disabled"));
+      }
     }
 
   }

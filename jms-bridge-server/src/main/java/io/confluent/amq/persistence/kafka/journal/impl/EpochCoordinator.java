@@ -10,7 +10,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.consumer.Consumer;
@@ -43,7 +43,10 @@ public class EpochCoordinator implements
   private static final String DELEGATE_CONFIG_KEY = "EpochCoordinator.assigner.delegate";
   private static final AtomicInteger INITIAL_EPOCH_ID = new AtomicInteger(-1);
   private static final AtomicInteger EPOCH_ID = new AtomicInteger(-1);
-  private static final CountDownLatch EPOCH_FOUND_LATCH = new CountDownLatch(1);
+
+  //Flag that indicates that epoch messages are injected - new epoch started.
+  //Used by GlobalStateProcessor to determine that there are no unprocessed / pending messages for Journal Loading phase.
+  private static final AtomicBoolean IS_EPOCH_STARTED = new AtomicBoolean(false);
   private static final KafkaClientSupplier SUPPLIER_INSTANCE = new DefaultKafkaClientSupplier();
 
   private ConsumerPartitionAssignor assignorDelegate;
@@ -119,9 +122,15 @@ public class EpochCoordinator implements
     }
 
     int previousId = EPOCH_ID.getAndSet(metadata.generationId());
+      SLOG.debug(b -> b.name("EpochCoordinator")
+                      .event("onAssignment")
+                      .putTokens("generationId", metadata.generationId())
+                      .putTokens("previousId", previousId));
     if (previousId == -1) {
-//      INITIAL_EPOCH_ID.compareAndSet(-1, metadata.generationId());
-      EPOCH_FOUND_LATCH.countDown();
+        //INITIAL_EPOCH_ID.compareAndSet(-1, metadata.generationId());
+        SLOG.debug(b -> b.name("EpochCoordinator")
+                        .event("EpochStartFound"));
+      IS_EPOCH_STARTED.set(true);
     }
   }
 
@@ -139,12 +148,8 @@ public class EpochCoordinator implements
     return initialEpochId();
   }
 
-  public void waitForEpochStart() {
-    try {
-      EPOCH_FOUND_LATCH.await();
-    } catch (Exception e) {
-      throw new RuntimeException(e);
-    }
+  public boolean isEpochStarted() {
+    return IS_EPOCH_STARTED.get();
   }
 }
 

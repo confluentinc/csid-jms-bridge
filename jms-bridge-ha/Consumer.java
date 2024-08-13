@@ -1,7 +1,9 @@
 ///usr/bin/env jbang "$0" "$@" ; exit $?
 //DEPS info.picocli:picocli:4.7.5
-//DEPS org.apache.activemq:artemis-jms-client-all:2.13.0
-//JAVA 11
+//DEPS org.apache.activemq:artemis-jms-client-all:2.33.0
+//DEPS org.slf4j:slf4j-api:2.0.13
+//DEPS org.slf4j:slf4j-simple:2.0.13
+//JAVA 17
 
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
@@ -40,8 +42,8 @@ class Consumer implements Callable<Integer> {
             connection.setClientID("consumer-" + UUID.randomUUID());
             connection.start();
             Session session = connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
-            Topic consumeTopic = session.createTopic("kafka." + topic);
-            MessageConsumer consumer = session.createDurableSubscriber(consumeTopic, "jbangConsumer");
+            Queue consumeTopic = session.createQueue("kafka." + topic);
+            MessageConsumer consumer = session.createConsumer(consumeTopic);
 
             while (true) {
                 try {

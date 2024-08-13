@@ -1,9 +1,11 @@
 package io.confluent.amq.persistence.kafka;
 
 import com.google.protobuf.Message;
+import io.confluent.amq.logging.StructuredLogger;
 import io.confluent.amq.persistence.domain.proto.EpochEvent;
 import io.confluent.amq.persistence.domain.proto.JournalEntry;
 import io.confluent.amq.persistence.kafka.journal.impl.EpochCoordinator;
+import io.confluent.amq.persistence.kafka.journal.impl.KafkaJournalLoader;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;
@@ -22,12 +24,17 @@ import java.util.List;
  */
 @Slf4j
 public class LoadInitializer {
-
+    private static final StructuredLogger SLOG = StructuredLogger.with(b -> b
+            .loggerClass(LoadInitializer.class));
     //need wal topics
     //kafka producer
 
     public static void fireEpochs(EpochCoordinator epochCoordinator, KafkaIO kafkaIO, List<String> walTopics) {
         KafkaProducer<Message, Message> producer = kafkaIO.getInternalProducer();
+        SLOG.debug(b->b
+                .name("LoadInitializer")
+                .event("FireEpochs")
+                .markStarted());
         for (String walTopic: walTopics) {
             List<PartitionInfo> partitionList = producer.partitionsFor(walTopic);
             for (PartitionInfo pInfo: partitionList) {
@@ -38,6 +45,10 @@ public class LoadInitializer {
                                 .setEpochStage(EpochCoordinator.EPOCH_STAGE_START)
                                 .setPartition(pInfo.partition()))
                         .build();
+                SLOG.debug(b->b
+                        .name("LoadInitializer")
+                        .event("FireEpochs")
+                        .addEpochEvent(epochEntry.getEpochEvent()));
 
                 ProducerRecord<Message, Message> pRecord = new ProducerRecord<>(
                         walTopic, pInfo.partition(), KafkaRecordUtils.epochKey(), epochEntry);
@@ -49,5 +60,9 @@ public class LoadInitializer {
                 }
             }
         }
+        SLOG.debug(b->b
+                .name("LoadInitializer")
+                .event("FireEpochs")
+                .markCompleted());
     }
 }

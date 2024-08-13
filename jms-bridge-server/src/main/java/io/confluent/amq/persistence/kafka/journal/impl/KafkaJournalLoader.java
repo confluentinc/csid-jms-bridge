@@ -13,10 +13,8 @@ import io.confluent.amq.persistence.domain.proto.JournalEntry;
 import io.confluent.amq.persistence.domain.proto.JournalEntryKey;
 import io.confluent.amq.persistence.domain.proto.TransactionReference;
 import io.confluent.amq.persistence.kafka.KafkaRecordUtils;
-import java.util.HashSet;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Set;
+
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.activemq.artemis.core.journal.PreparedTransactionInfo;
@@ -28,245 +26,264 @@ import org.apache.kafka.streams.state.ReadOnlyKeyValueStore;
 
 public class KafkaJournalLoader {
 
-  private static final StructuredLogger SLOG = StructuredLogger.with(b -> b
-      .loggerClass(KafkaJournalLoader.class));
+    private static final StructuredLogger SLOG = StructuredLogger.with(b -> b
+            .loggerClass(KafkaJournalLoader.class));
 
-  private final Set<Integer> epochWaitCount = new HashSet<>();
-  private final CompletableFuture<Void> onLoadCompleteFuture = new CompletableFuture<>();
-  private final AtomicBoolean isLoadComplete = new AtomicBoolean(false);
+    private final Set<Integer> epochWaitCount = new HashSet<>();
+    private final CompletableFuture<Void> onLoadCompleteFuture = new CompletableFuture<>();
+    private final AtomicBoolean isLoadComplete = new AtomicBoolean(false);
 
-  private final String journalName;
-  private final EpochCoordinator epochCoordinator;
+    private final String journalName;
+    private final EpochCoordinator epochCoordinator;
 
-  public KafkaJournalLoader(
-      String journalName, int partitionCount, EpochCoordinator epochCoordinator) {
+    private final List<EpochEvent> pendingEpochEvents = new ArrayList<>();
 
-    this.journalName = journalName;
-    this.epochCoordinator = epochCoordinator;
+    public KafkaJournalLoader(
+            String journalName, int partitionCount, EpochCoordinator epochCoordinator) {
 
-    for (int i = 0; i < partitionCount; i++) {
-      epochWaitCount.add(i);
-    }
-  }
+        this.journalName = journalName;
+        this.epochCoordinator = epochCoordinator;
 
-  public boolean isLoadComplete() {
-    return isLoadComplete.get();
-  }
-
-  public CompletableFuture<Void> onLoadComplete() {
-    return onLoadCompleteFuture;
-  }
-
-  public synchronized boolean maybeComplete(EpochEvent event) {
-    if (!isLoadComplete.get()) {
-      epochCoordinator.waitForEpochStart();
-
-      SLOG.debug(b -> b
-          .name(journalName)
-          .event("MaybeComplete")
-          .addEpochEvent(event));
-
-      if (event.getEpochId() >= epochCoordinator.initialEpochId()) {
-        if (EpochCoordinator.EPOCH_STAGE_START.equals(event.getEpochStage())) {
-          epochWaitCount.add(event.getPartition());
-
-          SLOG.debug(b -> b
-              .name(journalName)
-              .event("PartitionStarted")
-              .putTokens("partition", event.getPartition()));
-        } else if (EpochCoordinator.EPOCH_STAGE_READY.equals(event.getEpochStage())) {
-          epochWaitCount.remove(event.getPartition());
-          SLOG.debug(b -> b
-              .name(journalName)
-              .event("PartitionFinished")
-              .putTokens("partition", event.getPartition()));
-
-          if (epochWaitCount.isEmpty()) {
-            isLoadComplete.set(true);
-            onLoadCompleteFuture.complete(null);
-
-            SLOG.debug(b -> b
-                .name(journalName)
-                .event("LoadComplete"));
-          }
+        for (int i = 0; i < partitionCount; i++) {
+            epochWaitCount.add(i);
         }
-      }
-    }
-    return isLoadComplete.get();
-  }
-
-  @SuppressWarnings({"CyclomaticComplexity"})
-  public void executeLoadCallback(
-      ReadOnlyKeyValueStore<JournalEntryKey, JournalEntry> store,
-      ReadOnlyKeyValueStore<JournalEntryKey, JournalEntry> txStore,
-      KafkaJournalLoaderCallback callback) {
-
-    SLOG.info(b -> b
-        .name(journalName)
-        .event("LoadJournal")
-        .markStarted());
-
-    int recordCount = 0;
-
-    List<AnnotationReference> annotations = new LinkedList<>();
-    try (KeyValueIterator<JournalEntryKey, JournalEntry> kvIter = store.all()) {
-      //only add messages and annotations
-      while (kvIter.hasNext()) {
-
-        KeyValue<JournalEntryKey, JournalEntry> kv = kvIter.next();
-        JournalEntry entry = kv.value;
-
-        if (entry != null) {
-          if (entry.hasAnnotationReference()) {
-            annotations.add(entry.getAnnotationReference());
-          } else if (entry.getAppendedRecord().getRecordType() == ADD_RECORD) {
-            SLOG.trace(b -> b
-                .event("LoadAddRecord")
-                .addJournalEntryKey(kv.key)
-                .addJournalEntry(entry));
-            callback.addRecord(KafkaRecordUtils.toRecordInfo(entry.getAppendedRecord()));
-
-            recordCount++;
-          }
-        }
-      }
     }
 
-    //process annotations
-    loadAnnotations(store, callback, annotations);
-    loadTransactions(txStore, callback);
-
-    final int finalLoadCount = recordCount;
-    callback.loadComplete(finalLoadCount);
-
-    SLOG.info(b -> b
-        .name(journalName)
-        .event("LoadJournal")
-        .markCompleted()
-        .putTokens("finalLoadCount", finalLoadCount));
-  }
-
-  private void loadAnnotations(
-      ReadOnlyKeyValueStore<JournalEntryKey, JournalEntry> store,
-      KafkaJournalLoaderCallback callback,
-      List<AnnotationReference> annRefList) {
-
-    for (AnnotationReference annRef : annRefList) {
-
-      for (JournalEntryKey annRefKey : annRef.getEntryReferencesList()) {
-
-        JournalEntry annEntry = store.get(annRefKey);
-
-        if (annEntry != null) {
-          SLOG.trace(b -> b
-              .event("LoadAnnotation")
-              .addJournalEntry(annEntry));
-
-          callback.updateRecord(KafkaRecordUtils.toRecordInfo(annEntry.getAppendedRecord()));
-        } else {
-          SLOG.warn(b -> b
-              .event("LoadAnnotation")
-              .markFailure()
-              .message("No record found for annotation reference"));
-        }
-      }
+    public boolean isLoadComplete() {
+        return isLoadComplete.get();
     }
-  }
 
-  @SuppressWarnings("checkstyle:CyclomaticComplexity")
-  private void loadTransactions(
-      ReadOnlyKeyValueStore<JournalEntryKey, JournalEntry> store,
-      KafkaJournalLoaderCallback callback) {
+    public CompletableFuture<Void> onLoadComplete() {
+        return onLoadCompleteFuture;
+    }
 
-    List<JournalEntry> txRefList = new LinkedList<>();
-
-    int retryAttempt = 0;
-    int maxRetries = 5;
-    while (true) {
-        try {
-            try (KeyValueIterator<JournalEntryKey, JournalEntry> kvIter = store.all()) {
-                while (kvIter.hasNext()) {
-
-                    KeyValue<JournalEntryKey, JournalEntry> kv = kvIter.next();
-                    JournalEntry entry = kv.value;
-                    if (entry.hasTransactionReference()) {
-                        txRefList.add(entry);
-                    }
-                }
-            }
-            break;
-        } catch (InvalidStateStoreException ignored) {
-            // store not yet ready for querying
-            if (ignored.getMessage().contains("migrated to another instance")) {
-                SLOG.logger().warn("State store is not being processed by this this instance.", ignored);
-                return;
+    public synchronized boolean maybeComplete(EpochEvent event) {
+        if (!isLoadComplete.get()) {
+            // Need to hold the completion event processing until Epoch Start is triggered - epoch start happens on stream
+            // task assignment - and GlobalStateProcessor may read stale / old epoch completion markers through state
+            // restoration. We cannot block on it (as assignment will be blocked as well and we have deadlock) but we cant
+            // process them yet either as we need to make sure that fresh epoch markers are produced into topology first.
+            if (!epochCoordinator.isEpochStarted()) {
+                pendingEpochEvents.add(event);
+                return false;
             } else {
-                if (retryAttempt < maxRetries) {
-                    SLOG.logger().warn("State store may not be ready, will retry", ignored);
-                    retryAttempt++;
-                    try {
-                        Thread.sleep(1000);
-                    } catch (InterruptedException e) {
-                        throw new RuntimeException(e);
+                if (!pendingEpochEvents.isEmpty()) {
+                    pendingEpochEvents.forEach(this::maybeCompleteInner);
+                    pendingEpochEvents.clear();
+                }
+                maybeCompleteInner(event);
+            }
+        }
+        return isLoadComplete.get();
+    }
+
+    private synchronized void maybeCompleteInner(EpochEvent event) {
+        if (!isLoadComplete.get()) {
+            SLOG.debug(b -> b
+                    .name(journalName)
+                    .event("MaybeComplete")
+                    .addEpochEvent(event));
+
+            if (event.getEpochId() >= epochCoordinator.initialEpochId()) {
+                if (EpochCoordinator.EPOCH_STAGE_START.equals(event.getEpochStage())) {
+                    epochWaitCount.add(event.getPartition());
+
+                    SLOG.debug(b -> b
+                            .name(journalName)
+                            .event("PartitionStarted")
+                            .putTokens("partition", event.getPartition()));
+                } else if (EpochCoordinator.EPOCH_STAGE_READY.equals(event.getEpochStage())) {
+                    epochWaitCount.remove(event.getPartition());
+                    SLOG.debug(b -> b
+                            .name(journalName)
+                            .event("PartitionFinished")
+                            .putTokens("partition", event.getPartition()));
+
+                    if (epochWaitCount.isEmpty()) {
+                        isLoadComplete.set(true);
+                        onLoadCompleteFuture.complete(null);
+
+                        SLOG.debug(b -> b
+                                .name(journalName)
+                                .event("LoadComplete"));
                     }
-                } else {
-                   throw new RuntimeException(ignored);
                 }
             }
         }
     }
 
+    @SuppressWarnings({"CyclomaticComplexity"})
+    public void executeLoadCallback(
+            ReadOnlyKeyValueStore<JournalEntryKey, JournalEntry> store,
+            ReadOnlyKeyValueStore<JournalEntryKey, JournalEntry> txStore,
+            KafkaJournalLoaderCallback callback) {
 
-    for (JournalEntry txRefEntry : txRefList) {
-      TransactionReference txref = txRefEntry.getTransactionReference();
-      List<RecordInfo> txRecords = new LinkedList<>();
-      List<RecordInfo> txDeleteRecords = new LinkedList<>();
-      boolean prepared = false;
-      byte[] txData = null;
+        SLOG.info(b -> b
+                .name(journalName)
+                .event("LoadJournal")
+                .markStarted());
 
-      for (JournalEntryKey refKey : txref.getEntryReferencesList()) {
-        JournalEntry entry = store.get(refKey);
+        int recordCount = 0;
 
-        if (entry == null) {
-          SLOG.warn(b -> b
-              .name(journalName)
-              .event("InvalidTransactionReference")
-              .addJournalEntryKey(refKey)
-              .message("No value found in store for transaction reference."));
+        List<AnnotationReference> annotations = new LinkedList<>();
+        try (KeyValueIterator<JournalEntryKey, JournalEntry> kvIter = store.all()) {
+            //only add messages and annotations
+            while (kvIter.hasNext()) {
 
-        } else {
+                KeyValue<JournalEntryKey, JournalEntry> kv = kvIter.next();
+                JournalEntry entry = kv.value;
 
-          switch (entry.getAppendedRecord().getRecordType()) {
-            case PREPARE_TX:
-              prepared = true;
-              if (!entry.getAppendedRecord().getData().isEmpty()) {
-                txData = entry.getAppendedRecord().getData().toByteArray();
-              }
-              break;
-            case ADD_RECORD_TX:
-            case ANNOTATE_RECORD_TX:
-              txRecords.add(KafkaRecordUtils.toRecordInfo(entry.getAppendedRecord()));
-              break;
-            case DELETE_RECORD_TX:
-              txDeleteRecords.add(KafkaRecordUtils.toRecordInfo(entry.getAppendedRecord()));
-              break;
-            default:
-              //ignore, do nothing
-          }
+                if (entry != null) {
+                    if (entry.hasAnnotationReference()) {
+                        annotations.add(entry.getAnnotationReference());
+                    } else if (entry.getAppendedRecord().getRecordType() == ADD_RECORD) {
+                        SLOG.trace(b -> b
+                                .event("LoadAddRecord")
+                                .addJournalEntryKey(kv.key)
+                                .addJournalEntry(entry));
+                        callback.addRecord(KafkaRecordUtils.toRecordInfo(entry.getAppendedRecord()));
+
+                        recordCount++;
+                    }
+                }
+            }
         }
-      }
 
-      if (prepared) {
-        SLOG.warn(b -> b
-            .name(journalName)
-            .event("PreparedTransactionLoaded")
-            .addJournalEntry(txRefEntry));
+        //process annotations
+        loadAnnotations(store, callback, annotations);
+        loadTransactions(txStore, callback);
 
-        PreparedTransactionInfo pti = new PreparedTransactionInfo(txref.getTxId(), txData);
-        pti.getRecords().addAll(txRecords);
-        pti.getRecordsToDelete().addAll(txDeleteRecords);
-        callback.addPreparedTransaction(pti);
-      }
+        final int finalLoadCount = recordCount;
+        callback.loadComplete(finalLoadCount);
+
+        SLOG.info(b -> b
+                .name(journalName)
+                .event("LoadJournal")
+                .markCompleted()
+                .putTokens("finalLoadCount", finalLoadCount));
     }
-  }
+
+    private void loadAnnotations(
+            ReadOnlyKeyValueStore<JournalEntryKey, JournalEntry> store,
+            KafkaJournalLoaderCallback callback,
+            List<AnnotationReference> annRefList) {
+
+        for (AnnotationReference annRef : annRefList) {
+
+            for (JournalEntryKey annRefKey : annRef.getEntryReferencesList()) {
+
+                JournalEntry annEntry = store.get(annRefKey);
+
+                if (annEntry != null) {
+                    SLOG.trace(b -> b
+                            .event("LoadAnnotation")
+                            .addJournalEntry(annEntry));
+
+                    callback.updateRecord(KafkaRecordUtils.toRecordInfo(annEntry.getAppendedRecord()));
+                } else {
+                    SLOG.warn(b -> b
+                            .event("LoadAnnotation")
+                            .markFailure()
+                            .message("No record found for annotation reference"));
+                }
+            }
+        }
+    }
+
+    @SuppressWarnings("checkstyle:CyclomaticComplexity")
+    private void loadTransactions(
+            ReadOnlyKeyValueStore<JournalEntryKey, JournalEntry> store,
+            KafkaJournalLoaderCallback callback) {
+
+        List<JournalEntry> txRefList = new LinkedList<>();
+
+        int retryAttempt = 0;
+        int maxRetries = 5;
+        while (true) {
+            try {
+                try (KeyValueIterator<JournalEntryKey, JournalEntry> kvIter = store.all()) {
+                    while (kvIter.hasNext()) {
+
+                        KeyValue<JournalEntryKey, JournalEntry> kv = kvIter.next();
+                        JournalEntry entry = kv.value;
+                        if (entry.hasTransactionReference()) {
+                            txRefList.add(entry);
+                        }
+                    }
+                }
+                break;
+            } catch (InvalidStateStoreException ignored) {
+                // store not yet ready for querying
+                if (ignored.getMessage().contains("migrated to another instance")) {
+                    SLOG.logger().warn("State store is not being processed by this this instance.", ignored);
+                    return;
+                } else {
+                    if (retryAttempt < maxRetries) {
+                        SLOG.logger().warn("State store may not be ready, will retry", ignored);
+                        retryAttempt++;
+                        try {
+                            Thread.sleep(1000);
+                        } catch (InterruptedException e) {
+                            throw new RuntimeException(e);
+                        }
+                    } else {
+                        throw new RuntimeException(ignored);
+                    }
+                }
+            }
+        }
+
+
+        for (JournalEntry txRefEntry : txRefList) {
+            TransactionReference txref = txRefEntry.getTransactionReference();
+            List<RecordInfo> txRecords = new LinkedList<>();
+            List<RecordInfo> txDeleteRecords = new LinkedList<>();
+            boolean prepared = false;
+            byte[] txData = null;
+
+            for (JournalEntryKey refKey : txref.getEntryReferencesList()) {
+                JournalEntry entry = store.get(refKey);
+
+                if (entry == null) {
+                    SLOG.warn(b -> b
+                            .name(journalName)
+                            .event("InvalidTransactionReference")
+                            .addJournalEntryKey(refKey)
+                            .message("No value found in store for transaction reference."));
+
+                } else {
+
+                    switch (entry.getAppendedRecord().getRecordType()) {
+                        case PREPARE_TX:
+                            prepared = true;
+                            if (!entry.getAppendedRecord().getData().isEmpty()) {
+                                txData = entry.getAppendedRecord().getData().toByteArray();
+                            }
+                            break;
+                        case ADD_RECORD_TX:
+                        case ANNOTATE_RECORD_TX:
+                            txRecords.add(KafkaRecordUtils.toRecordInfo(entry.getAppendedRecord()));
+                            break;
+                        case DELETE_RECORD_TX:
+                            txDeleteRecords.add(KafkaRecordUtils.toRecordInfo(entry.getAppendedRecord()));
+                            break;
+                        default:
+                            //ignore, do nothing
+                    }
+                }
+            }
+
+            if (prepared) {
+                SLOG.warn(b -> b
+                        .name(journalName)
+                        .event("PreparedTransactionLoaded")
+                        .addJournalEntry(txRefEntry));
+
+                PreparedTransactionInfo pti = new PreparedTransactionInfo(txref.getTxId(), txData);
+                pti.getRecords().addAll(txRecords);
+                pti.getRecordsToDelete().addAll(txDeleteRecords);
+                callback.addPreparedTransaction(pti);
+            }
+        }
+    }
 }

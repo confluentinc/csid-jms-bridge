@@ -91,6 +91,11 @@ public class GlobalStoreProcessor implements Processor<JournalEntryKey, JournalE
 
     List<KeyValue<JournalEntryKey, JournalEntry>> results = new LinkedList<>();
     if (value.hasEpochEvent()) {
+      SLOG.debug(b -> b
+          .name(journal.name())
+          .event("UpsertEpochEvent")
+          .addJournalEntryKey(key)
+          .addJournalEntry(value));
       //don't add these to the store, they are for loading only
       journal.loader().maybeComplete(value.getEpochEvent());
       results.add(KeyValue.pair(key, value));
