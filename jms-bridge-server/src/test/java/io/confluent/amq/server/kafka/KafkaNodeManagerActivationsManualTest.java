@@ -8,8 +8,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.activemq.artemis.core.server.ActiveMQServer;
 import org.apache.activemq.artemis.utils.UUID;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
-import org.junit.Test;
 import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
 import java.util.Map;
