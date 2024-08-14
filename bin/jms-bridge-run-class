@@ -176,7 +176,17 @@ OPTIONS+=($JMS_BRIDGE_GC_LOG_OPTS)
 if [ "x$DAEMON_MODE" = "xtrue" ]; then
   DAEMON_STDOUT_FILE="$LOG_DIR/jms-bridge.out"
   echo "Writing console output to $DAEMON_STDOUT_FILE"
-  nohup "$JAVA" "$JMS_BRIDGE_JOLOKIA_OPTS" -cp "$JMS_BRIDGE_CLASSPATH" "${OPTIONS[@]}" "$MAIN" "$@" 2>&1 < /dev/null > "$DAEMON_STDOUT_FILE" &
+  #Having an empty "" parameter in the JAVA command breaks it - not wrapping with "" JOLOKIA OPTS can break agent lookup (if path needs escaping) so
+  # have to do this kind of IF / ELSE block to get around it.
+  if [ ! -z "$JMS_BRIDGE_JOLOKIA_OPTS" ]; then
+    nohup "$JAVA" "$JMS_BRIDGE_JOLOKIA_OPTS" -cp "$JMS_BRIDGE_CLASSPATH" "${OPTIONS[@]}" "$MAIN" "$@" 2>&1 < /dev/null > "$DAEMON_STDOUT_FILE" &
+  else
+    nohup "$JAVA" -cp "$JMS_BRIDGE_CLASSPATH" "${OPTIONS[@]}" "$MAIN" "$@" 2>&1 < /dev/null > "$DAEMON_STDOUT_FILE" &
+  fi
 else
-  exec "$JAVA" "$JMS_BRIDGE_JOLOKIA_OPTS" -cp "$JMS_BRIDGE_CLASSPATH" "${OPTIONS[@]}" "$MAIN" "$@"
+  if [ ! -z "$JMS_BRIDGE_JOLOKIA_OPTS" ]; then
+    exec "$JAVA" "$JMS_BRIDGE_JOLOKIA_OPTS" -cp "$JMS_BRIDGE_CLASSPATH" "${OPTIONS[@]}" "$MAIN" "$@"
+  else
+    exec "$JAVA" -cp "$JMS_BRIDGE_CLASSPATH" "${OPTIONS[@]}" "$MAIN" "$@"
+  fi
 fi
