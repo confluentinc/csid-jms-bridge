@@ -1,6 +1,9 @@
+---
+title: Release Notes
+description: Change log for the JMS Bridge
+---
+
 # Release Notes
-
-
 
 All notable changes to this project will be documented in this file.
 
@@ -12,7 +15,8 @@ Note that as this release is now in the Confluent Partner GitHub org, the releas
 
 ### Release Notes - 02 Aug 2024
 
-This release contains several fixes and enhancements. The primary objective was to increase the robustness of HA which was done by reimplementing the node manager using the kafka consumer protocol.
+This release contains several fixes and enhancements. The primary objective was to increase the robustness of HA which
+was done by reimplementing the node manager using the kafka consumer protocol.
 
 * Updates to documentation and its formatting
 * Fix tombstone exchange failure issue
