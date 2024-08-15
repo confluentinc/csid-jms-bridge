@@ -520,6 +520,7 @@ public class KafkaJournal implements Journal {
     JournalRecord r = JournalRecord.newBuilder()
         .setTxId(txID)
         .setMessageId(id)
+        .setRecordType(JournalRecordType.DELETE_RECORD_TX)
         .build();
 
     appendRecord(r);
@@ -532,6 +533,7 @@ public class KafkaJournal implements Journal {
         .setTxId(txID)
         .setMessageId(id)
         .setData(ByteString.copyFrom(record))
+        .setRecordType(JournalRecordType.DELETE_RECORD_TX)
         .build();
 
     appendRecord(r);
