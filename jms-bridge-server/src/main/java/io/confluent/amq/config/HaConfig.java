@@ -10,7 +10,7 @@ import static io.confluent.amq.config.BridgeConfigFactory.flattenConfig;
 
 @FreeBuilder
 public interface HaConfig {
-    int DEFAULT_INIT_TIMEOUT_MS = 5000;
+    int DEFAULT_INIT_TIMEOUT_MS = 35000;
     String DEFAULT_GROUP_ID = "ha_consumer_group";
 
     String groupId();
@@ -31,7 +31,6 @@ public interface HaConfig {
         }
 
         public Builder(Config bridgeConfig, Config haConfig) {
-//            Config bridgeConfig = rootConfig.getConfig("bridge");
             Config kafkaConfig = bridgeConfig.getConfig("kafka");
             this.putAllConsumerConfig(BridgeConfigFactory
                     .fetchMapConfigWithDefaults("consumerConfig", haConfig, kafkaConfig));
