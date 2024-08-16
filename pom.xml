@@ -45,10 +45,10 @@
     <!--  </repositories>-->
 
     <scm>
-        <connection>scm:git:git://github.com:confluentinc/csid-jms-bridge.git</connection>
-        <developerConnection>scm:git:git@github.com:confluentinc/csid-jms-bridge.git
+        <connection>scm:git:git://github.com:confluent-partners/csid-jms-bridge.git</connection>
+        <developerConnection>scm:git:git@github.com:confluent-partners/csid-jms-bridge.git
         </developerConnection>
-        <url>https://github.com/confluentinc/csid-jms-bridge</url>
+        <url>https://github.com/confluent-partners/csid-jms-bridge</url>
         <tag>v3.3.3</tag>
     </scm>
 
@@ -86,7 +86,7 @@
         <release.artifact>
             ${project.build.directory}/${project.artifactId}-${project.version}-package.zip
         </release.artifact>
-        <release.repositoryId>confluentinc/csid-jms-bridge</release.repositoryId>
+        <release.repositoryId>confluent-partners/csid-jms-bridge</release.repositoryId>
         <skip.docker.build>true</skip.docker.build>
         <skip.docker.test>true</skip.docker.test>
         <slf4j.api.version>2.0.7</slf4j.api.version>
