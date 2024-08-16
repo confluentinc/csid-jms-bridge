@@ -4,7 +4,7 @@
   <parent>
     <artifactId>jms-bridge-pom</artifactId>
     <groupId>io.confluent</groupId>
-    <version>3.3.5-SNAPSHOT</version>
+    <version>3.3.5</version>
   </parent>
 
   <artifactId>jms-bridge-perf</artifactId>
