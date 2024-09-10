@@ -127,7 +127,7 @@ public class EpochCoordinator implements
                       .putTokens("generationId", metadata.generationId())
                       .putTokens("previousId", previousId));
     if (previousId == -1) {
-        //INITIAL_EPOCH_ID.compareAndSet(-1, metadata.generationId());
+        INITIAL_EPOCH_ID.compareAndSet(-1, metadata.generationId());
         SLOG.debug(b -> b.name("EpochCoordinator")
                         .event("EpochStartFound"));
       IS_EPOCH_STARTED.set(true);
