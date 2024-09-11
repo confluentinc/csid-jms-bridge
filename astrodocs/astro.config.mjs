@@ -19,7 +19,7 @@ export default defineConfig({
     },
     integrations: [starlight({
         plugins: [starlightLinksValidatorPlugin({errorOnRelativeLinks: false}), starlightImageZoomPlugin(), starlightVersions({
-            versions: [{slug: "3.3.4"}],
+            versions: [{slug: "3.3.5"},{slug: "3.3.4"}],
         })],
         customCss: [
             './src/tailwind.css'
