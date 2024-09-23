@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="WARN">
+    <Appenders>
+        <Console name="Console" target="SYSTEM_OUT">
+            <PatternLayout pattern="%d{HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n"/>
+        </Console>
+        <!-- Time-based Rolling File Appender -->
+        <RollingFile name="RollingFileAppender" fileName="src/test/logs/application.log"
+                     filePattern="src/test/logs/application-%d{yyyy-MM-dd-HH}.log">
+            <PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss} %-5level [%t] %c{1}.%M - (%L) %msg%n"/>
+            <TimeBasedTriggeringPolicy interval="1" modulate="true"/>
+<!--            <SizeBasedTriggeringPolicy size="100MB"/>-->
+        </RollingFile>
+
+<!--        <File name="FileAppenderQueue" fileName="src/test/logs/JMSQueueTest.log">-->
+<!--        <PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss} %-5level [%t] %c{1}.%M - (Line %L) %msg%n"/>-->
+<!--        </File>-->
+
+<!--        <File name="FileAppenderTopic" fileName="src/test/logs/JMSTopicTest.log">-->
+<!--            <PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss} %-5level [%t] %c{1}.%M - %msg%n"/>-->
+<!--        </File>-->
+
+    </Appenders>
+
+    <Loggers>
+        <!-- Root logger configuration -->
+        <Root level="DEBUG">
+            <AppenderRef ref="RollingFileAppender"/>
+            <AppenderRef ref="Console"/>
+        </Root>
+
+        <Logger name="org.example" level="DEBUG" additivity="false">
+            <AppenderRef ref="RollingFileAppender"/>
+            <AppenderRef ref="Console"/>
+        </Logger>
+
+<!--        <Logger name="com.example.JMSTopicTest" level="info" additivity="false">-->
+<!--            <AppenderRef ref="RollingFileAppender"/>-->
+<!--        </Logger>-->
+    </Loggers>
+</Configuration>

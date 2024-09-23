@@ -1,0 +1,18 @@
+#!/bin/bash
+# Copyright 2020 Confluent, Inc.
+#
+# Use shellcheck to lint this file
+#
+SERVERPIDS=$(jcmd | grep 'io\.confluent\.amq\.JmsBridgeMain' | grep 'live' | awk '{print $1}')
+
+if [ -z "$SERVERPIDS" ]; then
+  echo "No server(s) to stop"
+  exit 1
+fi
+
+for PID in $SERVERPIDS; do
+  kill -s TERM "$PID"
+  while kill -0 "$PID" >/dev/null 2>&1; do sleep 1; done
+done
+sleep 1
+exit 0

@@ -1,0 +1,48 @@
+#!/bin/bash
+# Copyright 2020 Confluent, Inc.
+
+#
+# Use shellcheck to lint this file
+#
+
+if [ $# -lt 1 ];
+then
+    echo "USAGE: $0 [-daemon] jms-bridge.properties"
+    exit 1
+fi
+
+base_dir=$( cd "$( dirname "${BASH_SOURCE[0]}" )/.." && pwd )
+: "${JMS_BRIDGE_CONFIG_DIR:="$base_dir/etc/jms-bridge"}"
+
+: "${JMS_BRIDGE_LOG_OPTS:=""}"
+if [ -z "$JMS_BRIDGE_LOG_OPTS" ] && [ -e "$JMS_BRIDGE_CONFIG_DIR/logback.xml" ]; then
+  export JMS_BRIDGE_LOG_OPTS="-Dlogback.configurationFile=file:$JMS_BRIDGE_CONFIG_DIR/logback.xml"
+fi
+
+EXTRA_ARGS="-name jms-bridge -loggc"
+
+#if [ -z "$JMS_BRIDGE_OPTS" ]; then
+#  JMS_BRIDGE_OPTS=-Djms-bridge.server.install.dir=$base_dir
+#else
+#  JMS_BRIDGE_OPTS="${JMS_BRIDGE_OPTS} -Djms-bridge.server.install.dir=$base_dir"
+#fi
+
+: "${JMS_BRIDGE_DATA_DIR:=""}"
+if [ -z "$JMS_BRIDGE_DATA_DIR" ]; then
+  JMS_BRIDGE_OPTS="${JMS_BRIDGE_OPTS} -Djms-bridge.data.dir=$base_dir/data"
+else
+  JMS_BRIDGE_OPTS="${JMS_BRIDGE_OPTS} -Djms-bridge.data.dir=$JMS_BRIDGE_DATA_DIR"
+fi
+
+: "${JMS_BRIDGE_JAAS:=""}"
+if [ -z "$JMS_BRIDGE_JAAS" ]; then
+  if [ -e "${JMS_BRIDGE_CONFIG_DIR}/login.config" ]; then
+    JMS_BRIDGE_OPTS="${JMS_BRIDGE_OPTS} -Djava.security.auth.login.config=$JMS_BRIDGE_CONFIG_DIR/login.config"
+  fi
+else
+  JMS_BRIDGE_OPTS="${JMS_BRIDGE_OPTS} -Djava.security.auth.login.config=$JMS_BRIDGE_JAAS"
+fi
+
+export JMS_BRIDGE_OPTS
+
+exec "$base_dir"/bin/jms-bridge-run-class io.confluent.amq.JmsBridgeMain $EXTRA_ARGS "$@"
