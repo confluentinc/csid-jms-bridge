@@ -12,6 +12,7 @@ import io.confluent.amq.persistence.domain.proto.JournalRecord;
 import io.confluent.amq.persistence.domain.proto.JournalRecordType;
 import io.confluent.amq.persistence.domain.proto.TransactionReference;
 import io.confluent.amq.persistence.kafka.KafkaRecordUtils;
+import io.confluent.amq.persistence.kafka.LoadInitializer;
 import io.confluent.amq.persistence.kafka.journal.JournalStreamTransformer;
 import java.time.Duration;
 import java.time.Instant;
@@ -113,7 +114,7 @@ public class TransactionProcessor
 
         JournalEntry readyEvent = JournalEntry.newBuilder(entry)
             .mergeEpochEvent(EpochEvent.newBuilder()
-                .setEpochStage(EpochCoordinator.EPOCH_STAGE_READY)
+                .setEpochStage(LoadInitializer.EPOCH_STAGE_READY)
                 .buildPartial())
             .build();
 

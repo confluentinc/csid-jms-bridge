@@ -13,7 +13,14 @@ fi
 
 for PID in $SERVERPIDS; do
   kill -s TERM "$PID"
-  while kill -0 "$PID" >/dev/null 2>&1; do sleep 1; done
+  TRIES=0
+  while kill -0 "$PID" >/dev/null 2>&1; do
+    TRIES=$((TRIES+1))
+    if [[ $TRIES -ge 3 ]]; then
+      kill -s KILL $PID
+    fi
+    sleep 5;
+  done
 done
 sleep 1
 exit 0

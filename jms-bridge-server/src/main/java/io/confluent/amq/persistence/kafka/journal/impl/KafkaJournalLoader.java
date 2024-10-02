@@ -15,8 +15,9 @@ import io.confluent.amq.persistence.domain.proto.TransactionReference;
 import io.confluent.amq.persistence.kafka.KafkaRecordUtils;
 
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import io.confluent.amq.persistence.kafka.LoadInitializer;
 import org.apache.activemq.artemis.core.journal.PreparedTransactionInfo;
 import org.apache.activemq.artemis.core.journal.RecordInfo;
 import org.apache.kafka.streams.KeyValue;
@@ -30,69 +31,44 @@ public class KafkaJournalLoader {
             .loggerClass(KafkaJournalLoader.class));
 
     private final Set<Integer> epochWaitCount = new HashSet<>();
-    private final CompletableFuture<Void> onLoadCompleteFuture = new CompletableFuture<>();
     private final AtomicBoolean isLoadComplete = new AtomicBoolean(false);
 
     private final String journalName;
-    private final EpochCoordinator epochCoordinator;
+    private final LoadInitializer loadInitializer;
 
-    private final List<EpochEvent> pendingEpochEvents = new ArrayList<>();
+    private final Runnable onLoadCompleteCallback;
+
+    private final int partitionCount;
 
     public KafkaJournalLoader(
-            String journalName, int partitionCount, EpochCoordinator epochCoordinator) {
+            String journalName, int partitionCount, LoadInitializer loadInitializer, Runnable onLoadCompleteCallback) {
+        this.onLoadCompleteCallback = onLoadCompleteCallback;
 
         this.journalName = journalName;
-        this.epochCoordinator = epochCoordinator;
+        this.loadInitializer = loadInitializer;
+        this.partitionCount = partitionCount;
 
         for (int i = 0; i < partitionCount; i++) {
             epochWaitCount.add(i);
         }
     }
 
-    public boolean isLoadComplete() {
-        return isLoadComplete.get();
-    }
-
-    public CompletableFuture<Void> onLoadComplete() {
-        return onLoadCompleteFuture;
-    }
-
     public synchronized boolean maybeComplete(EpochEvent event) {
-        if (!isLoadComplete.get()) {
-            // Need to hold the completion event processing until Epoch Start is triggered - epoch start happens on stream
-            // task assignment - and GlobalStateProcessor may read stale / old epoch completion markers through state
-            // restoration. We cannot block on it (as assignment will be blocked as well and we have deadlock) but we cant
-            // process them yet either as we need to make sure that fresh epoch markers are produced into topology first.
-            if (!epochCoordinator.isEpochStarted()) {
-                pendingEpochEvents.add(event);
-                return false;
-            } else {
-                if (!pendingEpochEvents.isEmpty()) {
-                    pendingEpochEvents.forEach(this::maybeCompleteInner);
-                    pendingEpochEvents.clear();
-                }
-                maybeCompleteInner(event);
-            }
-        }
-        return isLoadComplete.get();
-    }
-
-    private synchronized void maybeCompleteInner(EpochEvent event) {
         if (!isLoadComplete.get()) {
             SLOG.debug(b -> b
                     .name(journalName)
                     .event("MaybeComplete")
                     .addEpochEvent(event));
 
-            if (event.getEpochId() >= epochCoordinator.initialEpochId()) {
-                if (EpochCoordinator.EPOCH_STAGE_START.equals(event.getEpochStage())) {
+            if (event.getEpochId() == loadInitializer.getEpochMarker()) {
+                if (LoadInitializer.EPOCH_STAGE_START.equals(event.getEpochStage())) {
                     epochWaitCount.add(event.getPartition());
 
                     SLOG.debug(b -> b
                             .name(journalName)
                             .event("PartitionStarted")
                             .putTokens("partition", event.getPartition()));
-                } else if (EpochCoordinator.EPOCH_STAGE_READY.equals(event.getEpochStage())) {
+                } else if (LoadInitializer.EPOCH_STAGE_READY.equals(event.getEpochStage())) {
                     epochWaitCount.remove(event.getPartition());
                     SLOG.debug(b -> b
                             .name(journalName)
@@ -101,7 +77,7 @@ public class KafkaJournalLoader {
 
                     if (epochWaitCount.isEmpty()) {
                         isLoadComplete.set(true);
-                        onLoadCompleteFuture.complete(null);
+                        onLoadCompleteCallback.run();
 
                         SLOG.debug(b -> b
                                 .name(journalName)
@@ -110,6 +86,7 @@ public class KafkaJournalLoader {
                 }
             }
         }
+        return isLoadComplete.get();
     }
 
     @SuppressWarnings({"CyclomaticComplexity"})
@@ -285,5 +262,18 @@ public class KafkaJournalLoader {
                 callback.addPreparedTransaction(pti);
             }
         }
+    }
+
+    /**
+     * Loader is reused during journal reloads -
+     * multiple failover on Backup node switching between active and passive states,
+     * therefore its state has to be reset prior to reuse.
+     */
+    public void reset() {
+        epochWaitCount.clear();
+        for (int i = 0; i < partitionCount; i++) {
+            epochWaitCount.add(i);
+        }
+        isLoadComplete.set(false);
     }
 }

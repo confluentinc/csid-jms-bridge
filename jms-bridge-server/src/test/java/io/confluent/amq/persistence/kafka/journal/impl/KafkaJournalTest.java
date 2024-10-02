@@ -399,17 +399,13 @@ public class KafkaJournalTest {
       Mockito.when(mockKafkaIo.describeTopics(Mockito.anyCollection()))
           .thenReturn(topicDescriptions);
 
-      EpochCoordinator epochCoordinator = new EpochCoordinator();
       this.processor = new KafkaJournalProcessor(
           bridgeConfig.id(),
           Collections.singletonList(journalSpec),
           new BridgeClientId.Builder().bridgeId("testNode").buildPartial(),
           "testApp",
           Duration.ofSeconds(60),
-          bridgeConfig.streams(), mockKafkaIo, epochCoordinator);
-      ConsumerGroupMetadata mockMetadata = Mockito.mock(ConsumerGroupMetadata.class);
-      Mockito.when(mockMetadata.generationId()).thenReturn(1);
-      epochCoordinator.onAssignment(null, mockMetadata);
+          bridgeConfig.streams(), mockKafkaIo);
 
       this.processor.initializeJournals();
       driver =

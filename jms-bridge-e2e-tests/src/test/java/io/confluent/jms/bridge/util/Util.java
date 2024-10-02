@@ -166,11 +166,11 @@ public class Util {
         }
     }
 
-    public static void addSteps(StringBuilder steps, String message) {
+    synchronized public static void addSteps(StringBuilder steps, String message) {
         steps.append(message).append("\n");
     }
 
-    public static void closeQuietly(AutoCloseable objectToClose) {
+    synchronized public static void closeQuietly(AutoCloseable objectToClose) {
         try {
             if(objectToClose==null) {
                 return;

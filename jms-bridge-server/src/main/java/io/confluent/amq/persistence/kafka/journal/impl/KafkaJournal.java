@@ -11,7 +11,6 @@ import io.confluent.amq.persistence.domain.proto.JournalEntryKey;
 import io.confluent.amq.persistence.domain.proto.JournalRecord;
 import io.confluent.amq.persistence.domain.proto.JournalRecordType;
 import io.confluent.amq.persistence.kafka.KafkaIO;
-import io.confluent.amq.persistence.kafka.KafkaRecordUtils;
 import io.confluent.amq.persistence.kafka.journal.KJournal;
 import io.confluent.amq.persistence.kafka.journal.KafkaJournalRecord;
 import org.apache.activemq.artemis.api.core.ActiveMQBuffer;
@@ -190,7 +189,6 @@ public class KafkaJournal implements Journal {
         record.getDestTopic(),
         record.getKafkaMessageKey(),
         JournalEntry.newBuilder().setAppendedRecord(record.getRecord()).build());
-    KafkaRecordUtils.addEpochHeader(producerRecord.headers());
 
     kafkaIO.<JournalEntryKey, JournalEntry>getInternalProducer()
         .send(producerRecord, (meta, err) -> {

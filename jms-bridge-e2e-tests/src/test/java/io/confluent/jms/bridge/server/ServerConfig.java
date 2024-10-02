@@ -256,7 +256,7 @@ public class ServerConfig {
             ServerControl serverControl = new ServerControl();
             boolean isSuccess = serverControl.stopServer(io.confluent.jms.bridge.util.Util.CONFIG_LOADER, false, true);
             if (isSuccess) {
-                io.confluent.jms.bridge.util.Util.addSteps(steps, "Killed Master Server");
+                io.confluent.jms.bridge.util.Util.addSteps(steps, "Killed Slave Server");
             }
             return isSuccess;
         }

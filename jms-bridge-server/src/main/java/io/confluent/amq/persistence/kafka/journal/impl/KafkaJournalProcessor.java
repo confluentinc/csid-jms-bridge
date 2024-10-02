@@ -6,6 +6,8 @@ package io.confluent.amq.persistence.kafka.journal.impl;
 
 import io.confluent.amq.config.BridgeClientId;
 import io.confluent.amq.persistence.kafka.LoadInitializer;
+import lombok.Getter;
+import lombok.Setter;
 import org.apache.kafka.clients.admin.TopicDescription;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.streams.KafkaStreams;
@@ -25,20 +27,18 @@ import io.confluent.amq.persistence.kafka.KafkaIO;
 import io.confluent.amq.persistence.kafka.journal.JournalEntryKeyPartitioner;
 import io.confluent.amq.persistence.kafka.journal.KJournal;
 import io.confluent.amq.persistence.kafka.journal.KJournalState;
-import io.confluent.amq.persistence.kafka.journal.impl.JournalTopology.TopologySpec.Builder;
 import io.confluent.amq.persistence.kafka.journal.serde.JournalKeySerde;
 import io.confluent.amq.persistence.kafka.journal.serde.JournalValueSerde;
 import io.confluent.amq.util.Retry;
 
 import java.time.Duration;
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static io.confluent.amq.persistence.kafka.journal.KJournalState.CREATED;
-import static io.confluent.amq.persistence.kafka.journal.KJournalState.STARTED;
+import static io.confluent.amq.persistence.kafka.journal.KJournalState.*;
 
 /**
  * The journal processor executes outside of the normal flow of Artemis's runtime. It is primarily responsible for
@@ -74,8 +74,6 @@ public class KafkaJournalProcessor implements StateListener {
   private final String applicationId;
   private final Map<String, String> streamsConfig;
   private final KafkaIO kafkaIO;
-
-  private final EpochCoordinator epochCoordinator;
   private final List<JournalSpec> journalSpecs;
   private final Map<String, KJournalImpl> journals;
   private final Duration loadTimeout;
@@ -83,36 +81,20 @@ public class KafkaJournalProcessor implements StateListener {
   private volatile KJournalState journalState;
   private volatile KafkaStreams streams;
   private volatile boolean loadComplete = false;
+  private boolean firstLoad = true;
+
+  private CountDownLatch loadCompleteLatch = new CountDownLatch(1);
+
+  private final LoadInitializer loadInitializer = new LoadInitializer();
 
   public KafkaJournalProcessor(
-      String bridgeId,
-      List<JournalSpec> journalSpecs,
-      BridgeClientId clientId,
-      String applicationId,
-      Duration loadTimeout,
-      Map<String, String> streamsConfig,
-      KafkaIO kafkaIO) {
-
-    this(
-        bridgeId,
-        journalSpecs,
-        clientId,
-        applicationId,
-        loadTimeout,
-        streamsConfig,
-        kafkaIO,
-        new EpochCoordinator());
-  }
-
-  protected KafkaJournalProcessor(
       String bridgeId,
       List<JournalSpec> journalSpecs,
       BridgeClientId bridgeClientId,
       String applicationId,
       Duration loadTimeOut,
       Map<String, String> streamsConfig,
-      KafkaIO kafkaIO,
-      EpochCoordinator epochCoordinator) {
+      KafkaIO kafkaIO) {
 
     this.bridgeId = bridgeId;
     this.bridgeClientId = bridgeClientId;
@@ -121,7 +103,6 @@ public class KafkaJournalProcessor implements StateListener {
     this.streamsConfig = streamsConfig;
     this.kafkaIO = kafkaIO;
 
-    this.epochCoordinator = epochCoordinator;
     this.journalState = CREATED;
     this.journalSpecs = journalSpecs;
     journals = new HashMap<>();
@@ -142,23 +123,39 @@ public class KafkaJournalProcessor implements StateListener {
     return isAssigned;
   }
 
+  public void loadComplete(String journalName) {
+    SLOG.debug(b -> b
+            .event("LoadJournal")
+            .putTokens("phase", "LoadComplete")
+            .putTokens("journalName", journalName)
+    );
+
+    loadCompleteLatch.countDown();
+  }
   public synchronized void start() {
     if (journalState.validTransition(STARTED)) {
-
       Retry retry = new Retry(5, Duration.ofSeconds(30), Duration.ofSeconds(1));
       retry.retry(
           () -> ensureTopics(journalSpecs),
           (j, err) -> j == null || j.isEmpty());
-
-      initializeJournals();
-      setupLoadingStateTransition();
-
+      // Track if its first time loading is done (i.e. first time start() is called or its a subsequent reload due to
+      // switching between passive / active modes multiple times.
+      // Reset the state of journals / loading as new KafkaJournalProcessor is not constructed between Backup giving up control
+      // on failback and then getting control on failover again - so need to make sure that any load state is reset back to allow
+      // clean journal reload.
+      loadComplete = false;
+      if(firstLoad) {
+        initializeJournals();
+        this.firstLoad = false;
+      } else {
+        journals.values().forEach(KJournalImpl::reset);
+      }
       Topology topology = createTopology();
       SLOG.debug(b -> b
           .event("TopologyDescription")
           .message(topology.describe().toString()));
 
-      streams = new KafkaStreams(topology, effectiveStreamProperties(), this.epochCoordinator);
+      streams = new KafkaStreams(topology, effectiveStreamProperties());
       streams.setStateListener(this);
       streams.start();
 
@@ -178,6 +175,7 @@ public class KafkaJournalProcessor implements StateListener {
 
   public synchronized void stop() {
     if (journalState.validTransition(KJournalState.STOPPED)) {
+      loadComplete = false;
       if (streams != null) {
         streams.close();
       }
@@ -228,23 +226,38 @@ public class KafkaJournalProcessor implements StateListener {
    * The initial onLoadComplete() call blocks until the WAL topic has been completely processed and the global state
    * store is up to date. It uses a sentinel message to achieve this,
    *  see {@link io.confluent.amq.persistence.domain.proto.EpochEvent}. The sentinal message is produced by
-   *  kafka streams when it starts up. This done via a timed message as part of the {@link EpochPuntcuator}
-   *  initialization.
+   *  {@link LoadInitializer} prior to execution of journal loading.
    *
    */
   synchronized void load(KJournalImpl kjournal, KafkaJournalLoaderCallback callback) {
     if (streams != null && journalState.isRunningState()) {
-      List<String> journalTopics = journalSpecs
-              .stream()
-              .map(j -> j.journalWalTopic().name())
-              .collect(Collectors.toList());
-      LoadInitializer.fireEpochs(epochCoordinator, kafkaIO, journalTopics);
 
-      try {
-        //todo: make this timeout configurable
-        kjournal.loader().onLoadComplete().get(loadTimeout.toMillis(), TimeUnit.MILLISECONDS);
-      } catch (Exception e) {
-        throw new RuntimeException(e);
+      waitForStreamsRunningState();
+      if(loadCompleteLatch.getCount() == 0) {
+          loadCompleteLatch = new CountDownLatch(1);
+      }
+
+      loadInitializer.fireEpochs(kafkaIO, kjournal.walTopic());
+
+      long startTime = System.currentTimeMillis();
+      boolean loaded = false;
+      while (!loaded){
+        try {
+          loaded = loadCompleteLatch.await(200L,TimeUnit.MILLISECONDS);
+        } catch (Exception e) {
+          throw new RuntimeException(e);
+        }
+        if (System.currentTimeMillis() > startTime + loadTimeout.toMillis()) {
+          throw new RuntimeException("Timed out waiting for journal load completion.");
+        }
+      }
+
+      kjournal.setLoaded(true);
+
+      boolean allJournalsLoaded = journals.values().stream().allMatch(KJournalImpl::isLoaded);
+
+      if(allJournalsLoaded){
+          transitionToRunning();
       }
 
       StoreQueryParameters<ReadOnlyKeyValueStore<JournalEntryKey, JournalEntry>>
@@ -276,6 +289,17 @@ public class KafkaJournalProcessor implements StateListener {
           "KafkaJournalProcessor must be started before being loaded. Current state is: "
               + journalState);
     }
+  }
+
+  private void waitForStreamsRunningState() {
+      //wait for the streams to be running
+      while (streams.state() != State.RUNNING && (streams.state() == State.REBALANCING || streams.state() == State.CREATED)) {
+        try {
+          Thread.sleep(10);
+        } catch (InterruptedException e) {
+          throw new RuntimeException("Interrupted during journal load initiation while waiting for Streams to be in RUNNING state",e);
+        }
+      }
   }
 
   @Override
@@ -338,7 +362,7 @@ public class KafkaJournalProcessor implements StateListener {
 
   protected void initializeJournals() {
     journalSpecs.stream()
-        .map(js -> new KJournalImpl(js, this, epochCoordinator))
+        .map(js -> new KJournalImpl(js, this, loadInitializer))
         .forEach(kj -> journals.put(kj.name(), kj));
   }
 
@@ -349,7 +373,6 @@ public class KafkaJournalProcessor implements StateListener {
 
     JournalTopology.TopologySpec spec = new JournalTopology.TopologySpecBuilder()
         .addAllJournals(journals.values())
-        .coordinator(epochCoordinator)
         .topologyProps(topoProps)
         .bridgeId(bridgeId)
         .build();
@@ -357,29 +380,11 @@ public class KafkaJournalProcessor implements StateListener {
   }
 
 
-  private void setupLoadingStateTransition() {
-
-    CompletableFuture[] loadingfutures = new CompletableFuture[journalSpecs.size()];
-    int idx = 0;
-    for (KJournalImpl j : journals.values()) {
-      loadingfutures[idx] = j.loader().onLoadComplete();
-      idx++;
-    }
-
-    CompletableFuture.allOf(loadingfutures).whenComplete((nil, t) -> {
-      if (t != null) {
-        SLOG.error(b -> b
-            .event("LoadListener")
-            .markFailure()
-            .message("Loading of a journal failed."), t);
-      }
+  private void transitionToRunning() {
       loadComplete = true;
-      if (journalState == KJournalState.LOADING) {
+      if (journalState == KJournalState.LOADING || journalState == ASSIGNING) {
         transitionState(KJournalState.RUNNING);
       }
-    });
-
-
   }
 
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
@@ -464,17 +469,23 @@ public class KafkaJournalProcessor implements StateListener {
     final KafkaJournalProcessor processor;
     final String storeName;
     final KafkaJournalLoader loader;
+    final LoadInitializer loadInitializer;
+
+    @Getter
+    @Setter
+    boolean loaded = false;
 
     KJournalImpl(
         JournalSpec spec,
         KafkaJournalProcessor processor,
-        EpochCoordinator epochCoordinator) {
+        LoadInitializer loadInitializer) {
 
       this.spec = spec;
       this.processor = processor;
       this.storeName = spec.journalTableTopic().name() + "-store";
+      this.loadInitializer = loadInitializer;
       this.loader = new KafkaJournalLoader(
-          spec.journalName(), spec.journalWalTopic().partitions(), epochCoordinator);
+          spec.journalName(), spec.journalWalTopic().partitions(), loadInitializer, () -> processor.loadComplete(spec.journalName()));
     }
 
     @Override
@@ -485,6 +496,12 @@ public class KafkaJournalProcessor implements StateListener {
     @Override
     public void stop() {
       processor.stop();
+    }
+
+    public void reset(){
+      loader.reset();
+      loadInitializer.resetEpochMarker();
+      loaded=false;
     }
 
     @Override

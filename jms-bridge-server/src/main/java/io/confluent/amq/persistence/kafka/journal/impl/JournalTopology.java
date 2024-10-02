@@ -21,7 +21,6 @@ import org.apache.kafka.streams.state.Stores;
 import org.inferred.freebuilder.FreeBuilder;
 
 import io.confluent.amq.exchange.Headers;
-import io.confluent.amq.logging.StructuredLogger;
 import io.confluent.amq.persistence.domain.proto.JournalEntry;
 import io.confluent.amq.persistence.domain.proto.JournalEntryKey;
 import io.confluent.amq.persistence.kafka.KafkaRecordUtils;
@@ -108,30 +107,24 @@ public class JournalTopology {
     StreamsBuilder sb = new StreamsBuilder();
     List<JournalTopology> jts = topologySpec.journals().stream()
         .map(j -> new JournalTopology(
-            topologySpec.bridgeId(), j, sb, topologySpec.coordinator()))
+            topologySpec.bridgeId(), j, sb))
         .collect(Collectors.toList());
     jts.forEach(JournalTopology::applyToBuilder);
 
     return sb.build(topologySpec.topologyProps());
   }
 
-  private static final StructuredLogger SLOG = StructuredLogger
-      .with(b -> b.loggerClass(JournalTopology.class));
-
   private final String bridgeId;
   private final KJournal journal;
-  private final EpochCoordinator coordinator;
   private final StreamsBuilder streamsBuilder;
 
   public JournalTopology(
       String bridgeId,
       KJournal journal,
-      StreamsBuilder streamBuilder,
-      EpochCoordinator coordinator) {
+      StreamsBuilder streamBuilder) {
 
     this.bridgeId = bridgeId;
     this.journal = journal;
-    this.coordinator = coordinator;
     this.streamsBuilder = streamBuilder;
   }
 
@@ -144,7 +137,6 @@ public class JournalTopology {
                 .withOffsetResetPolicy(AutoOffsetReset.EARLIEST));
 
     addGlobalStore();
-    //addEpochPunch(journalStream);
     journalStream = journalStream
         .filter((k, v) -> v != null, Named.as(journal.prefix("TombstoneFilter")));
 
@@ -154,20 +146,6 @@ public class JournalTopology {
         .done();
 
     handleRecords(journalStream, "_Main");
-
-  }
-
-  private void addEpochPunch(KStream<JournalEntryKey, JournalEntry> journalStream) {
-    journalStream
-        //to prevent all messages from going here, we simply want to punctuate the stream.
-        .filter((k, v) -> false)
-        .transform(() -> new EpochPuntcuator(journal, coordinator))
-        .to(journal.walTopic(), Produced
-            .with(JournalKeySerde.DEFAULT, JournalValueSerde.DEFAULT)
-            .withStreamPartitioner((t, k, v, numPartitions) ->
-                //make sure the epoch event gets on the partition that it was meant for
-                v.getEpochEvent().getPartition()
-            ));
 
   }
 
@@ -255,8 +233,6 @@ public class JournalTopology {
     String bridgeId();
 
     Collection<? extends KJournal> journals();
-
-    EpochCoordinator coordinator();
 
     Properties topologyProps();
 

@@ -18,7 +18,6 @@ import io.confluent.amq.persistence.domain.proto.JournalEntryKey;
 import io.confluent.amq.persistence.domain.proto.JournalRecord;
 import io.confluent.amq.persistence.domain.proto.JournalRecordType;
 import io.confluent.amq.persistence.domain.proto.MessageAnnotation;
-import io.confluent.amq.persistence.kafka.journal.impl.EpochCoordinator;
 
 import java.util.EnumSet;
 
@@ -178,18 +177,5 @@ public final class KafkaRecordUtils {
         .setMessageId(-1)
         .setExtendedId(-1)
         .build();
-  }
-
-  public static int getEpochHeader(Headers headers) {
-    Header hdr =  headers.lastHeader(EPOCH_RECORD_HEADER);
-    return hdr != null
-        ? INTEGER_DESERIALIZER.deserialize(null, hdr.value())
-        : 0;
-  }
-
-  public static void addEpochHeader(Headers headers) {
-    headers.add(
-        EPOCH_RECORD_HEADER,
-        INTEGER_SERIALIZER.serialize(null, EpochCoordinator.currentEpochId()));
   }
 }

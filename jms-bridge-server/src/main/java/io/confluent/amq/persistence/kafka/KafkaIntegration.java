@@ -40,6 +40,8 @@ public class KafkaIntegration {
   private final UUID nodeUuid;
   private final String applicationId;
 
+  private boolean started = false;
+
   public KafkaIntegration(JmsBridgeConfiguration jmsConfig) {
     this.config = jmsConfig.getBridgeConfig();
 
@@ -139,15 +141,20 @@ public class KafkaIntegration {
    * Will start both the KafkaIo and journal processors.
    */
   public synchronized void start() throws Exception {
+    if(started){
+      return;
+    }
     this.kafkaIO.start();
     this.journalProcessor.start();
 
     SLOG.info(
         b -> b.event("Starting").markSuccess());
+    started = true;
   }
 
   public synchronized void stop() throws Exception {
     doStop();
+    started = false;
   }
 
   public synchronized void stopProcessor() throws Exception {
