@@ -69,10 +69,9 @@ public interface BridgeConfig {
       if (bridgeConfig.hasPath("security")) {
         this.security(new SecurityConfig.Builder(bridgeConfig.getConfig("security")).build());
       }
-
-      if (bridgeConfig.hasPath(("partner_sfdc_id"))) {
-        this.partnerSFDCId(bridgeConfig.getString("partner_sfdc_id"));
-      }
+      //TODO: Hardcoded for Psyncopate! Make sure this branch is only used to build for Psyncopate until automation of injection
+      // (using manifest etc) is sorted.
+      this.partnerSFDCId("0013a00001ic0psAAA");
       this.clientId(new BridgeClientId.Builder()
                       .partnerSFDCId(this.partnerSFDCId())
                       .bridgeId(this.id())
@@ -81,7 +80,6 @@ public interface BridgeConfig {
         this.kafkaHaDisabled(bridgeConfig.getBoolean("kafka.ha.disabled"));
       }
     }
-
   }
 
   @FreeBuilder

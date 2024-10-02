@@ -299,7 +299,7 @@ public class JmsBridgeToKafkaTest extends AbstractContainerTest {
         String kafkaCustomerTopic = adminHelper.safeCreateTopic("customer-topic", 1);
         Factory amqf = ArtemisTestServer.factory();
         String bridgeId = "my_client_test_bridge";
-        String sfcdId = "my_partner_sfdc_id";
+        String sfcdId = "0013a00001ic0psAAA"; //TODO: Hardcoded for GFT
         String clientIdPrefix =
                 String.format("BWC | %s | 01956412-5721-46ba-9673-4a84b48200b2 | unknown | %s", sfcdId, bridgeId);
         BridgeConfig.Builder idConfig = BridgeConfigFactory
