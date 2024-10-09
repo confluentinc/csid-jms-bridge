@@ -4,10 +4,13 @@
 
 package io.confluent.amq.persistence.kafka;
 
-import com.google.protobuf.Message;
 import javax.annotation.Nullable;
 
 import io.confluent.amq.config.BridgeClientId;
+import io.confluent.amq.persistence.domain.proto.JournalEntry;
+import io.confluent.amq.persistence.kafka.journal.serde.JournalEntryKey;
+import io.confluent.amq.persistence.kafka.journal.serde.JournalKeySerde;
+import io.confluent.amq.persistence.kafka.journal.serde.JournalValueSerde;
 import org.apache.kafka.clients.admin.*;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.producer.KafkaProducer;
@@ -22,7 +25,6 @@ import org.slf4j.LoggerFactory;
 import io.confluent.amq.config.BridgeConfigFactory;
 import io.confluent.amq.logging.LogFormat;
 import io.confluent.amq.persistence.kafka.journal.JournalEntryKeyPartitioner;
-import io.confluent.amq.persistence.kafka.journal.serde.ProtoSerializer;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -54,7 +56,7 @@ public class KafkaIO {
 
   private final ReadWriteLock rwlock = new ReentrantReadWriteLock();
   private volatile int state;
-  private volatile KafkaProducer<? extends Message, ? extends Message> internalProducer;
+  private volatile KafkaProducer<JournalEntryKey, JournalEntry> internalProducer;
   private volatile KafkaProducer<byte[], byte[]> externalProducer;
   private volatile AdminClient adminClient;
 
@@ -74,8 +76,9 @@ public class KafkaIO {
     rwlock.writeLock().lock();
     try {
       if (CREATED == state || STOPPED == state) {
-        ProtoSerializer<com.google.protobuf.Message> protoSerializer = new ProtoSerializer<>();
-        internalProducer = createProducer("internal", protoSerializer, protoSerializer);
+        Serializer<JournalEntry> valueSerializer = JournalValueSerde.DEFAULT.serializer();
+        Serializer<JournalEntryKey> keySerializer = JournalKeySerde.DEFAULT.serializer();
+        internalProducer = createProducer("internal", keySerializer, valueSerializer);
         externalProducer = createProducer("external",
             new ByteArraySerializer(), new ByteArraySerializer());
 
@@ -217,8 +220,8 @@ public class KafkaIO {
    * @return the internal producer, may be null if this instance has not been started.
    */
   @Nullable
-  public <K extends Message, V extends Message> KafkaProducer<K, V> getInternalProducer() {
-    return (KafkaProducer<K, V>) internalProducer;
+  public  KafkaProducer<JournalEntryKey, JournalEntry> getInternalProducer() {
+    return internalProducer;
   }
 
   /**
@@ -237,15 +240,15 @@ public class KafkaIO {
   }
 
   @SuppressWarnings("unchecked")
-  public <K extends Message, V extends Message> void withProducer(
-      Consumer<? super Producer<K, V>> produceFn) {
+  public void withProducer(
+      Consumer<? super Producer<JournalEntryKey, JournalEntry>> produceFn) {
     if (STARTED != state) {
       start();
     }
 
     rwlock.readLock().lock();
     try {
-      produceFn.accept((Producer<K, V>) internalProducer);
+      produceFn.accept(internalProducer);
     } finally {
       rwlock.readLock().unlock();
     }

@@ -4,6 +4,7 @@
 
 package io.confluent.amq.persistence.kafka.journal.impl;
 
+import io.confluent.amq.persistence.kafka.journal.serde.JournalEntryKey;
 import org.apache.kafka.streams.KeyValue;
 import org.apache.kafka.streams.processor.Processor;
 import org.apache.kafka.streams.processor.ProcessorContext;
@@ -12,13 +13,12 @@ import org.apache.kafka.streams.state.KeyValueStore;
 import io.confluent.amq.logging.StructuredLogger;
 import io.confluent.amq.persistence.domain.proto.AnnotationReference;
 import io.confluent.amq.persistence.domain.proto.JournalEntry;
-import io.confluent.amq.persistence.domain.proto.JournalEntryKey;
 import io.confluent.amq.persistence.kafka.KafkaRecordUtils;
 import io.confluent.amq.persistence.kafka.journal.KJournal;
 
-import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class GlobalStoreProcessor implements Processor<JournalEntryKey, JournalEntry> {
 
@@ -77,7 +77,8 @@ public class GlobalStoreProcessor implements Processor<JournalEntryKey, JournalE
       //need to delete all associated annotation records
       JournalEntry annRefVal = this.store.get(key);
       if (annRefVal != null && annRefVal.hasAnnotationReference()) {
-        results.addAll(annRefVal.getAnnotationReference().getEntryReferencesList());
+        results.addAll(annRefVal.getAnnotationReference().getEntryReferencesList().stream().map(
+            JournalEntryKey::fromRefKey).collect(Collectors.toList()));
       }
     }
 

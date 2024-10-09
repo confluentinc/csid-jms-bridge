@@ -6,8 +6,9 @@ package io.confluent.amq.persistence.kafka.journal;
 
 import com.google.common.primitives.Longs;
 import io.confluent.amq.persistence.domain.proto.JournalEntry;
-import io.confluent.amq.persistence.domain.proto.JournalEntryKey;
 import java.util.Map;
+
+import io.confluent.amq.persistence.kafka.journal.serde.JournalEntryKey;
 import org.apache.kafka.clients.producer.Partitioner;
 import org.apache.kafka.clients.producer.internals.DefaultPartitioner;
 import org.apache.kafka.common.Cluster;

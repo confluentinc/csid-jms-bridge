@@ -4,6 +4,13 @@
 
 package io.confluent.amq.persistence.kafka.journal.impl;
 
+import io.confluent.amq.exchange.Headers;
+import io.confluent.amq.exchange.KExMessageType;
+import io.confluent.amq.logging.StructuredLogger;
+import io.confluent.amq.persistence.domain.proto.JournalEntry;
+import io.confluent.amq.persistence.domain.proto.JournalRecordType;
+import io.confluent.amq.persistence.kafka.journal.ProtocolRecordType;
+import io.confluent.amq.persistence.kafka.journal.serde.JournalEntryKey;
 import io.netty.buffer.Unpooled;
 import org.apache.activemq.artemis.api.core.ICoreMessage;
 import org.apache.activemq.artemis.api.core.Message;
@@ -18,20 +25,7 @@ import org.apache.kafka.streams.KeyValue;
 import org.apache.kafka.streams.kstream.Transformer;
 import org.apache.kafka.streams.processor.ProcessorContext;
 
-import io.confluent.amq.exchange.Headers;
-import io.confluent.amq.exchange.KExMessageType;
-import io.confluent.amq.logging.StructuredLogger;
-import io.confluent.amq.persistence.domain.proto.JournalEntry;
-import io.confluent.amq.persistence.domain.proto.JournalEntryKey;
-import io.confluent.amq.persistence.domain.proto.JournalRecordType;
-import io.confluent.amq.persistence.kafka.journal.ProtocolRecordType;
-
-import java.util.Collections;
-import java.util.EnumSet;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 
 import static org.apache.activemq.artemis.utils.AbstractByteBufPool.DEFAULT_POOL_CAPACITY;
 

@@ -140,7 +140,7 @@ message EpochEvent {
 */
 message TransactionReference {
   int64 txId = 1;
-  repeated JournalEntryKey entryReferences = 2;
+  repeated JournalEntryRefKey entryReferences = 2;
 }
 
 /*
@@ -148,7 +148,7 @@ message TransactionReference {
 */
 message AnnotationReference {
   int64 messageId = 1;
-  repeated JournalEntryKey entryReferences = 2;
+  repeated JournalEntryRefKey entryReferences = 2;
 }
 
 /*
@@ -160,19 +160,7 @@ message MessageAnnotation {
   bytes data = 2;
 }
 
-/*
-  This key should be unique within the journal, if not then predecessor records will be removed
-  via compaction at some point in the future (maybe 7 days or even 1 second later).
-
-  All transactions records should have the txId populated with an ID 0 or greater.
-  Transactions records that represents modifications to message state should also include
-  the messageId. Transactional updates to the annotations of a message should also include the
-  messageId and also an extendedId to give the update a unique key.
-
-  For non-transactional records if it is an ADD or DELETE then only the messageId is required,
-  ANNOTATE records though also require the extendedId to ensure uniqueness of the key.
-*/
-message JournalEntryKey {
+message JournalEntryRefKey {
   int64 messageId = 1;
   int64 txId = 2;
   int32 extendedId = 3;

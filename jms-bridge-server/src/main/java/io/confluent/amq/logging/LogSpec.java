@@ -4,15 +4,12 @@
 
 package io.confluent.amq.logging;
 
-import io.confluent.amq.persistence.domain.proto.AnnotationReference;
-import io.confluent.amq.persistence.domain.proto.EpochEvent;
-import io.confluent.amq.persistence.domain.proto.JournalEntry;
-import io.confluent.amq.persistence.domain.proto.JournalEntryKey;
-import io.confluent.amq.persistence.domain.proto.JournalRecord;
+import io.confluent.amq.persistence.domain.proto.*;
 import io.confluent.amq.persistence.kafka.journal.ProtocolRecordType;
 import java.util.Map;
 import java.util.Optional;
 
+import io.confluent.amq.persistence.kafka.journal.serde.JournalEntryKey;
 import org.apache.activemq.artemis.api.core.Message;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.producer.ProducerRecord;
@@ -62,6 +59,7 @@ public interface LogSpec {
           .putTokens("messageId", record.getMessageId())
           .putTokens("extendedId", record.getExtendedId());
     }
+
 
     public Builder markFailure() {
       return this.eventResult("Failure");

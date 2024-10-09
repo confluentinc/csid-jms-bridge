@@ -4,7 +4,6 @@
 
 package io.confluent.amq.persistence.kafka.journal.serde;
 
-import io.confluent.amq.persistence.domain.proto.JournalEntryKey;
 import org.apache.kafka.common.serialization.Deserializer;
 import org.apache.kafka.common.serialization.Serde;
 import org.apache.kafka.common.serialization.Serializer;
@@ -16,9 +15,8 @@ public class JournalKeySerde implements Serde<JournalEntryKey> {
   private final Deserializer<JournalEntryKey> deserializer;
 
   public JournalKeySerde() {
-
-    this.serializer = new ProtoSerializer<>();
-    this.deserializer = new ProtoDeserializer<>(JournalEntryKey::parseFrom);
+    this.serializer = new JournalEntryKeySerializer();
+    this.deserializer = new JournalEntryKeyDeserializer();
   }
 
   @Override

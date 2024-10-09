@@ -4,9 +4,9 @@
 
 package io.confluent.amq.persistence.kafka.journal;
 
-import io.confluent.amq.persistence.domain.proto.JournalEntryKey;
 import io.confluent.amq.persistence.domain.proto.JournalRecord;
 import io.confluent.amq.persistence.kafka.KafkaRecordUtils;
+import io.confluent.amq.persistence.kafka.journal.serde.JournalEntryKey;
 import org.apache.activemq.artemis.core.journal.IOCompletion;
 
 /**

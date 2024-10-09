@@ -7,12 +7,12 @@ package io.confluent.amq.persistence.kafka.journal.impl;
 import com.google.protobuf.ByteString;
 import io.confluent.amq.logging.StructuredLogger;
 import io.confluent.amq.persistence.domain.proto.JournalEntry;
-import io.confluent.amq.persistence.domain.proto.JournalEntryKey;
 import io.confluent.amq.persistence.domain.proto.JournalRecord;
 import io.confluent.amq.persistence.domain.proto.JournalRecordType;
 import io.confluent.amq.persistence.kafka.KafkaIO;
 import io.confluent.amq.persistence.kafka.journal.KJournal;
 import io.confluent.amq.persistence.kafka.journal.KafkaJournalRecord;
+import io.confluent.amq.persistence.kafka.journal.serde.JournalEntryKey;
 import org.apache.activemq.artemis.api.core.ActiveMQBuffer;
 import org.apache.activemq.artemis.api.core.ActiveMQBuffers;
 import org.apache.activemq.artemis.api.core.ActiveMQException;
@@ -190,7 +190,7 @@ public class KafkaJournal implements Journal {
         record.getKafkaMessageKey(),
         JournalEntry.newBuilder().setAppendedRecord(record.getRecord()).build());
 
-    kafkaIO.<JournalEntryKey, JournalEntry>getInternalProducer()
+    kafkaIO.getInternalProducer()
         .send(producerRecord, (meta, err) -> {
 
           SLOG.trace(b -> b

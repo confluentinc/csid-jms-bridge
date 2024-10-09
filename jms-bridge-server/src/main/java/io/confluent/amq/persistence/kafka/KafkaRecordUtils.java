@@ -6,15 +6,13 @@ package io.confluent.amq.persistence.kafka;
 
 import com.google.common.hash.HashCode;
 import com.google.common.hash.Hashing;
+import io.confluent.amq.persistence.kafka.journal.serde.JournalEntryKey;
 import org.apache.activemq.artemis.core.journal.RecordInfo;
-import org.apache.kafka.common.header.Header;
-import org.apache.kafka.common.header.Headers;
 import org.apache.kafka.common.serialization.IntegerDeserializer;
 import org.apache.kafka.common.serialization.IntegerSerializer;
 
 import io.confluent.amq.logging.StructuredLogger;
 import io.confluent.amq.persistence.domain.proto.JournalEntry;
-import io.confluent.amq.persistence.domain.proto.JournalEntryKey;
 import io.confluent.amq.persistence.domain.proto.JournalRecord;
 import io.confluent.amq.persistence.domain.proto.JournalRecordType;
 import io.confluent.amq.persistence.domain.proto.MessageAnnotation;
@@ -107,23 +105,23 @@ public final class KafkaRecordUtils {
 
   @SuppressWarnings("UnstableApiUsage")
   public static JournalEntryKey keyFromRecord(JournalRecord record) {
-    JournalEntryKey.Builder keyBuilder = JournalEntryKey.newBuilder();
+    JournalEntryKey.JournalEntryKeyBuilder keyBuilder = JournalEntryKey.builder();
 
     if (isTxRecord(record)) {
-      keyBuilder.setTxId(record.getTxId());
+      keyBuilder.txId(record.getTxId());
     }
 
     if (isMessageRecord(record)) {
-      keyBuilder.setMessageId(record.getMessageId());
+      keyBuilder.messageId(record.getMessageId());
     }
 
     if (isAnnotationRecord(record)) {
       HashCode hash = Hashing.murmur3_32().hashBytes(record.toByteArray());
-      keyBuilder.setExtendedId(hash.asInt());
+      keyBuilder.extendedId(hash.asInt());
     }
 
     JournalEntryKey key =  keyBuilder.build();
-    if (key.getSerializedSize() < 1) {
+    if (key.isEmpty()) {
       SLOG.warn(b -> b
           .event("keyFromRecord")
           .message("Empty/null key for record!")
@@ -133,11 +131,11 @@ public final class KafkaRecordUtils {
   }
 
   public static JournalEntryKey addDeleteKeyFromMessageId(long messageId) {
-    return JournalEntryKey.newBuilder().setMessageId(messageId).build();
+    return JournalEntryKey.builder().messageId(messageId).build();
   }
 
   public static JournalEntryKey transactionKeyFromTxId(long txId) {
-    return JournalEntryKey.newBuilder().setTxId(txId).build();
+    return JournalEntryKey.builder().txId(txId).build();
   }
 
   public static JournalEntryKey annotationsKeyFromRecordKey(JournalEntryKey recordKey) {
@@ -145,9 +143,9 @@ public final class KafkaRecordUtils {
   }
 
   public static JournalEntryKey annotationsKeyFromMessageId(Long messageId) {
-    return JournalEntryKey.newBuilder()
-        .setMessageId(messageId)
-        .setExtendedId(MESSAGE_ANNOTATIONS_EXTENDED_ID_CONSTANT)
+    return JournalEntryKey.builder()
+        .messageId(messageId)
+        .extendedId(MESSAGE_ANNOTATIONS_EXTENDED_ID_CONSTANT)
         .build();
   }
 
@@ -156,9 +154,9 @@ public final class KafkaRecordUtils {
   }
 
   public static JournalEntryKey transactionReferenceKeyFromTxId(Long txId) {
-    return JournalEntryKey.newBuilder()
-        .setTxId(txId)
-        .setExtendedId(TRANSACTION_REFERENCE_EXTENDED_ID_CONSTANT)
+    return JournalEntryKey.builder()
+        .txId(txId)
+        .extendedId(TRANSACTION_REFERENCE_EXTENDED_ID_CONSTANT)
         .build();
   }
 
@@ -172,10 +170,10 @@ public final class KafkaRecordUtils {
   }
 
   public static JournalEntryKey epochKey() {
-    return JournalEntryKey.newBuilder()
-        .setTxId(-1)
-        .setMessageId(-1)
-        .setExtendedId(-1)
+    return JournalEntryKey.builder()
+        .txId(-1L)
+        .messageId(-1L)
+        .extendedId(-1)
         .build();
   }
 }

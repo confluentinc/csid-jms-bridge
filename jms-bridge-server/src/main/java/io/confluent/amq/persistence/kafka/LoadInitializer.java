@@ -1,9 +1,9 @@
 package io.confluent.amq.persistence.kafka;
 
-import com.google.protobuf.Message;
 import io.confluent.amq.logging.StructuredLogger;
 import io.confluent.amq.persistence.domain.proto.EpochEvent;
 import io.confluent.amq.persistence.domain.proto.JournalEntry;
+import io.confluent.amq.persistence.kafka.journal.serde.JournalEntryKey;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;
@@ -27,7 +27,7 @@ public class LoadInitializer {
     private long epochMarker = -1;
 
     public void fireEpochs(KafkaIO kafkaIO, String walTopic) {
-        KafkaProducer<Message, Message> producer = kafkaIO.getInternalProducer();
+        KafkaProducer<JournalEntryKey, JournalEntry> producer = kafkaIO.getInternalProducer();
 
         epochMarker = System.currentTimeMillis();
         SLOG.debug(b -> b
@@ -45,7 +45,7 @@ public class LoadInitializer {
                             .setPartition(pInfo.partition()))
                     .build();
 
-            ProducerRecord<Message, Message> pRecord = new ProducerRecord<>(
+            ProducerRecord<JournalEntryKey, JournalEntry> pRecord = new ProducerRecord<>(
                     walTopic, pInfo.partition(), KafkaRecordUtils.epochKey(), epochEntry);
 
             try {

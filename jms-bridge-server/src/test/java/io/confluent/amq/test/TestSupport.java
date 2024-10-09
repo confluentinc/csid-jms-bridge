@@ -5,12 +5,12 @@
 package io.confluent.amq.test;
 
 import com.google.common.base.Stopwatch;
-import io.confluent.amq.cli.SendCommandTest;
 import io.confluent.amq.logging.LogFormat;
 import io.confluent.amq.persistence.domain.proto.JournalEntry;
-import io.confluent.amq.persistence.domain.proto.JournalEntryKey;
 import io.confluent.amq.persistence.kafka.journal.JournalEntryKeyPartitioner;
 import io.confluent.amq.persistence.kafka.journal.impl.KafkaJournalLoaderCallback;
+import io.confluent.amq.persistence.kafka.journal.serde.JournalEntryKey;
+import io.confluent.amq.persistence.kafka.journal.serde.JournalEntryKeySerializer;
 import io.confluent.amq.persistence.kafka.journal.serde.ProtoSerializer;
 import org.apache.activemq.artemis.core.journal.PreparedTransactionInfo;
 import org.apache.activemq.artemis.core.journal.RecordInfo;
@@ -123,7 +123,7 @@ public final class TestSupport {
     producerProps.put(ProducerConfig.PARTITIONER_CLASS_CONFIG,
         JournalEntryKeyPartitioner.class.getCanonicalName());
 
-    return new KafkaProducer<>(producerProps, new ProtoSerializer<>(), new ProtoSerializer<>());
+    return new KafkaProducer<>(producerProps, new JournalEntryKeySerializer(), new ProtoSerializer<>());
   }
 
   public static TopologyTestDriver createStreamsTestDriver(

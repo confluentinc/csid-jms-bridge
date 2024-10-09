@@ -7,17 +7,14 @@ package io.confluent.amq.persistence.kafka.journal.impl;
 import static io.confluent.amq.persistence.domain.proto.JournalRecordType.ADD_RECORD;
 
 import io.confluent.amq.logging.StructuredLogger;
-import io.confluent.amq.persistence.domain.proto.AnnotationReference;
-import io.confluent.amq.persistence.domain.proto.EpochEvent;
-import io.confluent.amq.persistence.domain.proto.JournalEntry;
-import io.confluent.amq.persistence.domain.proto.JournalEntryKey;
-import io.confluent.amq.persistence.domain.proto.TransactionReference;
+import io.confluent.amq.persistence.domain.proto.*;
 import io.confluent.amq.persistence.kafka.KafkaRecordUtils;
 
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import io.confluent.amq.persistence.kafka.LoadInitializer;
+import io.confluent.amq.persistence.kafka.journal.serde.JournalEntryKey;
 import org.apache.activemq.artemis.core.journal.PreparedTransactionInfo;
 import org.apache.activemq.artemis.core.journal.RecordInfo;
 import org.apache.kafka.streams.KeyValue;
@@ -147,9 +144,9 @@ public class KafkaJournalLoader {
 
         for (AnnotationReference annRef : annRefList) {
 
-            for (JournalEntryKey annRefKey : annRef.getEntryReferencesList()) {
+            for (JournalEntryRefKey annRefKey : annRef.getEntryReferencesList()) {
 
-                JournalEntry annEntry = store.get(annRefKey);
+                JournalEntry annEntry = store.get(JournalEntryKey.fromRefKey(annRefKey));
 
                 if (annEntry != null) {
                     SLOG.trace(b -> b
@@ -218,14 +215,15 @@ public class KafkaJournalLoader {
             boolean prepared = false;
             byte[] txData = null;
 
-            for (JournalEntryKey refKey : txref.getEntryReferencesList()) {
-                JournalEntry entry = store.get(refKey);
+            for (JournalEntryRefKey refKey : txref.getEntryReferencesList()) {
+                JournalEntryKey journalEntryKey = JournalEntryKey.fromRefKey(refKey);
+                JournalEntry entry = store.get(journalEntryKey);
 
                 if (entry == null) {
                     SLOG.warn(b -> b
                             .name(journalName)
                             .event("InvalidTransactionReference")
-                            .addJournalEntryKey(refKey)
+                            .addJournalEntryKey(journalEntryKey)
                             .message("No value found in store for transaction reference."));
 
                 } else {

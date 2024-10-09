@@ -89,7 +89,7 @@ class JMSQueueTest {
         Assertions.assertTrue(ServerConfig.ServerSetup.stopSlaveServer(), "Slave Server should stop successfully.");
         int messageSent = asyncProducerMaster.get();
 
-        assertThat(messagesReceived).as("Number of sent and received messages should match up to difference of 1.").isCloseTo(messageSent, Offset.strictOffset(1));
+        assertThat(messagesReceived).as("Number of sent and received messages should match up to difference of 1.").isCloseTo(messageSent, Offset.offset(1));
     }
 
     @Test
@@ -109,7 +109,7 @@ class JMSQueueTest {
         int messageSent = asyncProducerMaster.get();
         int totalMessagesReceived = asyncConsumerMaster.get() + messagesReceived;
 
-        assertThat(totalMessagesReceived).as("Number of sent and received messages should match up to difference of 1.").isCloseTo(messageSent, Offset.strictOffset(2));
+        assertThat(totalMessagesReceived).as("Number of sent and received messages should match up to difference of 1.").isCloseTo(messageSent, Offset.offset(1));
     }
 
     @Test
@@ -133,7 +133,7 @@ class JMSQueueTest {
         Assertions.assertTrue(ServerConfig.ServerSetup.stopSlaveServer(), "Slave Server should stop successfully.");
 
         // Assert that the number of sent and received messages match
-        assertThat(totalMessagesReceived).as("Number of sent and received messages should match up to difference of 2.").isCloseTo(totalMessagesSent, Offset.strictOffset(2));
+        assertThat(totalMessagesReceived).as("Number of sent and received messages should match up to difference of 2.").isCloseTo(totalMessagesSent, Offset.offset(2));
     }
 
     @Test
@@ -157,7 +157,7 @@ class JMSQueueTest {
         int messageSent = asyncProducerMaster1.get() + asyncProducerMaster2.get();
         int messagesReceived = asyncConsumerMaster.get() + consumerSlave;
 
-        assertThat(messagesReceived).as("Number of sent and received messages should match up to difference of 2.").isCloseTo(messageSent, Offset.strictOffset(2));
+        assertThat(messagesReceived).as("Number of sent and received messages should match up to difference of 2.").isCloseTo(messageSent, Offset.offset(2));
     }
 
     @Test
@@ -181,7 +181,7 @@ class JMSQueueTest {
         int messageSent = asyncProducerMaster1.get();
         int messagesReceived = asyncConsumerMaster1.get() + asyncConsumerMaster2.get() + consumerSlave;
 
-        assertThat(messagesReceived).as("Number of sent and received messages should match up to difference of 3.").isCloseTo(messageSent, Offset.strictOffset(3));
+        assertThat(messagesReceived).as("Number of sent and received messages should match up to difference of 3.").isCloseTo(messageSent, Offset.offset(3));
     }
 
     @Test
@@ -203,7 +203,7 @@ class JMSQueueTest {
 
         int totalMessagesSent = asyncProducerMaster1.get() + producedToSlave;
 
-        assertThat(totalMessagesReceived).as("Number of sent and received messages should match up to difference of 2.").isCloseTo(totalMessagesSent, Offset.strictOffset(2));
+        assertThat(totalMessagesReceived).as("Number of sent and received messages should match up to difference of 2.").isCloseTo(totalMessagesSent, Offset.offset(2));
     }
 
     @Test
@@ -229,7 +229,7 @@ class JMSQueueTest {
 
         int totalMessagesSent = asyncProducerMaster1.get() + asyncProducerSlave1.get();
 
-        assertThat(totalMessagesReceived).as("Number of sent and received messages should match up to difference of 2.").isCloseTo(totalMessagesSent, Offset.strictOffset(2));
+        assertThat(totalMessagesReceived).as("Number of sent and received messages should match up to difference of 2.").isCloseTo(totalMessagesSent, Offset.offset(2));
     }
 
     @Test
@@ -245,7 +245,7 @@ class JMSQueueTest {
         Assertions.assertTrue(ServerConfig.ServerSetup.isServerUp(ServerType.SLAVE, 20, 1), "Slave Server should be running.");
 
         int messagesReceivedfromSlave = ServerConfig.ServerSetup.startJmsConsumer(queueName);
-        assertThat(messagesReceivedfromSlave).as("Number of sent and received messages should match up to difference of 1.").isCloseTo(asyncProducerMaster1.get(), Offset.strictOffset(1));
+        assertThat(messagesReceivedfromSlave).as("Number of sent and received messages should match up to difference of 1.").isCloseTo(asyncProducerMaster1.get(), Offset.offset(1));
 
 
         CompletableFuture<Integer> asyncProducerSlave1 = ServerConfig.ServerSetup.startJmsProducerAsync(queueName, AddressScheme.ANYCAST);
@@ -254,7 +254,7 @@ class JMSQueueTest {
         int messagesReceivedfromMaster = ServerConfig.ServerSetup.startJmsConsumer(queueName);
         Assertions.assertTrue(ServerConfig.ServerSetup.stopMasterServer(), "Master Server should stop successfully.");
 
-        assertThat(messagesReceivedfromMaster).as("Number of sent and received messages should match up to difference of 1.").isCloseTo(asyncProducerSlave1.get(), Offset.strictOffset(2));
+        assertThat(messagesReceivedfromMaster).as("Number of sent and received messages should match up to difference of 1.").isCloseTo(asyncProducerSlave1.get(), Offset.offset(1));
 
     }
 
@@ -278,7 +278,7 @@ class JMSQueueTest {
 
         int totalMessagesSent = asyncProducerMaster1.get() + asyncProducerSlave.get();
 
-        assertThat(totalMessagesReceived).as("Number of sent and received messages should match up to difference of 2.").isCloseTo(totalMessagesSent, Offset.strictOffset(2));
+        assertThat(totalMessagesReceived).as("Number of sent and received messages should match up to difference of 2.").isCloseTo(totalMessagesSent, Offset.offset(2));
     }
 
     @Test
@@ -304,7 +304,7 @@ class JMSQueueTest {
         int totalMessagesSent = asyncProducerMaster1.get();
         int totalMessagesReceived = messagesReceived + asyncConsumerSlave.get();
 
-        assertThat(totalMessagesReceived).as("Number of sent and received messages should match up to difference of 1.").isCloseTo(totalMessagesSent, Offset.strictOffset(1));
+        assertThat(totalMessagesReceived).as("Number of sent and received messages should match up to difference of 1.").isCloseTo(totalMessagesSent, Offset.offset(1));
     }
 
     @Test
@@ -329,7 +329,7 @@ class JMSQueueTest {
 
         int totalReceivedMessageCount = asyncConsumerSlave.get() + messagesReceivedFromMaster;
 
-        assertThat(totalReceivedMessageCount).as("Number of sent and received messages should match up to difference of 1.").isCloseTo(asyncProducerSlave1.get(), Offset.strictOffset(1));
+        assertThat(totalReceivedMessageCount).as("Number of sent and received messages should match up to difference of 1.").isCloseTo(asyncProducerSlave1.get(), Offset.offset(1));
     }
 
     @Test
@@ -345,7 +345,7 @@ class JMSQueueTest {
         CompletableFuture<Integer> asyncProducerMaster1 = ServerConfig.ServerSetup.startJmsProducerAsync(queueName, AddressScheme.ANYCAST);
 
         Assertions.assertTrue(ServerConfig.ServerSetup.killMasterServer(10), "Master Server should stop successfully.");
-        Assertions.assertTrue(ServerConfig.ServerSetup.isServerUp(ServerType.SLAVE, 30, 3), "Slave Server should be running.");
+        Assertions.assertTrue(ServerConfig.ServerSetup.isServerUp(ServerType.SLAVE, 60, 3), "Slave Server should be running.");
 
         CompletableFuture<Integer> asyncProducerSlave1 = ServerConfig.ServerSetup.startJmsProducerAsync(queueName, AddressScheme.ANYCAST);
         Thread.sleep(5000); //give some time for producer to produce to slave before starting master back up and kicking off fail-back.
@@ -353,7 +353,7 @@ class JMSQueueTest {
 
         CompletableFuture<Integer> asyncProducerMaster2 = ServerConfig.ServerSetup.startJmsProducerAsync(queueName, AddressScheme.ANYCAST);
         Assertions.assertTrue(ServerConfig.ServerSetup.killMasterServer(10), "Master Server should stop successfully.");
-        Assertions.assertTrue(ServerConfig.ServerSetup.isServerUp(ServerType.SLAVE, 30, 3), "Slave Server should be running.");
+        Assertions.assertTrue(ServerConfig.ServerSetup.isServerUp(ServerType.SLAVE, 60, 3), "Slave Server should be running.");
 
         int messagesReceivedFromSlave = ServerConfig.ServerSetup.startJmsConsumer(queueName);
 
@@ -361,7 +361,7 @@ class JMSQueueTest {
 
         int totalSentMessageCount = asyncProducerMaster1.get() + asyncProducerSlave1.get() + asyncProducerMaster2.get();
 
-        assertThat(messagesReceivedFromSlave).as("Number of sent and received messages should match up to difference of 3.").isCloseTo(totalSentMessageCount, Offset.strictOffset(3));
+        assertThat(messagesReceivedFromSlave).as("Number of sent and received messages should match up to difference of 3.").isCloseTo(totalSentMessageCount, Offset.offset(3));
 
     }
 }

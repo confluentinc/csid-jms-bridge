@@ -6,9 +6,10 @@ package io.confluent.amq.test;
 
 import com.google.protobuf.ByteString;
 import io.confluent.amq.persistence.domain.proto.JournalEntry;
-import io.confluent.amq.persistence.domain.proto.JournalEntryKey;
 import io.confluent.amq.persistence.domain.proto.JournalRecord;
 import io.confluent.amq.persistence.domain.proto.JournalRecordType;
+import io.confluent.amq.persistence.kafka.journal.serde.JournalEntryKey;
+
 import java.nio.charset.StandardCharsets;
 
 public final class TestRecordSupport {
@@ -17,39 +18,39 @@ public final class TestRecordSupport {
   }
 
   public static JournalEntryKey makeTxKey(long txId) {
-    return JournalEntryKey.newBuilder()
-        .setTxId(txId)
+    return JournalEntryKey.builder()
+        .txId(txId)
         .build();
 
   }
 
   public static JournalEntryKey makeTxKey(long txId, long msgId) {
-    return JournalEntryKey.newBuilder()
-        .setTxId(txId)
-        .setMessageId(msgId)
+    return JournalEntryKey.builder()
+        .txId(txId)
+        .messageId(msgId)
         .build();
 
   }
 
   public static JournalEntryKey makeTxKey(long txId, long msgId, int extId) {
-    return JournalEntryKey.newBuilder()
-        .setTxId(txId)
-        .setMessageId(msgId)
-        .setExtendedId(extId)
+    return JournalEntryKey.builder()
+        .txId(txId)
+        .messageId(msgId)
+        .extendedId(extId)
         .build();
   }
 
   public static JournalEntryKey makeMsgKey(long msgId) {
-    return JournalEntryKey.newBuilder()
-        .setMessageId(msgId)
+    return JournalEntryKey.builder()
+        .messageId(msgId)
         .build();
 
   }
 
   public static JournalEntryKey makeMsgKey(long msgId, int extId) {
-    return JournalEntryKey.newBuilder()
-        .setMessageId(msgId)
-        .setExtendedId(extId)
+    return JournalEntryKey.builder()
+        .messageId(msgId)
+        .extendedId(extId)
         .build();
 
   }

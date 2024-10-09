@@ -4,12 +4,12 @@
 
 package io.confluent.amq.persistence.kafka.journal.impl;
 
+import io.confluent.amq.persistence.kafka.journal.serde.JournalEntryKey;
 import org.apache.kafka.streams.KeyValue;
 
 import io.confluent.amq.logging.StructuredLogger;
 import io.confluent.amq.persistence.domain.proto.AnnotationReference;
 import io.confluent.amq.persistence.domain.proto.JournalEntry;
-import io.confluent.amq.persistence.domain.proto.JournalEntryKey;
 import io.confluent.amq.persistence.domain.proto.JournalRecordType;
 import io.confluent.amq.persistence.kafka.KafkaRecordUtils;
 import io.confluent.amq.persistence.kafka.journal.JournalStreamTransformer;
@@ -89,7 +89,7 @@ public class MainRecordProcessor extends JournalStreamTransformer<JournalEntry> 
     //new annotation, update our annotation reference list
     AnnotationReference updatedAnnotations = AnnotationReference.newBuilder()
         .setMessageId(annKey.getMessageId())
-        .addEntryReferences(key)
+        .addEntryReferences(key.toRefKey())
         .build();
 
     JournalEntry annEntry = JournalEntry.newBuilder()

@@ -6,67 +6,112 @@ package io.confluent.amq.persistence.kafka.journal.impl;
 
 import com.google.protobuf.ByteString;
 import io.confluent.amq.config.BridgeClientId;
-import org.apache.kafka.clients.admin.TopicDescription;
-import org.apache.kafka.clients.consumer.ConsumerGroupMetadata;
-import org.apache.kafka.common.TopicPartitionInfo;
-import org.apache.kafka.streams.KeyValue;
-import org.apache.kafka.streams.TestInputTopic;
-import org.apache.kafka.streams.TestOutputTopic;
-import org.apache.kafka.streams.TopologyTestDriver;
-import org.apache.kafka.streams.state.KeyValueStore;
-import org.junit.jupiter.api.Disabled;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
-import org.mockito.Mockito;
-
 import io.confluent.amq.config.BridgeConfig;
 import io.confluent.amq.persistence.domain.proto.JournalEntry;
-import io.confluent.amq.persistence.domain.proto.JournalEntryKey;
 import io.confluent.amq.persistence.domain.proto.JournalRecord;
 import io.confluent.amq.persistence.domain.proto.JournalRecordType;
 import io.confluent.amq.persistence.kafka.KafkaIO;
 import io.confluent.amq.persistence.kafka.KafkaRecordUtils;
 import io.confluent.amq.persistence.kafka.journal.ProtocolRecordType;
 import io.confluent.amq.persistence.kafka.journal.impl.KafkaJournalProcessor.JournalSpec;
+import io.confluent.amq.persistence.kafka.journal.serde.JournalEntryKey;
 import io.confluent.amq.persistence.kafka.journal.serde.JournalKeySerde;
 import io.confluent.amq.persistence.kafka.journal.serde.JournalValueSerde;
 import io.confluent.amq.test.TestSupport;
+import org.apache.kafka.clients.admin.TopicDescription;
+import org.apache.kafka.common.TopicPartitionInfo;
+import org.apache.kafka.streams.KeyValue;
+import org.apache.kafka.streams.TestInputTopic;
+import org.apache.kafka.streams.TestOutputTopic;
+import org.apache.kafka.streams.TopologyTestDriver;
+import org.apache.kafka.streams.state.KeyValueIterator;
+import org.apache.kafka.streams.state.KeyValueStore;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+import org.mockito.Mockito;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.time.Duration;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static io.confluent.amq.test.TestSupport.createStreamsTestDriver;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
-@Disabled("Stream processor undergoing changes")
 public class KafkaJournalTest {
 
   @TempDir
   Path tempdir;
 
   @Test
-  public void addRecordsFlowThroughStoreIsCurrent() throws Exception {
-    TestHelper test = new TestHelper(TestSupport.baseStreamProps(tempdir));
+  public void testRecordOrderIsPreservedWhenAccessedThroughJournalStore() {
+    try (TestHelper test = new TestHelper(TestSupport.baseStreamProps(tempdir))) {
+      List<Long> ids = Arrays.asList(1L,10L,103L,200L,204L,2031L,2340L,40123L,123123L,4123123L,201111312L);
+      int messageCount = ids.size();
+      ids.forEach(id -> {
+        withAddRecord(id, kv -> test.walTopic.pipeInput(kv.key, kv.value));
+      });
 
-    createAddRecords(0, 100)
-        .forEach(kv -> test.walTopic.pipeInput(kv.key, kv.value));
-
-    assertEquals(100, test.tableTopic.getQueueSize(), "Add records should not flow through!");
-    test.withJournalStore(store -> assertEquals(100, store.approximateNumEntries()));
+      assertEquals(messageCount, test.tableTopic.getQueueSize(), "Add records should not flow through!");
+      test.withJournalStore(store -> {
+        try (KeyValueIterator<JournalEntryKey, JournalEntry> iterator = store.all()) {
+          int i = 0;
+          while (iterator.hasNext()) {
+            KeyValue<JournalEntryKey, JournalEntry> kv = iterator.next();
+            assertEquals(ids.get(i), kv.key.getMessageId());
+            i++;
+          }
+        }
+      });
+    }
   }
 
+
+  @Test
+  public void testRecordOrderIsPreservedWhenAccessedThroughJournalStore_WithTransactionIds() {
+    try (TestHelper test = new TestHelper(TestSupport.baseStreamProps(tempdir))) {
+      List<Long> ids = Arrays.asList(1L, 10L, 103L, 200L, 204L, 2031L, 2340L, 40123L, 123123L, 4123123L, 201111312L);
+      int messageCount = ids.size();
+      ids.forEach(id -> {
+        if (id == 10L) {
+          withAddRecord(id, asTx(2000L, kv -> test.walTopic.pipeInput(kv.key, kv.value)));
+        }
+        withAddRecord(id, kv -> test.walTopic.pipeInput(kv.key, kv.value));
+      });
+
+      assertEquals(messageCount, test.tableTopic.getQueueSize(), "Add records should not flow through!");
+      test.withJournalStore(store -> {
+        try (KeyValueIterator<JournalEntryKey, JournalEntry> iterator = store.all()) {
+          int i = 0;
+          while (iterator.hasNext()) {
+            KeyValue<JournalEntryKey, JournalEntry> kv = iterator.next();
+            assertEquals(ids.get(i), kv.key.getMessageId());
+            i++;
+          }
+        }
+      });
+    }
+  }
+
+  @Disabled("Old disabled test - Stream processor undergoing changes")
+  @Test
+  public void addRecordsFlowThroughStoreIsCurrent() throws Exception {
+    try (TestHelper test = new TestHelper(TestSupport.baseStreamProps(tempdir))) {
+
+      createAddRecords(0, 100)
+              .forEach(kv -> test.walTopic.pipeInput(kv.key, kv.value));
+
+      assertEquals(100, test.tableTopic.getQueueSize(), "Add records should not flow through!");
+      test.withJournalStore(store -> assertEquals(100, store.approximateNumEntries()));
+    }
+  }
+
+  @Disabled("Old disabled test - Stream processor undergoing changes")
   @Test
   public void deleteCreatesTombstoneUpdatesStore() throws Exception {
     try (TestHelper test = new TestHelper(TestSupport.baseStreamProps(tempdir))) {
@@ -103,6 +148,7 @@ public class KafkaJournalTest {
     }
   }
 
+  @Disabled("Old disabled test - Stream processor undergoing changes")
   @Test
   public void annotationRefsAggregate() throws Exception {
     try (TestHelper test = new TestHelper(TestSupport.baseStreamProps(tempdir))) {
@@ -164,6 +210,7 @@ public class KafkaJournalTest {
     }
   }
 
+  @Disabled("Old disabled test - Stream processor undergoing changes")
   @Test
   public void deleteCascadesToAllRecordAnnotations() throws Exception {
     try (TestHelper test = new TestHelper(TestSupport.baseStreamProps(tempdir))) {
@@ -193,6 +240,7 @@ public class KafkaJournalTest {
     }
   }
 
+  @Disabled("Old disabled test - Stream processor undergoing changes")
   @Test
   public void transactionsExpireAfterTimeout() throws Exception {
     try (TestHelper test = new TestHelper(TestSupport.baseStreamProps(tempdir))) {
@@ -287,7 +335,7 @@ public class KafkaJournalTest {
   }
 
   public JournalEntryKey withAddRecord(
-      int messageid, Consumer<KeyValue<JournalEntryKey, JournalEntry>> consumer) {
+      long messageid, Consumer<KeyValue<JournalEntryKey, JournalEntry>> consumer) {
 
     KeyValue<JournalEntryKey, JournalEntry> kv = createAddRecord(messageid);
     consumer.accept(kv);
@@ -301,7 +349,7 @@ public class KafkaJournalTest {
         .mapToObj(this::createAddRecord);
   }
 
-  public KeyValue<JournalEntryKey, JournalEntry> createAddRecord(int messageid) {
+  public KeyValue<JournalEntryKey, JournalEntry> createAddRecord(long messageid) {
 
     KeyValue<JournalEntryKey, JournalEntry> kv = KeyValue.pair(
         KafkaRecordUtils.addDeleteKeyFromMessageId(messageid),
@@ -315,7 +363,7 @@ public class KafkaJournalTest {
   }
 
   public Consumer<KeyValue<JournalEntryKey, JournalEntry>> asTx(
-      int txId, Consumer<KeyValue<JournalEntryKey, JournalEntry>> consumer) {
+      long txId, Consumer<KeyValue<JournalEntryKey, JournalEntry>> consumer) {
     return kv -> {
 
       JournalRecordType txType = null;
@@ -338,7 +386,7 @@ public class KafkaJournalTest {
 
       } else {
         KeyValue newKv = KeyValue.pair(
-            JournalEntryKey.newBuilder(kv.key).setTxId(txId).build(),
+                kv.key.toBuilder().txId(txId).build(),
             JournalEntry.newBuilder()
                 .setAppendedRecord(JournalRecord.newBuilder(kv.value.getAppendedRecord())
                     .setTxId(txId)

@@ -5,7 +5,7 @@
 package io.confluent.amq.persistence.kafka.journal;
 
 import io.confluent.amq.persistence.domain.proto.JournalEntry;
-import io.confluent.amq.persistence.domain.proto.JournalEntryKey;
+import io.confluent.amq.persistence.kafka.journal.serde.JournalEntryKey;
 
 public abstract class JournalStreamTransformer<ST> extends
     BaseJournalStreamTransformer<JournalEntryKey, JournalEntry, ST> {

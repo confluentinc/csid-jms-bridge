@@ -5,12 +5,7 @@
 package io.confluent.amq.persistence.kafka.journal.impl;
 
 import io.confluent.amq.logging.StructuredLogger;
-import io.confluent.amq.persistence.domain.proto.EpochEvent;
-import io.confluent.amq.persistence.domain.proto.JournalEntry;
-import io.confluent.amq.persistence.domain.proto.JournalEntryKey;
-import io.confluent.amq.persistence.domain.proto.JournalRecord;
-import io.confluent.amq.persistence.domain.proto.JournalRecordType;
-import io.confluent.amq.persistence.domain.proto.TransactionReference;
+import io.confluent.amq.persistence.domain.proto.*;
 import io.confluent.amq.persistence.kafka.KafkaRecordUtils;
 import io.confluent.amq.persistence.kafka.LoadInitializer;
 import io.confluent.amq.persistence.kafka.journal.JournalStreamTransformer;
@@ -19,6 +14,8 @@ import java.time.Instant;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
+
+import io.confluent.amq.persistence.kafka.journal.serde.JournalEntryKey;
 import org.apache.kafka.streams.KeyValue;
 import org.apache.kafka.streams.processor.ProcessorContext;
 import org.apache.kafka.streams.processor.PunctuationType;
@@ -83,7 +80,7 @@ public class TransactionProcessor
     for (ValueAndTimestamp<JournalEntry> valueAndTimestamp: txRefs) {
       TransactionReference txRef =  valueAndTimestamp.value().getTransactionReference();
       boolean isPrepared = txRef.getEntryReferencesList().stream()
-          .map(k -> getStore().get(k))
+          .map(k -> getStore().get(JournalEntryKey.fromRefKey(k)))
           .filter(kv -> kv.value() != null && kv.value().hasAppendedRecord())
           .anyMatch(kv ->
               kv.value().getAppendedRecord().getRecordType() == JournalRecordType.PREPARE_TX);
@@ -202,7 +199,7 @@ public class TransactionProcessor
         .setTransactionReference(TransactionReference.newBuilder()
             .setTxId(txReference.getTxId())
             .addAllEntryReferences(txReference.getEntryReferencesList())
-            .addEntryReferences(JournalEntryKey.newBuilder(newRecordKey)))
+            .addEntryReferences(newRecordKey.toRefKey()))
         .build();
 
     ValueAndTimestamp<JournalEntry> valAndTs = ValueAndTimestamp
@@ -219,14 +216,15 @@ public class TransactionProcessor
 
     List<KeyValue<JournalEntryKey, JournalEntry>> txResults = new LinkedList<>();
 
-    for (JournalEntryKey key : txReference.getEntryReferencesList()) {
-      ValueAndTimestamp<JournalEntry> valAndTs = getStore().get(key);
+    for (JournalEntryRefKey key : txReference.getEntryReferencesList()) {
+      JournalEntryKey journalEntryKey = JournalEntryKey.fromRefKey(key);
+      ValueAndTimestamp<JournalEntry> valAndTs = getStore().get(journalEntryKey);
 
       if (valAndTs == null || valAndTs.value() == null) {
         SLOG.warn(b -> b
             .name(getJournalName())
             .event("TxRecordNotFound")
-            .addJournalEntryKey(key)
+            .addJournalEntryKey(journalEntryKey)
             .putTokens("storeName", getStoreName())
             .message("JournalEntry for transaction reference was not found in store!"));
       } else {
@@ -248,7 +246,7 @@ public class TransactionProcessor
           SLOG.warn(b -> b
               .name(getJournalName())
               .event("TxReferenceBad")
-              .addJournalEntryKey(key)
+              .addJournalEntryKey(journalEntryKey)
               .addJournalRecord(record)
               .putTokens("storeName", getStoreName())
               .message("JournalEntry for transaction reference is not a transaction record!"));
@@ -295,8 +293,8 @@ public class TransactionProcessor
   private void cleanupTx(TransactionReference txReference, long timestamp) {
 
     //delete all tx records
-    for (JournalEntryKey key : txReference.getEntryReferencesList()) {
-      getStore().delete(key);
+    for (JournalEntryRefKey key : txReference.getEntryReferencesList()) {
+      getStore().delete(JournalEntryKey.fromRefKey(key));
     }
 
     //delete the TX record and reference itself

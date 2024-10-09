@@ -6,6 +6,7 @@ package io.confluent.amq.persistence.kafka.journal.impl;
 
 import io.confluent.amq.config.BridgeClientId;
 import io.confluent.amq.persistence.kafka.LoadInitializer;
+import io.confluent.amq.persistence.kafka.journal.serde.JournalEntryKey;
 import lombok.Getter;
 import lombok.Setter;
 import org.apache.kafka.clients.admin.TopicDescription;
@@ -22,7 +23,6 @@ import org.inferred.freebuilder.FreeBuilder;
 
 import io.confluent.amq.logging.StructuredLogger;
 import io.confluent.amq.persistence.domain.proto.JournalEntry;
-import io.confluent.amq.persistence.domain.proto.JournalEntryKey;
 import io.confluent.amq.persistence.kafka.KafkaIO;
 import io.confluent.amq.persistence.kafka.journal.JournalEntryKeyPartitioner;
 import io.confluent.amq.persistence.kafka.journal.KJournal;

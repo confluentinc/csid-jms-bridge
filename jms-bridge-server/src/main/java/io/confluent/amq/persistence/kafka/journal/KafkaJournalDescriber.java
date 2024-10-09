@@ -6,7 +6,6 @@ package io.confluent.amq.persistence.kafka.journal;
 
 import io.confluent.amq.logging.LogFormat;
 import io.confluent.amq.logging.LogSpec;
-import io.confluent.amq.persistence.domain.proto.JournalEntryKey;
 import io.confluent.amq.persistence.domain.proto.JournalRecord;
 import io.confluent.amq.persistence.kafka.journal.impl.KafkaJournal;
 import java.io.PrintStream;
@@ -14,6 +13,9 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+
+import io.confluent.amq.persistence.kafka.journal.serde.JournalEntryKey;
+import io.confluent.amq.persistence.kafka.journal.serde.JournalEntryKeyDeserializer;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
@@ -29,6 +31,8 @@ public class KafkaJournalDescriber {
   private final Map<String, Object> kafkaProps;
   private final String journalName;
   private final String bridgeId;
+
+  private final JournalEntryKeyDeserializer journalEntryKeyDeserializer = new JournalEntryKeyDeserializer();
 
   public KafkaJournalDescriber(Map<String, Object> kafkaProps, String journalName,
       String bridgeId) {
@@ -78,7 +82,7 @@ public class KafkaJournalDescriber {
         .addRecordMetadata(record);
 
     try {
-      key = JournalEntryKey.parseFrom(record.key());
+      key = journalEntryKeyDeserializer.deserialize("", record.key());
     } catch (Exception e) {
       key = null;
     }
