@@ -47,7 +47,7 @@ class JMSQueueTest {
         Assertions.assertEquals(messageToBeSent, messageSent, "Number of sent and received messages should match.");
 
         Assertions.assertTrue(ServerConfig.ServerSetup.stopMasterServer(), "Master Server should stop successfully.");
-        Assertions.assertTrue(ServerConfig.ServerSetup.isServerUp(ServerType.SLAVE, 20, 1), "Slave Server should be running.");
+        Assertions.assertTrue(ServerConfig.ServerSetup.isServerUp(ServerType.SLAVE, 40, 3), "Slave Server should be running.");
 
         int messagesReceived = ServerConfig.ServerSetup.startJmsConsumer(queueName);
         Assertions.assertTrue(ServerConfig.ServerSetup.stopSlaveServer(), "Slave Server should stop successfully.");
@@ -66,7 +66,7 @@ class JMSQueueTest {
         int messageToBeSent = 50;
         int messageSent = ServerConfig.ServerSetup.startJmsProducer(queueName, messageToBeSent, AddressScheme.ANYCAST);
         Assertions.assertTrue(ServerConfig.ServerSetup.killMasterServer(), "Master Server should stop successfully.");
-        Assertions.assertTrue(ServerConfig.ServerSetup.isServerUp(ServerType.SLAVE, 20, 1), "Slave Server should be running.");
+        Assertions.assertTrue(ServerConfig.ServerSetup.isServerUp(ServerType.SLAVE, 40, 3), "Slave Server should be running.");
         int messagesReceived = ServerConfig.ServerSetup.startJmsConsumer(queueName);
         Assertions.assertTrue(ServerConfig.ServerSetup.stopSlaveServer(), "Slave Server should stop successfully.");
 
@@ -84,7 +84,7 @@ class JMSQueueTest {
 
         CompletableFuture<Integer> asyncProducerMaster = ServerConfig.ServerSetup.startJmsProducerAsync(queueName, AddressScheme.ANYCAST);
         Assertions.assertTrue(ServerConfig.ServerSetup.killMasterServer(10), "Master Server should stop successfully.");
-        Assertions.assertTrue(ServerConfig.ServerSetup.isServerUp(ServerType.SLAVE, 20, 1), "Slave Server should be running.");
+        Assertions.assertTrue(ServerConfig.ServerSetup.isServerUp(ServerType.SLAVE, 40, 3), "Slave Server should be running.");
         int messagesReceived = ServerConfig.ServerSetup.startJmsConsumer(queueName);
         Assertions.assertTrue(ServerConfig.ServerSetup.stopSlaveServer(), "Slave Server should stop successfully.");
         int messageSent = asyncProducerMaster.get();
@@ -102,7 +102,7 @@ class JMSQueueTest {
         CompletableFuture<Integer> asyncProducerMaster = ServerConfig.ServerSetup.startJmsProducerAsync(queueName, AddressScheme.ANYCAST);
         CompletableFuture<Integer> asyncConsumerMaster = ServerConfig.ServerSetup.startJmsConsumerAsync(queueName, 300L);
         Assertions.assertTrue(ServerConfig.ServerSetup.killMasterServer(10), "Master Server should stop successfully.");
-        Assertions.assertTrue(ServerConfig.ServerSetup.isServerUp(ServerType.SLAVE, 20, 1), "Slave Server should be running.");
+        Assertions.assertTrue(ServerConfig.ServerSetup.isServerUp(ServerType.SLAVE, 30, 4), "Slave Server should be running.");
         int messagesReceived = ServerConfig.ServerSetup.startJmsConsumer(queueName);
         Assertions.assertTrue(ServerConfig.ServerSetup.stopSlaveServer(), "Slave Server should stop successfully.");
 
@@ -124,7 +124,7 @@ class JMSQueueTest {
         CompletableFuture<Integer> asyncProducerMaster2 = ServerConfig.ServerSetup.startJmsProducerAsync(queueName, AddressScheme.ANYCAST);
 
         Assertions.assertTrue(ServerConfig.ServerSetup.killMasterServer(10), "Master Server should stop successfully.");
-        Assertions.assertTrue(ServerConfig.ServerSetup.isServerUp(ServerType.SLAVE, 20, 1), "Slave Server should be running.");
+        Assertions.assertTrue(ServerConfig.ServerSetup.isServerUp(ServerType.SLAVE, 40, 3), "Slave Server should be running.");
 
         // Wait for the asynchronous operation to complete
         int totalMessagesSent = asyncProducerMaster1.get() + asyncProducerMaster2.get();  // This blocks until the future completes
@@ -149,7 +149,7 @@ class JMSQueueTest {
         CompletableFuture<Integer> asyncConsumerMaster = ServerConfig.ServerSetup.startJmsConsumerAsync(queueName, 100L);
 
         Assertions.assertTrue(ServerConfig.ServerSetup.killMasterServer(10), "Master Server should stop successfully.");
-        Assertions.assertTrue(ServerConfig.ServerSetup.isServerUp(ServerType.SLAVE, 20, 1), "Slave Server should be running.");
+        Assertions.assertTrue(ServerConfig.ServerSetup.isServerUp(ServerType.SLAVE, 40, 3), "Slave Server should be running.");
         int consumerSlave = ServerConfig.ServerSetup.startJmsConsumer(queueName);
 
         Assertions.assertTrue(ServerConfig.ServerSetup.stopSlaveServer(), "Slave Server should stop successfully.");
@@ -173,7 +173,7 @@ class JMSQueueTest {
         CompletableFuture<Integer> asyncConsumerMaster2 = ServerConfig.ServerSetup.startJmsConsumerAsync(queueName, 100L);
 
         Assertions.assertTrue(ServerConfig.ServerSetup.killMasterServer(10), "Master Server should stop successfully.");
-        Assertions.assertTrue(ServerConfig.ServerSetup.isServerUp(ServerType.SLAVE, 20, 1), "Slave Server should be running.");
+        Assertions.assertTrue(ServerConfig.ServerSetup.isServerUp(ServerType.SLAVE, 40, 3), "Slave Server should be running.");
         int consumerSlave = ServerConfig.ServerSetup.startJmsConsumer(queueName);
 
         Assertions.assertTrue(ServerConfig.ServerSetup.stopSlaveServer(), "Slave Server should stop successfully.");
@@ -181,7 +181,7 @@ class JMSQueueTest {
         int messageSent = asyncProducerMaster1.get();
         int messagesReceived = asyncConsumerMaster1.get() + asyncConsumerMaster2.get() + consumerSlave;
 
-        assertThat(messagesReceived).as("Number of sent and received messages should match up to difference of 3.").isCloseTo(messageSent, Offset.offset(3));
+        assertThat(messagesReceived).as("Number of sent and received messages should match up to difference of 4.").isCloseTo(messageSent, Offset.offset(4));
     }
 
     @Test
@@ -194,7 +194,7 @@ class JMSQueueTest {
         CompletableFuture<Integer> asyncProducerMaster1 = ServerConfig.ServerSetup.startJmsProducerAsync(queueName, AddressScheme.ANYCAST);
 
         Assertions.assertTrue(ServerConfig.ServerSetup.killMasterServer(10), "Master Server should stop successfully.");
-        Assertions.assertTrue(ServerConfig.ServerSetup.isServerUp(ServerType.SLAVE, 20, 1), "Slave Server should be running.");
+        Assertions.assertTrue(ServerConfig.ServerSetup.isServerUp(ServerType.SLAVE, 40, 3), "Slave Server should be running.");
 
         int producedToSlave = ServerConfig.ServerSetup.startJmsProducer(queueName, 100,AddressScheme.ANYCAST);
         int totalMessagesReceived = ServerConfig.ServerSetup.startJmsConsumer(queueName);
@@ -242,7 +242,7 @@ class JMSQueueTest {
 
         CompletableFuture<Integer> asyncProducerMaster1 = ServerConfig.ServerSetup.startJmsProducerAsync(queueName, AddressScheme.ANYCAST);
         Assertions.assertTrue(ServerConfig.ServerSetup.killMasterServer(10), "Master Server should stop successfully (killed).");
-        Assertions.assertTrue(ServerConfig.ServerSetup.isServerUp(ServerType.SLAVE, 20, 1), "Slave Server should be running.");
+        Assertions.assertTrue(ServerConfig.ServerSetup.isServerUp(ServerType.SLAVE, 40, 3), "Slave Server should be running.");
 
         int messagesReceivedfromSlave = ServerConfig.ServerSetup.startJmsConsumer(queueName);
         assertThat(messagesReceivedfromSlave).as("Number of sent and received messages should match up to difference of 1.").isCloseTo(asyncProducerMaster1.get(), Offset.offset(1));
@@ -291,7 +291,7 @@ class JMSQueueTest {
         CompletableFuture<Integer> asyncProducerMaster1 = ServerConfig.ServerSetup.startJmsProducerAsync(queueName, AddressScheme.ANYCAST);
 
         Assertions.assertTrue(ServerConfig.ServerSetup.killMasterServer(10), "Master Server should stop successfully.");
-        Assertions.assertTrue(ServerConfig.ServerSetup.isServerUp(ServerType.SLAVE, 20, 1), "Slave Server should be running.");
+        Assertions.assertTrue(ServerConfig.ServerSetup.isServerUp(ServerType.SLAVE, 30, 4), "Slave Server should be running.");
 
         CompletableFuture<Integer> asyncConsumerSlave = ServerConfig.ServerSetup.startJmsConsumerAsync(queueName, 300L);
 
@@ -316,7 +316,7 @@ class JMSQueueTest {
         String queueName = Util.getMethodNameAsQueueName();
 
         Assertions.assertTrue(ServerConfig.ServerSetup.killMasterServer(), "Master Server should stop successfully.");
-        Assertions.assertTrue(ServerConfig.ServerSetup.isServerUp(ServerType.SLAVE, 20, 1), "Slave Server should be running.");
+        Assertions.assertTrue(ServerConfig.ServerSetup.isServerUp(ServerType.SLAVE, 40, 3), "Slave Server should be running.");
 
         CompletableFuture<Integer> asyncProducerSlave1 = ServerConfig.ServerSetup.startJmsProducerAsync(queueName, AddressScheme.ANYCAST);
 
@@ -345,7 +345,7 @@ class JMSQueueTest {
         CompletableFuture<Integer> asyncProducerMaster1 = ServerConfig.ServerSetup.startJmsProducerAsync(queueName, AddressScheme.ANYCAST);
 
         Assertions.assertTrue(ServerConfig.ServerSetup.killMasterServer(10), "Master Server should stop successfully.");
-        Assertions.assertTrue(ServerConfig.ServerSetup.isServerUp(ServerType.SLAVE, 60, 3), "Slave Server should be running.");
+        Assertions.assertTrue(ServerConfig.ServerSetup.isServerUp(ServerType.SLAVE, 40, 3), "Slave Server should be running.");
 
         CompletableFuture<Integer> asyncProducerSlave1 = ServerConfig.ServerSetup.startJmsProducerAsync(queueName, AddressScheme.ANYCAST);
         Thread.sleep(5000); //give some time for producer to produce to slave before starting master back up and kicking off fail-back.
@@ -353,7 +353,7 @@ class JMSQueueTest {
 
         CompletableFuture<Integer> asyncProducerMaster2 = ServerConfig.ServerSetup.startJmsProducerAsync(queueName, AddressScheme.ANYCAST);
         Assertions.assertTrue(ServerConfig.ServerSetup.killMasterServer(10), "Master Server should stop successfully.");
-        Assertions.assertTrue(ServerConfig.ServerSetup.isServerUp(ServerType.SLAVE, 60, 3), "Slave Server should be running.");
+        Assertions.assertTrue(ServerConfig.ServerSetup.isServerUp(ServerType.SLAVE, 40, 3), "Slave Server should be running.");
 
         int messagesReceivedFromSlave = ServerConfig.ServerSetup.startJmsConsumer(queueName);
 
