@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?><!--
+  ~ Copyright 2020 Confluent Inc.
+  --><configuration xmlns="urn:activemq">
+    <core xmlns="urn:activemq:core">
+  
+      <bindings-directory>${jms-bridge.data.dir:./data}/bindings</bindings-directory>
+  
+      <journal-directory>${jms-bridge.data.dir:./data}/journal</journal-directory>
+  
+      <large-messages-directory>${jms-bridge.data.dir:./data}/large-messages</large-messages-directory>
+  
+      <paging-directory>${jms-bridge.data.dir:./data}/paging</paging-directory>
+  
+      <security-enabled>false</security-enabled>
+  
+      <ha-policy>
+        <shared-store>
+          <master>
+            <failover-on-shutdown>true</failover-on-shutdown>
+          </master>
+        </shared-store>
+      </ha-policy>
+  
+      <!-- Connectors -->
+      <connectors>
+        <connector name="live-netty-connector">tcp://jms-bridge-test-vm1.psyncopate.io:61616</connector>
+        <connector name="backup-netty-connector">tcp://jms-bridge-test-vm2.psyncopate.io:61616</connector>
+      </connectors>
+  
+      <!-- Acceptors -->
+      <acceptors>
+        <acceptor name="netty-acceptor">tcp://0.0.0.0:61616</acceptor>
+      </acceptors>
+  
+      <cluster-connections>
+        <cluster-connection name="my-cluster">
+          <connector-ref>live-netty-connector</connector-ref>
+          <static-connectors>
+            <connector-ref>backup-netty-connector</connector-ref>
+          </static-connectors>
+        </cluster-connection>
+      </cluster-connections>
+    <addresses><address name="testTopic-startServersAndForceFailoverWithProducerStopForqueue"><multicast><queue name="testTopic-startServersAndForceFailoverWithProducerStopForqueue"/></multicast></address><address name="testTopic-parallelProducersPartialConsumeAndFailoverForQueue"><multicast><queue name="testTopic-parallelProducersPartialConsumeAndFailoverForQueue"/></multicast></address><address name="testTopic-failoverWithResumedProductionAndConsumeForQueue"><multicast><queue name="testTopic-failoverWithResumedProductionAndConsumeForQueue"/></multicast></address><address name="testTopic-dualFailoverWithProducerAndStagedConsumptionForQueue"><multicast><queue name="testTopic-dualFailoverWithProducerAndStagedConsumptionForQueue"/></multicast></address><address name="testTopic-dualKillAndMasterRestartWithMessageConsumptionForQueue"><multicast><queue name="testTopic-dualKillAndMasterRestartWithMessageConsumptionForQueue"/></multicast></address><address name="testTopic-partialConsumptionWithFailoverAndMasterRestartForQueue"><multicast><queue name="testTopic-partialConsumptionWithFailoverAndMasterRestartForQueue"/></multicast></address><address name="testTopic-startServersAndGracefulFailoverForQueue"><multicast><queue name="testTopic-startServersAndGracefulFailoverForQueue"/></multicast></address><address name="testTopic-startServersAndFailoverForQueue"><multicast><queue name="testTopic-startServersAndFailoverForQueue"/></multicast></address><address name="testTopic-partialConsumeAndFailoverForQueue"><multicast><queue name="testTopic-partialConsumeAndFailoverForQueue"/></multicast></address><address name="testTopic-parallelProducersWithFailoverForQueue"><multicast><queue name="testTopic-parallelProducersWithFailoverForQueue"/></multicast></address><address name="testTopic-dualFailoverWithProducerAndConsumeForQueue"><multicast><queue name="testTopic-dualFailoverWithProducerAndConsumeForQueue"/></multicast></address><address name="testTopic-sampleTestForQueue"><multicast><queue name="testTopic-sampleTestForQueue"/></multicast></address><address name="testTopic-failoverWithProducerOnSlaveAndMasterRestartWithPhasedConsumptionForQueue"><multicast><queue name="testTopic-failoverWithProducerOnSlaveAndMasterRestartWithPhasedConsumptionForQueue"/></multicast></address><address name="testTopic-tripleFailoverWithProducerRestartsAndFinalConsumptionForQueue"><multicast><queue name="testTopic-tripleFailoverWithProducerRestartsAndFinalConsumptionForQueue"/></multicast></address><address name="testTopic-startServersAndForceFailoverWithProducerStopForTopic"><multicast><queue name="testTopic-startServersAndForceFailoverWithProducerStopForTopic"/></multicast></address><address name="testTopic-parallelProducersPartialConsumeAndFailoverForTopic"><multicast><queue name="testTopic-parallelProducersPartialConsumeAndFailoverForTopic"/></multicast></address><address name="testTopic-failoverWithResumedProductionAndConsumeForTopic"><multicast><queue name="testTopic-failoverWithResumedProductionAndConsumeForTopic"/></multicast></address><address name="testTopic-dualFailoverWithProducerAndStagedConsumptionForTopic"><multicast><queue name="testTopic-dualFailoverWithProducerAndStagedConsumptionForTopic"/></multicast></address><address name="testTopic-dualKillAndMasterRestartWithMessageConsumptionForTopic"><multicast><queue name="testTopic-dualKillAndMasterRestartWithMessageConsumptionForTopic"/></multicast></address><address name="testTopic-partialConsumptionWithFailoverAndMasterRestartForTopic"><multicast><queue name="testTopic-partialConsumptionWithFailoverAndMasterRestartForTopic"/></multicast></address><address name="testTopic-partialConsumeAndFailoverForTopic"><multicast><queue name="testTopic-partialConsumeAndFailoverForTopic"/></multicast></address><address name="testTopic-startServersAndFailoverForTopic"><multicast><queue name="testTopic-startServersAndFailoverForTopic"/></multicast></address><address name="testTopic-startServersAndGracefulFailoverForTopic"><multicast><queue name="testTopic-startServersAndGracefulFailoverForTopic"/></multicast></address><address name="testTopic-parallelProducersWithFailoverForTopic"><multicast><queue name="testTopic-parallelProducersWithFailoverForTopic"/></multicast></address><address name="testTopic-dualFailoverWithProducerAndConsumeForTopic"><multicast><queue name="testTopic-dualFailoverWithProducerAndConsumeForTopic"/></multicast></address><address name="testTopic-sampleTestForTopic"><multicast><queue name="testTopic-sampleTestForTopic"/></multicast></address><address name="testTopic-failoverWithProducerOnSlaveAndMasterRestartWithPhasedConsumptionForTopic"><multicast><queue name="testTopic-failoverWithProducerOnSlaveAndMasterRestartWithPhasedConsumptionForTopic"/></multicast></address><address name="testTopic-tripleFailoverWithProducerRestartsAndFinalConsumptionForTopic"><multicast><queue name="testTopic-tripleFailoverWithProducerRestartsAndFinalConsumptionForTopic"/></multicast></address><address name="testTopic-startServersAndGracefulFailoverForKafkaTopic"><multicast><queue name="testTopic-startServersAndGracefulFailoverForKafkaTopic"/></multicast></address><address name="testTopic-partialConsumeAndFailoverForKafkaTopic"><multicast><queue name="testTopic-partialConsumeAndFailoverForKafkaTopic"/></multicast></address><address name="testTopic-dualKillAndMasterRestartWithMessageConsumptionForKafkaTopic"><multicast><queue name="testTopic-dualKillAndMasterRestartWithMessageConsumptionForKafkaTopic"/></multicast></address></addresses></core>
+  </configuration>
