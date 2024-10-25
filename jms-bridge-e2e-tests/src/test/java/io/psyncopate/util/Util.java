@@ -8,7 +8,6 @@ import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.config.ConfigResource;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import io.psyncopate.server.ServerControl;
 import io.psyncopate.util.constants.BrokerType;
 import io.psyncopate.util.constants.Constants;
 import io.psyncopate.util.constants.MessagingScheme;
@@ -22,8 +21,6 @@ import javax.management.remote.JMXServiceURL;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.net.InetSocketAddress;
-import java.net.Socket;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -82,7 +79,7 @@ public class Util {
     }
 
     public static String getMethodNameAsKafkaTopic(int traceLevel) {
-        return GlobalSetup.getConfligLoader().getKafkaTopicName()+"-"+Thread.currentThread().getStackTrace()[traceLevel].getMethodName();
+        return GlobalSetup.getConfigLoader().getKafkaTopicName()+"-"+Thread.currentThread().getStackTrace()[traceLevel].getMethodName();
     }
 
     public static String getCurrentMethodName() {
@@ -90,7 +87,7 @@ public class Util {
     }
 
     public static String getMethodNameAsAnycastAddress(int traceLevel) {
-        return GlobalSetup.getConfligLoader().getQueueName()+"-"+Thread.currentThread().getStackTrace()[traceLevel].getMethodName();
+        return GlobalSetup.getConfigLoader().getQueueName()+"-"+Thread.currentThread().getStackTrace()[traceLevel].getMethodName();
     }
     public static String getCurrentMethodNameAsAnycastAddress() {
         return getMethodNameAsAnycastAddress(3);
@@ -118,7 +115,7 @@ public class Util {
 
     }
     public static String getMethodNameAsMulticastAddress(int traceLevel) {
-        return GlobalSetup.getConfligLoader().getTopicName()+"-"+Thread.currentThread().getStackTrace()[traceLevel].getMethodName();
+        return GlobalSetup.getConfigLoader().getTopicName()+"-"+Thread.currentThread().getStackTrace()[traceLevel].getMethodName();
     }
 
     public static boolean downloadLog(String testcaseName, boolean isMaster) {
@@ -222,6 +219,14 @@ public class Util {
             });
             Map<TopicPartition, Long> endOffsets = consumer.endOffsets(partitions);
             return endOffsets.values().stream().mapToLong(Long::longValue).sum();
+        }
+    }
+
+    public static void sleepQuietly(long ms) {
+        try {
+            Thread.sleep(ms);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
         }
     }
 }

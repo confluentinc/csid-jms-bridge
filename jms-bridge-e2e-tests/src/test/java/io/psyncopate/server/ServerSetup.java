@@ -28,7 +28,7 @@ public class ServerSetup {
     }
 
     public boolean startMasterServer() {
-        boolean isSuccess = serverControl.startServer( true);
+        boolean isSuccess = serverControl.startServer(true);
         if (isSuccess) {
             Util.addSteps(steps, "Started Master Server");
         }
@@ -45,7 +45,7 @@ public class ServerSetup {
     }
 
     public boolean startSlaveServer() {
-        boolean isSuccess = serverControl.startServer( false);
+        boolean isSuccess = serverControl.startServer(false);
         if (isSuccess) {
             Util.addSteps(steps, "Started Slave Server");
         }
@@ -62,11 +62,11 @@ public class ServerSetup {
     }
 
     public boolean stopMasterServer() {
-        boolean isSuccess = serverControl.stopServer( true, false);
+        boolean isSuccess = serverControl.stopServer(true, false);
         if (isSuccess) {
             Util.addSteps(steps, "Stopped Master Server");
             if (Util.isDownloadLog) {
-                serverControl.downloadLog( Util.getCurrentMethodNameByLevel(3), true);
+                serverControl.downloadLog(Util.getCurrentMethodNameByLevel(3), true);
             }
         }
         return isSuccess;
@@ -74,7 +74,7 @@ public class ServerSetup {
 
 
     public boolean stopSlaveServer() {
-        boolean isSuccess = serverControl.stopServer( false, false);
+        boolean isSuccess = serverControl.stopServer(false, false);
         if (isSuccess) {
             Util.addSteps(steps, "Stopped Slave Server");
             if (Util.isDownloadLog) {
@@ -127,24 +127,13 @@ public class ServerSetup {
         return killMasterServer();
     }
 
-    public int startJmsProducer(Boolean toMaster, String destination, RoutingType routingType, int totalMessage) throws JMSException {
+    public int startJmsProducer(ServerType serverType, String destination, RoutingType routingType, int totalMessage) throws JMSException {
         Util.addSteps(steps, "Started JMS Producer");
         JMSClient jmsClient = new JMSClient();
-        int sentMessagesCount = jmsClient.produceMessages(toMaster, destination, routingType, totalMessage);
+        int sentMessagesCount = jmsClient.produceMessages(serverType, destination, routingType, totalMessage);
         if (totalMessage != -1) {
             Util.addSteps(steps, "Stopped JMS Producer");
         }
-        return sentMessagesCount;
-    }
-
-    public int startJmsProducer(String destination, RoutingType routingType, int totalMessage) throws JMSException {
-        Util.addSteps(steps, "Started JMS Producer");
-        JMSClient jmsClient = new JMSClient();
-        int sentMessagesCount = jmsClient.produceMessages(null, destination, routingType, totalMessage);
-        if (totalMessage != -1) {
-            Util.addSteps(steps, "Stopped JMS Producer");
-        }
-
         return sentMessagesCount;
     }
 
@@ -159,10 +148,10 @@ public class ServerSetup {
         return sentMessagesCount;
     }
 
-    public CompletableFuture<Integer> startJmsProducerAsync(String destination, int messageCountToBeSent, RoutingType routingType) {
+    public CompletableFuture<Integer> startJmsProducerAsync(ServerType serverType, String destination, int messageCountToBeSent, RoutingType routingType) {
         return CompletableFuture.supplyAsync(() -> {
             try {
-                return startJmsProducer(destination, routingType, messageCountToBeSent);
+                return startJmsProducer(serverType, destination, routingType, messageCountToBeSent);
             } catch (JMSException e) {
                 logger.error("Failed to send messages asynchronously: {}", e.getMessage());
                 return 0;
@@ -170,10 +159,10 @@ public class ServerSetup {
         });
     }
 
-    public CompletableFuture<Integer> startJmsProducerAsync(String destination, RoutingType routingType) {
+    public CompletableFuture<Integer> startJmsProducerAsync(ServerType serverType, String destination, RoutingType routingType) {
         return CompletableFuture.supplyAsync(() -> {
             try {
-                return startJmsProducer(destination, routingType, -1);
+                return startJmsProducer(serverType, destination, routingType, -1);
             } catch (JMSException e) {
                 logger.error("Failed to send messages asynchronously: {}", e.getMessage());
                 return 0;
@@ -192,34 +181,22 @@ public class ServerSetup {
         return consumedMessagesCount;
     }
 
-    public int startJmsConsumer(Boolean toMaster, String destination, RoutingType routingType, int messageCount, Long sleepInMillis) throws JMSException, InterruptedException {
+    public int startJmsConsumer(ServerType serverType, String destination, RoutingType routingType, int messageCount, Long sleepInMillis) throws JMSException, InterruptedException {
         JMSClient jmsClient = new JMSClient();
         if (messageCount == -1) {
             Util.addSteps(steps, "Started JMS Consumer to consume all messages");
         } else {
             Util.addSteps(steps, "Started JMS Consumer to consume few messages");
         }
-        int consumedMessagesCount = jmsClient.consumeMessages(toMaster, destination, routingType, messageCount, sleepInMillis);
+        int consumedMessagesCount = jmsClient.consumeMessages(serverType, destination, routingType, messageCount, sleepInMillis);
         Util.addSteps(steps, "Stopped JMS Consumer");
         return consumedMessagesCount;
     }
 
-    public int startJmsConsumer(String destination, RoutingType routingType, int messageCount, Long sleepInMillis) throws JMSException, InterruptedException {
-        JMSClient jmsClient = new JMSClient();
-        if (messageCount == -1) {
-            Util.addSteps(steps, "Started JMS Consumer to consume all messages");
-        } else {
-            Util.addSteps(steps, "Started JMS Consumer to consume few messages");
-        }
-        int consumedMessagesCount = jmsClient.consumeMessages(destination, routingType, messageCount, sleepInMillis);
-        Util.addSteps(steps, "Stopped JMS Consumer");
-        return consumedMessagesCount;
-    }
-
-    public CompletableFuture<Integer> startJmsConsumerAsync(String destination, RoutingType routingType, int totalMessage, Long sleepInMillis) {
+    public CompletableFuture<Integer> startJmsConsumerAsync(ServerType serverType, String destination, RoutingType routingType, int totalMessage, Long sleepInMillis) {
         return CompletableFuture.supplyAsync(() -> {
             try {
-                return startJmsConsumer(destination, routingType, totalMessage, sleepInMillis);
+                return startJmsConsumer(serverType, destination, routingType, totalMessage, sleepInMillis);
             } catch (JMSException | InterruptedException e) {
                 logger.error("Failed to send messages asynchronously: {}", e.getMessage());
                 return 0;
@@ -227,10 +204,10 @@ public class ServerSetup {
         });
     }
 
-    public CompletableFuture<Integer> startJmsConsumerAsync(String destination, RoutingType routingType, Long sleepInMillis) {
+    public CompletableFuture<Integer> startJmsConsumerAsync(ServerType serverType, String destination, RoutingType routingType, Long sleepInMillis) {
         return CompletableFuture.supplyAsync(() -> {
             try {
-                return startJmsConsumer(destination, routingType, sleepInMillis);
+                return startJmsConsumer(serverType, destination, routingType, sleepInMillis);
             } catch (JMSException | InterruptedException e) {
                 logger.error("Failed to consume messages asynchronously: {}", e.getMessage());
                 return 0;
@@ -238,12 +215,12 @@ public class ServerSetup {
         });
     }
 
-    public int startJmsConsumer(String destination, RoutingType routingType, Long sleepInMillis) throws JMSException, InterruptedException {
-        return startJmsConsumer(destination, routingType, -1, sleepInMillis);
+    public int startJmsConsumer(ServerType serverType, String destination, RoutingType routingType, Long sleepInMillis) throws JMSException, InterruptedException {
+        return startJmsConsumer(serverType, destination, routingType, -1, sleepInMillis);
     }
 
-    public int startJmsConsumer(String destination, RoutingType routingType) throws JMSException, InterruptedException {
-        return startJmsConsumer(destination, routingType, -1, 0L);
+    public int startJmsConsumer(ServerType serverType, String destination, RoutingType routingType) throws JMSException, InterruptedException {
+        return startJmsConsumer(serverType, destination, routingType, -1, 0L);
     }
 
     /**
@@ -259,10 +236,10 @@ public class ServerSetup {
     }
 
     public boolean downloadLog(String testcaseName, boolean isMaster) {
-        return serverControl.downloadLog(testcaseName,isMaster);
+        return serverControl.downloadLog(testcaseName, isMaster);
     }
 
-    public ConfigLoader getConfigLoader(){
+    public ConfigLoader getConfigLoader() {
         return serverControl.getConfigLoader();
     }
 
@@ -272,5 +249,21 @@ public class ServerSetup {
 
     public void resetInstances() {
         serverControl.resetInstances();
+    }
+
+    public void updateBrokerXMLFile(boolean isMaster) {
+        serverControl.updateBrokerXMLFile(isMaster);
+    }
+
+    public void updateConfigFile(boolean isMaster) {
+        serverControl.updateConfigFile(isMaster);
+    }
+
+    public void uploadUnchangedConfigFile(boolean isMaster) {
+        serverControl.uploadUnchangedConfigFile(isMaster);
+    }
+
+    public void uploadUnchangedBrokerXMLFile(boolean isMaster) {
+        serverControl.uploadUnchangedBrokerXMLFile(isMaster);
     }
 }

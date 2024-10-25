@@ -14,8 +14,6 @@ import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.extension.BeforeAllCallback;
 import org.junit.jupiter.api.extension.ExtensionContext;
 
-import javax.jms.Topic;
-
 public class GlobalSetup implements BeforeAllCallback {
     private static final Logger logger = LogManager.getLogger(GlobalSetup.class);
     private static boolean isInitialized = false;
@@ -31,7 +29,7 @@ public class GlobalSetup implements BeforeAllCallback {
     }
 
     @NonNull
-    public static ConfigLoader getConfligLoader() {
+    public static ConfigLoader getConfigLoader() {
         if (!isInitialized) {
             throw new IllegalStateException("Global setup not initialized yet.");
         }
@@ -51,9 +49,6 @@ public class GlobalSetup implements BeforeAllCallback {
                 serverControl = new RemoteServerControl((RemoteConfigLoader) configLoaderInstance);
             }
             serverSetupInstance= new ServerSetup(serverControl, executionMode);
-            serverControl.updateConfigFile();
-            serverControl.updateBrokerXMLFile();
-            // Start container or other global setup
             isInitialized = true;
         } else {
             logger.info("Global setup already initialized, skipping...");

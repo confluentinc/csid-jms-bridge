@@ -21,6 +21,7 @@ public class RemoteServerControl extends ServerControl {
     private final RemoteConfigLoader configLoader;
 
     public RemoteServerControl(RemoteConfigLoader configLoader) {
+        super(SCRIPT_BASE_PATH, configLoader);
         this.configLoader = configLoader;
     }
 
@@ -38,7 +39,7 @@ public class RemoteServerControl extends ServerControl {
         String port = isMaster ? configLoader.getServerMasterAppPort() : configLoader.getServerSlaveAppPort();
         String executionPath = isMaster ? configLoader.getServerMasterExecutionPath() : configLoader.getServerSlaveExecutionPath();
         String command = isStartCmd ? configLoader.getStartCommand() : configLoader.getStopCommand();
-        String configFile = configLoader.getConfigFile();
+        String configFile = configLoader.getRemoteConfigFile();
         String pemPath = isMaster ? configLoader.getServerMasterPemPath() : configLoader.getServerSlavePemPath();
         String mode = isMaster ? Constants.ACTIVE : Constants.STANDBY;
         String logFilePath = Util.getLogDirectoryPath() + "/server_command.log";
@@ -67,43 +68,32 @@ public class RemoteServerControl extends ServerControl {
         return executeRemoteCommand(command);
     }
 
-    @Override
-    public void updateBrokerXMLFile() {
-        doUpdateBrokerXMLFile(SCRIPT_BASE_PATH,configLoader);
-    }
-
-    public void updateConfigFile() {
-        doUpdateConfigFile(SCRIPT_BASE_PATH,configLoader);
-    }
-
 
     // Method to execute a bash script to update EC2 configuration
     @Override
-    public void uploadFileBashExecutor(String fileToUpload, String fileToBeReplacedInRemote) {
+    public void uploadFileBashExecutor(String fileToUpload, String fileToBeReplacedInRemote, boolean isMaster) {
         try {
-            //Master server properties
-            String masterPemFile = configLoader.getServerMasterPemPath();
-            String masterUser = configLoader.getServerMasterUser();
-            String masterHost = configLoader.getServerMasterHost();
-            String serverMasterExecutionPath = configLoader.getServerMasterExecutionPath();
-            String remoteConfigPath = serverMasterExecutionPath + fileToBeReplacedInRemote;
+            if (isMaster) {
+                //Master server properties
+                String masterPemFile = configLoader.getServerMasterPemPath();
+                String masterUser = configLoader.getServerMasterUser();
+                String masterHost = configLoader.getServerMasterHost();
+                String serverMasterExecutionPath = configLoader.getServerMasterExecutionPath();
+                String remoteConfigPath = serverMasterExecutionPath + fileToBeReplacedInRemote;
 
-            // Executing the Bash script to change the configs on the master server
-            executeScript(prepareCommandToExecuteScript(masterPemFile, masterUser, masterHost, fileToUpload, remoteConfigPath));
+                // Executing the Bash script to change the configs on the master server
+                executeScript(prepareCommandToExecuteScript(masterPemFile, masterUser, masterHost, fileToUpload, remoteConfigPath));
+            } else {
+                // Slave server's properties
+                String slavePemFile = configLoader.getServerSlavePemPath();
+                String slaveUser = configLoader.getServerSlaveUser();
+                String slaveHost = configLoader.getServerSlaveHost();
 
-            // Slave server's properties
-            String slavePemFile = configLoader.getServerSlavePemPath();
-            String slaveUser = configLoader.getServerSlaveUser();
-            String slaveHost = configLoader.getServerSlaveHost();
+                String serverSlaveExecutionPath = configLoader.getServerSlaveExecutionPath();
 
-            String serverSlaveExecutionPath = configLoader.getServerSlaveExecutionPath();
+                String remoteConfigPath = serverSlaveExecutionPath + fileToBeReplacedInRemote;
 
-            remoteConfigPath = serverSlaveExecutionPath + fileToBeReplacedInRemote;
-
-            logger.debug("Slave remote file path :{}", remoteConfigPath);
-
-            if (!fileToUpload.contains(".xml")) {
-
+                logger.debug("Slave remote file path :{}", remoteConfigPath);
                 executeScript(prepareCommandToExecuteScript(slavePemFile, slaveUser, slaveHost, fileToUpload, remoteConfigPath));
             }
 

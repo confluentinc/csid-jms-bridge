@@ -36,43 +36,28 @@ log() {
     fi
 }
 
-MAX_RETRIES=3  # Maximum number of retries
-RETRY_INTERVAL=15  # Time (in seconds) between retries
+TIMEOUT_INTERVAL=100  # Time (in seconds) for log monitoring to timeout
 
 # Function to check if JMS server is up
 function check_jms_server {
+  log "INFO" "Checking if JMS server $SERVER_NAME has started as $MODE"
   if [ "$MODE" = "active" ]; then
-    log "INFO" "Checking if JMS server is up on port $APP_PORT..."
-
-    for ((i=1; i<=MAX_RETRIES; i++)); do
-        log "INFO" "Iteration number: $i"
-        nc -z -w5 localhost $APP_PORT
-        if [ $? -eq 0 ]; then
-            log "INFO" "JMS server $SERVER_NAME is up and running on port $APP_PORT!"
-            return 0
-        else
-            log "INFO" "JMS server $SERVER_NAME not yet up. Retry $i/$MAX_RETRIES..."
-            sleep $RETRY_INTERVAL
-        fi
-    done
-    log "INFO" "JMS server $SERVER_NAME did not start within the expected time."
-    return 1
+    timeout $TIMEOUT_INTERVAL tail -Fn0 "$SERVER_NAME/logs/jms-bridge.out" | grep --line-buffered -q 'Started KQUEUE Acceptor at '
+    EXIT_STATUS=$?
+    if [ $EXIT_STATUS -eq 124 ]; then
+        log "INFO" "JMS server $SERVER_NAME did not start within the expected time."
+        return 1
+    fi
+    return $EXIT_STATUS
 
   elif [ "$MODE" = "standby" ]; then
-    #log "Checking if backup server is in standby mode..."
-    sleep 60
-    return 0;
-    for ((i=1; i<=MAX_RETRIES; i++)); do
-        if lsof -i:$APP_PORT | grep -q 'ESTABLISHED'; then
-            log "INFO" "$SERVER_NAME Backup server is up and 'ESTABLISHED' connection found on port $SERVER_NAME!"
-            return 0
-        else
-            log "INFO" "$SERVER_NAME Backup server not yet in standby mode. Retry $i/$MAX_RETRIES..."
-            sleep $RETRY_INTERVAL
-        fi
-    done
-    log "INFO" "$SERVER_NAME Backup server did not enter standby mode within the expected time."
-    return 1
+    timeout $TIMEOUT_INTERVAL tail -Fn0 "$SERVER_NAME/logs/jms-bridge.out" | grep --line-buffered -q 'started, waiting live to fail before it gets active'
+    EXIT_STATUS=$?
+    if [ $EXIT_STATUS -eq 124 ]; then
+        log "INFO" "JMS server $SERVER_NAME did not start within the expected time."
+        return 1
+    fi
+    return $EXIT_STATUS
   else
     log "INFO" "$SERVER_NAME Invalid mode specified. Exiting..."
     exit 1

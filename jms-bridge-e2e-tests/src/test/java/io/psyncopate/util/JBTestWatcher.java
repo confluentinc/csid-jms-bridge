@@ -39,8 +39,8 @@ public class JBTestWatcher implements TestWatcher, BeforeEachCallback, AfterEach
         // Get the test class name
         String className = context.getRequiredTestClass().getSimpleName();
         logger.info("Test class name: {}", className);
-        resetServerState();
-        GlobalSetup.getServerSetup().resetKafkaAndLocalState();
+        resetServerState(); //graceful shutdown of JMSBridge servers
+        GlobalSetup.getServerSetup().resetKafkaAndLocalState(); // reset of KafkaStreams state and Kafka state
         String methodName = context.getTestMethod().map(Method::getName).orElse("Unknown Method");
         String classFullName = context.getTestClass().map(Class::getName).orElse("Unknown Class");
         logger.info("Finished test: {} in class: {}", methodName, classFullName);

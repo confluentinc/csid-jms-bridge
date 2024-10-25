@@ -15,7 +15,6 @@ import org.junit.jupiter.api.extension.RegisterExtension;
 import java.io.IOException;
 import java.util.concurrent.CompletableFuture;
 
-@Disabled
 @ExtendWith(GlobalSetup.class)
 public class KafkaJMSTopicTest {
     private static final Logger logger = LogManager.getLogger(JMSQueueTest.class);
@@ -23,39 +22,44 @@ public class KafkaJMSTopicTest {
 
     @RegisterExtension
     JBTestWatcher jbTestWatcher = new JBTestWatcher(SHEET_NAME);
-    
+
     private BrokerService brokerService;
     private ServerSetup serverSetup;
+
     @BeforeAll
     public static void setup() throws IOException {
-
-        // Create a unique directory for logs
+        //Need to update and upload jms-bridge config files with match rule for Kafka topic routing both for Master and Slave
+        GlobalSetup.getServerSetup().updateConfigFile(true);
+        GlobalSetup.getServerSetup().updateConfigFile(false);
+        //Need to update and upload broker.xml with definitions for Topics (Multicast) for them to be persistent without consumers / subscriptions for routing to Kafka to work from startup - for Master node only.
+        GlobalSetup.getServerSetup().updateBrokerXMLFile(true);
     }
+
     @BeforeEach
-    void init(){
+    void init() {
         serverSetup = GlobalSetup.getServerSetup();
-        brokerService= new BrokerService(serverSetup);
+        brokerService = new BrokerService(serverSetup);
     }
 
     @Test
-    @Disabled
     @DisplayName("Kafka Master failover after producing, switch to slave, then consume messages.")
     void startServersAndGracefulFailoverForKafkaTopic() throws Exception {
+        String address = Util.getCurrentMethodNameAsKafkaTopic();
+        String jmsAddress = address;
+        String kafkaTopic = address;
+        brokerService.ensureKafkaTopicExists(kafkaTopic);
+
         Assertions.assertTrue(serverSetup.startMasterServer(), "Master Server should start.");
         Assertions.assertTrue(serverSetup.startSlaveServer(), "Slave Server should start.");
 
-        String address = Util.getCurrentMethodNameAsKafkaTopic();
-        String jmsAddress = this.appendPrefix(address);
-        String kafkaTopic = address;
-
         int messageToBeSent = 50;
-        int kafkaMessageSent = brokerService.startProducer(MessagingScheme.KAFKA_TOPIC, kafkaTopic, messageToBeSent);
-        int jmsMessageSent = brokerService.startProducer(MessagingScheme.JMS_MULTICAST, jmsAddress, messageToBeSent);
+        int kafkaMessageSent = brokerService.startProducer(ServerType.KAFKA, MessagingScheme.KAFKA_TOPIC, kafkaTopic, messageToBeSent);
+        int jmsMessageSent = brokerService.startProducer(ServerType.MASTER, MessagingScheme.JMS_MULTICAST, jmsAddress, messageToBeSent);
 
         Assertions.assertTrue(serverSetup.stopMasterServer(), "Master Server should stop.");
-        Assertions.assertTrue(serverSetup.isServerUp(ServerType.SLAVE, 20, 1), "Slave Server should be running.");
-        int kafkaMessagesReceived = brokerService.startConsumer(MessagingScheme.KAFKA_TOPIC, kafkaTopic);
-        int jmsMessagesReceived = brokerService.startConsumer(MessagingScheme.JMS_MULTICAST, jmsAddress, address);
+        Assertions.assertTrue(serverSetup.isServerUp(ServerType.SLAVE, 10, 10), "Slave Server should be running.");
+        int kafkaMessagesReceived = brokerService.startConsumer(ServerType.KAFKA, MessagingScheme.KAFKA_TOPIC, kafkaTopic);
+        int jmsMessagesReceived = brokerService.startConsumer(ServerType.SLAVE, MessagingScheme.JMS_MULTICAST, jmsAddress, address);
         Assertions.assertTrue(serverSetup.stopSlaveServer(), "Slave Server should stop.");
 
         int totalMessageSent = jmsMessageSent + kafkaMessageSent;
@@ -70,55 +74,58 @@ public class KafkaJMSTopicTest {
     @Test
     @DisplayName("Kafka Queue Start live server, backup server takes over after live server is killed, with partial and full message consumption.")
     void partialConsumeAndFailoverForKafkaTopic() throws Exception {
+        String address = Util.getCurrentMethodNameAsKafkaTopic();
+        String jmsAddress = address;
+        String kafkaTopic = address;
+        brokerService.ensureKafkaTopicExists(kafkaTopic);
+
         Assertions.assertTrue(serverSetup.startMasterServer(), "Master Server should start.");
         Assertions.assertTrue(serverSetup.startSlaveServer(), "Slave Server should start.");
 
-        String kafkaTopic = Util.getCurrentMethodNameAsKafkaTopic();
-        String jmsAddress = this.appendPrefix(kafkaTopic);
-
         int messageToBeSent = 50;
-        int kafkaMessageSent = brokerService.startProducer(MessagingScheme.KAFKA_TOPIC, kafkaTopic, messageToBeSent);
-        CompletableFuture<Integer> asyncJMSProducerMaster = brokerService.startAsyncProducer(MessagingScheme.JMS_MULTICAST, jmsAddress);
-        int kafkaMessagesReceivedMaster = brokerService.startConsumer(MessagingScheme.KAFKA_TOPIC, 10, kafkaTopic);
-        CompletableFuture<Integer> asyncJMSConsumerMaster = brokerService.startAsyncConsumer(MessagingScheme.JMS_MULTICAST, jmsAddress, kafkaTopic);
-        Assertions.assertTrue(serverSetup.killMasterServer(), "Master Server should be force killed.");
-        Assertions.assertTrue(serverSetup.isServerUp(ServerType.SLAVE, 20, 1), "Slave Server should be running.");
-        int kafkaMessagesReceivedSlave = brokerService.startConsumer(MessagingScheme.KAFKA_TOPIC, kafkaTopic);
-        int jmsMessagesReceivedSlave = brokerService.startConsumer(MessagingScheme.JMS_MULTICAST, jmsAddress, kafkaTopic);
+        int kafkaMessageSent = brokerService.startProducer(ServerType.KAFKA, MessagingScheme.KAFKA_TOPIC, kafkaTopic, messageToBeSent);
+        CompletableFuture<Integer> asyncJMSProducerMaster = brokerService.startAsyncProducer(ServerType.MASTER, MessagingScheme.JMS_MULTICAST, jmsAddress);
+        CompletableFuture<Integer> asyncJMSConsumerMaster = brokerService.startAsyncConsumer(ServerType.MASTER, MessagingScheme.JMS_MULTICAST, jmsAddress, kafkaTopic);
+        Assertions.assertTrue(serverSetup.killMasterServer(3), "Master Server should be force killed.");
+        Assertions.assertTrue(serverSetup.isServerUp(ServerType.SLAVE, 10, 10), "Slave Server should be running.");
+        int jmsMessagesReceivedSlave = brokerService.startConsumer(ServerType.SLAVE, MessagingScheme.JMS_MULTICAST, jmsAddress, kafkaTopic);
+        int kafkaMessagesReceived = brokerService.startConsumer(ServerType.KAFKA, MessagingScheme.KAFKA_TOPIC, kafkaTopic);
 
 
         Assertions.assertTrue(serverSetup.stopSlaveServer(), "Slave Server should stop.");
 
         int totalMessageSent = asyncJMSProducerMaster.get() + kafkaMessageSent;
         int totalJmsMessageReceived = asyncJMSConsumerMaster.get() + jmsMessagesReceivedSlave;
-        int totalKafkaMessageReceive = kafkaMessagesReceivedMaster + kafkaMessagesReceivedSlave;
+        int totalKafkaMessageReceived = kafkaMessagesReceived;
 
 
         // Assert that the number of sent and received messages match
-        Assertions.assertEquals(totalJmsMessageReceived, totalKafkaMessageReceive, "Number of jms Received and kafka received messages should match.");
+        Assertions.assertEquals(totalJmsMessageReceived, totalKafkaMessageReceived, "Number of jms Received and kafka received messages should match.");
         Assertions.assertEquals(totalMessageSent, totalJmsMessageReceived, "Number of sent and JMS received messages should match.");
-        Assertions.assertEquals(totalMessageSent, totalKafkaMessageReceive, "Number of sent and Kafka received messages should match.");
+        Assertions.assertEquals(totalMessageSent, totalKafkaMessageReceived, "Number of sent and Kafka received messages should match.");
 
     }
 
     @Test
     @DisplayName("Kafka Master and slave failovers with producer, followed by consumer message consumption.")
     void dualKillAndMasterRestartWithMessageConsumptionForKafkaTopic() throws Exception {
+        String address = Util.getCurrentMethodNameAsKafkaTopic();
+        String jmsAddress = address;
+        String kafkaTopic = address;
+        brokerService.ensureKafkaTopicExists(kafkaTopic);
+
         Assertions.assertTrue(serverSetup.startMasterServer(), "Master Server should start.");
         Assertions.assertTrue(serverSetup.startSlaveServer(), "Slave Server should start.");
 
-        String kafkaTopic = Util.getCurrentMethodNameAsKafkaTopic();
-        String jmsAddress = this.appendPrefix(kafkaTopic);
-
         int messageToBeSent = 50;
-        int kafkaMessageSent = brokerService.startProducer(MessagingScheme.KAFKA_TOPIC, kafkaTopic, messageToBeSent);
-        CompletableFuture<Integer> asyncProducerMaster = brokerService.startAsyncProducer(MessagingScheme.JMS_MULTICAST, jmsAddress);
+        int kafkaMessageSent = brokerService.startProducer(ServerType.KAFKA, MessagingScheme.KAFKA_TOPIC, kafkaTopic, messageToBeSent);
+        CompletableFuture<Integer> asyncProducerMaster = brokerService.startAsyncProducer(ServerType.MASTER, MessagingScheme.JMS_MULTICAST, jmsAddress);
         Assertions.assertTrue(serverSetup.killMasterServer(), "Master Server should kill.");
-        Assertions.assertTrue(serverSetup.isServerUp(ServerType.SLAVE, 20, 1), "Slave Server should be running.");
+        Assertions.assertTrue(serverSetup.isServerUp(ServerType.SLAVE, 10, 10), "Slave Server should be running.");
         Assertions.assertTrue(serverSetup.killSlaveServer(), "Slave Server should Kill.");
         Assertions.assertTrue(serverSetup.startMasterServer(), "Master Server should Restart.");
-        int kafkaMessagesReceived = brokerService.startConsumer(MessagingScheme.KAFKA_TOPIC, kafkaTopic);
-        int jmsMessagesReceived = brokerService.startConsumer(MessagingScheme.JMS_MULTICAST, jmsAddress, kafkaTopic);
+        int jmsMessagesReceived = brokerService.startConsumer(ServerType.MASTER, MessagingScheme.JMS_MULTICAST, jmsAddress, kafkaTopic);
+        int kafkaMessagesReceived = brokerService.startConsumer(ServerType.KAFKA, MessagingScheme.KAFKA_TOPIC, kafkaTopic);
 
 
         Assertions.assertTrue(serverSetup.stopMasterServer(), "Master Server should stop.");
@@ -142,12 +149,12 @@ public class KafkaJMSTopicTest {
 //
 //
 //        int messageToBeSent = 50;
-//        int kafkaMessageSent = brokerService.startProducer(MessagingScheme.KAFKA_TOPIC, kafkaTopic, messageToBeSent);
+//        int kafkaMessageSent = brokerService.startProducer(ServerType.KAFKA, MessagingScheme.KAFKA_TOPIC, kafkaTopic, messageToBeSent);
 //        int jmsMessageSent = brokerService.startProducer(MessagingScheme.JMS_MULTICAST, jmsAddress, messageToBeSent);
 //
 //        Assertions.assertTrue(serverSetup.stopMasterServer(), "Master Server should stop.");
-//        Assertions.assertTrue(serverSetup.isServerUp(ServerType.SLAVE,20,1), "Slave Server should be running.");
-//        int kafkaMessagesReceived = brokerService.startConsumer(MessagingScheme.KAFKA_TOPIC, kafkaTopic);
+//        Assertions.assertTrue(serverSetup.isServerUp(ServerType.SLAVE, 10, 10), "Slave Server should be running.");
+//        int kafkaMessagesReceived = brokerService.startConsumer(ServerType.KAFKA, MessagingScheme.KAFKA_TOPIC, kafkaTopic);
 //        int jmsMessagesReceived = brokerService.startConsumer(MessagingScheme.JMS_MULTICAST, jmsAddress, kafkaTopic);
 //        Assertions.assertTrue(serverSetup.stopSlaveServer(), "Slave Server should stop.");
 //
@@ -171,11 +178,11 @@ public class KafkaJMSTopicTest {
 //        String jmsAddress = this.appendPrefix(kafkaTopic);
 //
 //        int messageToBeSent = 50;
-//        int kafkaMessageSent = brokerService.startProducer(MessagingScheme.KAFKA_TOPIC, kafkaTopic, messageToBeSent);
+//        int kafkaMessageSent = brokerService.startProducer(ServerType.KAFKA, MessagingScheme.KAFKA_TOPIC, kafkaTopic, messageToBeSent);
 //        CompletableFuture<Integer> asyncProducerMaster = brokerService.startAsyncProducer(MessagingScheme.JMS_MULTICAST, jmsAddress);
 //        Assertions.assertTrue(serverSetup.killMasterServer(), "Master Server should kill.");
-//        Assertions.assertTrue(serverSetup.isServerUp(ServerType.SLAVE,20,1), "Slave Server should be running.");
-//        int kafkaMessagesReceived = brokerService.startConsumer(MessagingScheme.KAFKA_TOPIC, kafkaTopic);
+//        Assertions.assertTrue(serverSetup.isServerUp(ServerType.SLAVE,10,10), "Slave Server should be running.");
+//        int kafkaMessagesReceived = brokerService.startConsumer(ServerType.KAFKA, MessagingScheme.KAFKA_TOPIC, kafkaTopic);
 //        int jmsMessagesReceived = brokerService.startConsumer(MessagingScheme.JMS_MULTICAST, jmsAddress, kafkaTopic);
 //
 //
@@ -202,11 +209,11 @@ public class KafkaJMSTopicTest {
 //
 //        int messageToBeSent = 50;
 //        Assertions.assertTrue(serverSetup.killMasterServer(), "Master Server should kill.");
-//        Assertions.assertTrue(serverSetup.isServerUp(ServerType.SLAVE,20,1), "Slave Server should be running.");
-//        int kafkaMessageSent = brokerService.startProducer(MessagingScheme.KAFKA_TOPIC, kafkaTopic, messageToBeSent);
+//        Assertions.assertTrue(serverSetup.isServerUp(ServerType.SLAVE,10,10), "Slave Server should be running.");
+//        int kafkaMessageSent = brokerService.startProducer(ServerType.KAFKA, MessagingScheme.KAFKA_TOPIC, kafkaTopic, messageToBeSent);
 //        int jmsMessageSent = brokerService.startProducer(MessagingScheme.JMS_MULTICAST, jmsAddress, messageToBeSent);
 //
-//        int kafkaMessagesReceived = brokerService.startConsumer(MessagingScheme.KAFKA_TOPIC, kafkaTopic);
+//        int kafkaMessagesReceived = brokerService.startConsumer(ServerType.KAFKA, MessagingScheme.KAFKA_TOPIC, kafkaTopic);
 //        int jmsMessagesReceived = brokerService.startConsumer(MessagingScheme.JMS_MULTICAST, jmsAddress, kafkaTopic);
 //
 //        Assertions.assertTrue(serverSetup.stopSlaveServer(), "Slave Server should stop.");

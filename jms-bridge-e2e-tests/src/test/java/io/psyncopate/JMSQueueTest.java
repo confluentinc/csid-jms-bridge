@@ -24,19 +24,18 @@ public class JMSQueueTest {
     JMSCommonTest jmsCommonTest;
 
     @BeforeAll
-    public static void setup() throws IOException {
-        // Create a unique directory for logs
+    public static void setup()  {
+        //reset bridge conf to original
+        GlobalSetup.getServerSetup().uploadUnchangedConfigFile(true);
+        GlobalSetup.getServerSetup().uploadUnchangedConfigFile(false);
+        //reset broker xml to original
+        GlobalSetup.getServerSetup().uploadUnchangedBrokerXMLFile(true);
     }
 
     @BeforeEach
     public void init() {
         BrokerService brokerService = new BrokerService(GlobalSetup.getServerSetup());
         jmsCommonTest = new JMSCommonTest(brokerService, GlobalSetup.getServerSetup());
-    }
-
-    // Helper method to assert the asynchronous result of message sending
-    private void assertAsyncResult(int messageSentToBe, int messageSent) {
-        Assertions.assertEquals(messageSentToBe, messageSent, "Number of sent and received messages should match.");
     }
 
     @Test
@@ -88,30 +87,6 @@ public class JMSQueueTest {
     void parallelProducersPartialConsumeAndFailoverForQueue() throws Exception {
         jmsCommonTest.parallelProducersPartialConsumeAndFailover(MessagingScheme.JMS_ANYCAST);
     }
-
-//    @Test
-//    @DisplayName("Master failover with two consumers for partial and complete message consumption.")
-//    void parallelPartialConsumeAndFailover() throws Exception {
-//        Assertions.assertTrue(ServerSetup.startMasterServer(), "Master Server should start.");
-//        Assertions.assertTrue(ServerSetup.startSlaveServer(), "Slave Server should start.");
-//
-//        String queueName = Util.getCurrentMethodNameAsAnycastAddress();
-//
-//        CompletableFuture<Integer> asyncProducerMaster1 = ServerSetup.startJmsProducerAsync(queueName, RoutingType.ANYCAST);
-//        CompletableFuture<Integer> asyncConsumerMaster1 = ServerSetup.startJmsConsumerAsync(queueName, RoutingType.ANYCAST, 100L);
-//        CompletableFuture<Integer> asyncConsumerMaster2 = ServerSetup.startJmsConsumerAsync(queueName, RoutingType.ANYCAST, 100L);
-//
-//        Assertions.assertTrue(ServerSetup.killMasterServer(10), "Master Server should stop.");
-//        Assertions.assertTrue(ServerSetup.isServerUp(ServerType.SLAVE, 20,1), "Slave Server should be running.");
-//        int consumerSlave = ServerSetup.startJmsConsumer(queueName, RoutingType.ANYCAST);
-//
-//        Assertions.assertTrue(ServerSetup.stopSlaveServer(), "Slave Server should stop.");
-//
-//        int messageSent=asyncProducerMaster1.get();
-//        int messagesReceived= asyncConsumerMaster1.get() + asyncConsumerMaster2.get() + consumerSlave ;
-//
-//        Assertions.assertEquals(messageSent, messagesReceived, "Number of sent and received messages should match.");
-//    }
 
     @Test
     @Order(7)

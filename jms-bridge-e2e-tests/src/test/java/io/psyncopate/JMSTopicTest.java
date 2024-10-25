@@ -24,9 +24,13 @@ public class JMSTopicTest {
 
     JMSCommonTest jmsCommonTest;
     @BeforeAll
-    public static void setup() throws IOException, InterruptedException {
-        // Create a unique directory for logs
+    public static void setup()  {
+        //reset bridge conf to original
+        GlobalSetup.getServerSetup().uploadUnchangedConfigFile(true);
+        GlobalSetup.getServerSetup().uploadUnchangedConfigFile(false);
 
+        //Need to update and upload broker.xml with definitions for Topics (Multicast) for them to be persistent without consumers / subscriptions for Master node only.
+        GlobalSetup.getServerSetup().updateBrokerXMLFile(true);
     }
 
     @BeforeEach

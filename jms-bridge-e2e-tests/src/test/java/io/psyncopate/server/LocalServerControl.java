@@ -26,6 +26,7 @@ public class LocalServerControl extends ServerControl {
     private final LocalConfigLoader configLoader;
 
     public LocalServerControl(LocalConfigLoader configLoader) {
+        super(SCRIPT_BASE_PATH, configLoader);
         this.configLoader = configLoader;
     }
 
@@ -33,10 +34,12 @@ public class LocalServerControl extends ServerControl {
         String scriptPath = SCRIPT_BASE_PATH + "reset-instances.sh";
         return executeScript(getAbsolutePath(scriptPath));
     }
+
     public boolean resetKafkaAndLocalState() {
         String scriptPath = SCRIPT_BASE_PATH + "reset-state.sh";
         return executeScript(getAbsolutePath(scriptPath));
     }
+
     public boolean startServer(boolean isMaster) {
         String scriptPath = SCRIPT_BASE_PATH + "server-start.sh";
         return executeScript(getArgsByNode(scriptPath, isMaster, true, false));
@@ -150,41 +153,14 @@ public class LocalServerControl extends ServerControl {
     }
 
 
-    @Override
-    public void updateBrokerXMLFile() {
-        doUpdateBrokerXMLFile(SCRIPT_BASE_PATH, configLoader);
-    }
-
-    public void updateConfigFile() {
-        doUpdateConfigFile(SCRIPT_BASE_PATH, configLoader);
-    }
-
-
     // Method to execute a bash script to update EC2 configuration
     @Override
-    public void uploadFileBashExecutor(String fileToUpload, String fileToBeReplacedInRemote) {
+    public void uploadFileBashExecutor(String fileToUpload, String fileToBeReplacedInRemote, boolean isMaster) {
         try {
-            //Master server properties
-
-            String serverMasterExecutionPath = configLoader.getServerMasterExecutionPath();
-            String remoteConfigPath = serverMasterExecutionPath + "/" + fileToBeReplacedInRemote;
-
+            String serverExecutionPath = isMaster ? configLoader.getServerMasterExecutionPath() : configLoader.getServerSlaveExecutionPath();
+            String remoteConfigPath = serverExecutionPath + "/" + fileToBeReplacedInRemote;
             // Executing the Bash script to change the configs on the master server
             executeScript(prepareCommandToExecuteScript(fileToUpload, remoteConfigPath));
-
-            // Slave server's properties
-
-
-            String serverSlaveExecutionPath = configLoader.getServerSlaveExecutionPath();
-
-            remoteConfigPath = serverSlaveExecutionPath + fileToBeReplacedInRemote;
-
-            logger.debug("Slave remote file path :{}", remoteConfigPath);
-
-            if (!fileToUpload.contains(".xml")) {
-
-                executeScript(prepareCommandToExecuteScript(fileToUpload, remoteConfigPath));
-            }
 
         } catch (Exception e) {
             logger.error("Error executing Bash script: " + e.getMessage(), e);

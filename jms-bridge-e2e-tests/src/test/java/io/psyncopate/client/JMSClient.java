@@ -4,8 +4,8 @@ import io.psyncopate.GlobalSetup;
 import io.psyncopate.client.Model.QueueAttributes;
 import io.psyncopate.util.ConfigLoader;
 import io.psyncopate.util.Util;
-import io.psyncopate.util.constants.Constants;
 import io.psyncopate.util.constants.RoutingType;
+import io.psyncopate.util.constants.ServerType;
 import org.apache.activemq.artemis.api.core.management.ResourceNames;
 import org.apache.activemq.artemis.api.jms.ActiveMQJMSClient;
 import org.apache.activemq.artemis.api.jms.management.JMSManagementHelper;
@@ -15,6 +15,7 @@ import org.apache.logging.log4j.Logger;
 
 import javax.jms.*;
 import java.io.IOException;
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -22,16 +23,16 @@ public class JMSClient {
     private static final Logger logger = LogManager.getLogger(JMSClient.class);
 
 
-    public static String getConnectionUrl(Boolean isMaster) {
-        if (isMaster == null) {
+    public static String getConnectionUrl(ServerType serverType) {
+        if (serverType == null) {
             return "(" + prepareUrl(true) + "," + prepareUrl(false) + ")";
         }
-        return prepareUrl(isMaster);
+        return prepareUrl(serverType==ServerType.MASTER);
     }
 
 
     private static String prepareUrl(boolean isMaster) {
-        ConfigLoader configLoader = GlobalSetup.getConfligLoader();
+        ConfigLoader configLoader = GlobalSetup.getConfigLoader();
         try {
             String host = isMaster ? configLoader.getServerMasterHost() : configLoader.getServerSlaveHost();
             int port = Integer.parseInt(isMaster ? configLoader.getServerMasterAppPort() : configLoader.getServerSlaveAppPort());
@@ -76,8 +77,8 @@ public class JMSClient {
         logger.debug("Creating connection to host {} on port {}.", connectionUrl, destination);
         ConnectionFactory connectionFactory = new ActiveMQConnectionFactory(connectionUrl);
         Connection connection;
-        if (GlobalSetup.getConfligLoader().isJaasEnabled() || GlobalSetup.getConfligLoader().isSslEnabled()) {
-            connection = connectionFactory.createConnection(GlobalSetup.getConfligLoader().getUsername(), GlobalSetup.getConfligLoader().getPassword());
+        if (GlobalSetup.getConfigLoader().isJaasEnabled() || GlobalSetup.getConfigLoader().isSslEnabled()) {
+            connection = connectionFactory.createConnection(GlobalSetup.getConfigLoader().getUsername(), GlobalSetup.getConfigLoader().getPassword());
         } else {
             connection = connectionFactory.createConnection();
         }
@@ -86,12 +87,11 @@ public class JMSClient {
         return connection;
     }
 
-    public int produceMessages(Boolean toMaster, String queueToBeCreated, RoutingType routingType, int messageCountToBeSent) throws JMSException {
-        Connection connection = getConnection(getConnectionUrl(toMaster), queueToBeCreated);
+    public int produceMessages(ServerType serverType, String queueToBeCreated, RoutingType routingType, int messageCountToBeSent) throws JMSException {
+        Connection connection = getConnection(getConnectionUrl(serverType), queueToBeCreated);
         Session session = connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
         Destination destination = RoutingType.ANYCAST.equals(routingType) ? session.createQueue(queueToBeCreated) : session.createTopic(queueToBeCreated);
         MessageProducer producer = session.createProducer(destination);
-
         int sentMessageCount = 0;
 
         try {
@@ -99,11 +99,14 @@ public class JMSClient {
             for (; (messageCountToBeSent == -1 || sentMessageCount < messageCountToBeSent); sentMessageCount++) {
                 producer.send(message);
                 logger.debug("Message Sent: {}", message.getText());
+                if(messageCountToBeSent == -1 ) { //unbounded send - throttle a bit to prevent thousands of messages sent...
+                    Util.sleepQuietly(10);
+                }
             }
             logger.info("Number of messages sent: {}", sentMessageCount);
             return sentMessageCount;
         } catch (JMSException e) {
-            logger.error("Failed to send messages: {}", e.getMessage());
+            logger.error("Failed to send messages, sent messages count: {}, Error : ", sentMessageCount, e);
         }
         return sentMessageCount;
     }
@@ -112,8 +115,8 @@ public class JMSClient {
         return consumeMessages(null, queueName, routingType, messageCount, sleepInMillis);
     }
 
-    public int consumeMessages(Boolean toMaster, String queueToBeCreated, RoutingType routingType, int messageCount, Long sleepInMillis) throws JMSException, InterruptedException {
-        Connection connection = getConnection(getConnectionUrl(toMaster), queueToBeCreated);
+    public int consumeMessages(ServerType serverType, String queueToBeCreated, RoutingType routingType, int messageCount, Long sleepInMillis) throws JMSException, InterruptedException {
+        Connection connection = getConnection(getConnectionUrl(serverType), queueToBeCreated);
         Session session = connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
         Destination destination = RoutingType.ANYCAST.equals(routingType) ? session.createQueue(queueToBeCreated) : session.createTopic(queueToBeCreated);
         MessageConsumer consumer = session.createConsumer(destination);
@@ -140,9 +143,6 @@ public class JMSClient {
     }
 
     public static Map<String, QueueAttributes> getAddressQueueInfo(String addressName) throws Exception {
-//        ConnectionFactory connectionFactory =  new ActiveMQConnectionFactory("tcp://localhost:61616"); // Update the URL as needed
-//        Connection connection = connectionFactory.createConnection();
-//        connection.start();
         Connection connection = getConnection(getConnectionUrl(null), addressName);
         QueueSession session = (QueueSession) connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
         Queue managementQueue = ActiveMQJMSClient.createQueue("activemq.management");

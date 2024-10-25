@@ -54,10 +54,10 @@ class JMSCommonTest {
         Assertions.assertTrue(serverSetup.startMasterServer(), "Master Server should start.");
 
         String address = Util.getParentMethodNameAsAddress(messagingScheme);
-        int messageSent = brokerService.startProducer(messagingScheme, address, messageToBeSent);
+        int messageSent = brokerService.startProducer(ServerType.MASTER, messagingScheme, address, messageToBeSent);
         Assertions.assertEquals(messageToBeSent, messageSent, "Number of message to be sent and message sent messages should match.");
 
-        int messagesReceived = brokerService.startConsumer(messagingScheme, address, address);
+        int messagesReceived = brokerService.startConsumer(ServerType.MASTER, messagingScheme, address, address);
         Assertions.assertTrue(serverSetup.stopMasterServer(), "Master Server should stop.");
 
         validateReceivedMessages(messageSent, messagesReceived);
@@ -70,13 +70,13 @@ class JMSCommonTest {
         Assertions.assertTrue(serverSetup.startSlaveServer(), "Slave Server should start.");
 
         String address = Util.getParentMethodNameAsAddress(messagingScheme);
-        int messageSent = brokerService.startProducer(messagingScheme, address, messageToBeSent);
+        int messageSent = brokerService.startProducer(ServerType.MASTER, messagingScheme, address, messageToBeSent);
         Assertions.assertEquals(messageToBeSent, messageSent, "Number of message to be sent and message sent messages should match.");
 
         Assertions.assertTrue(serverSetup.stopMasterServer(), "Master Server should stop.");
         Assertions.assertTrue(serverSetup.isServerUp(ServerType.SLAVE, 40, 4), "Slave Server should be running.");
 
-        int messagesReceived = brokerService.startConsumer(messagingScheme, address, address);
+        int messagesReceived = brokerService.startConsumer(ServerType.SLAVE, messagingScheme, address, address);
         Assertions.assertTrue(serverSetup.stopSlaveServer(), "Slave Server should stop.");
 
         validateReceivedMessages(messageSent, messagesReceived);
@@ -89,13 +89,13 @@ class JMSCommonTest {
         Assertions.assertTrue(serverSetup.startSlaveServer(), "Slave Server should start.");
 
         String address = Util.getParentMethodNameAsAddress(messagingScheme);
-        int messageSent = brokerService.startProducer(messagingScheme, address, messageToBeSent);
+        int messageSent = brokerService.startProducer(ServerType.MASTER, messagingScheme, address, messageToBeSent);
         Assertions.assertEquals(messageToBeSent, messageSent, "Number of message to be sent and message sent messages should match.");
 
         Assertions.assertTrue(serverSetup.killMasterServer(), "Master Server should stop.");
-        Assertions.assertTrue(serverSetup.isServerUp(ServerType.SLAVE, 20, 1), "Slave Server should be running.");
+        Assertions.assertTrue(serverSetup.isServerUp(ServerType.SLAVE, 10, 10), "Slave Server should be running.");
 
-        int messagesReceived = brokerService.startConsumer(messagingScheme, address, address);
+        int messagesReceived = brokerService.startConsumer(ServerType.SLAVE, messagingScheme, address, address);
         Assertions.assertTrue(serverSetup.stopSlaveServer(), "Slave Server should stop.");
 
         validateReceivedMessages(messageSent, messagesReceived);
@@ -108,10 +108,10 @@ class JMSCommonTest {
 
         String address = Util.getParentMethodNameAsAddress(messagingScheme);
 
-        CompletableFuture<Integer> asyncProducerMaster = brokerService.startAsyncProducer(messagingScheme, address);
+        CompletableFuture<Integer> asyncProducerMaster = brokerService.startAsyncProducer(ServerType.MASTER, messagingScheme, address);
         Assertions.assertTrue(serverSetup.killMasterServer(10), "Master Server should stop.");
-        Assertions.assertTrue(serverSetup.isServerUp(ServerType.SLAVE, 20, 1), "Slave Server should be running.");
-        int messagesReceived = brokerService.startConsumer(messagingScheme, address, address);
+        Assertions.assertTrue(serverSetup.isServerUp(ServerType.SLAVE, 10, 10), "Slave Server should be running.");
+        int messagesReceived = brokerService.startConsumer(ServerType.SLAVE, messagingScheme, address, address);
         Assertions.assertTrue(serverSetup.stopSlaveServer(), "Slave Server should stop.");
         int messageSent = asyncProducerMaster.get();
         validateReceivedMessages(messageSent, messagesReceived);
@@ -123,11 +123,11 @@ class JMSCommonTest {
         Assertions.assertTrue(serverSetup.startSlaveServer(), "Slave Server should start.");
 
         String address = Util.getParentMethodNameAsAddress(messagingScheme);
-        CompletableFuture<Integer> asyncProducerMaster = brokerService.startAsyncProducer(messagingScheme, address);
-        CompletableFuture<Integer> asyncConsumerMaster = brokerService.startAsyncConsumer(messagingScheme, address, address);
+        CompletableFuture<Integer> asyncProducerMaster = brokerService.startAsyncProducer(ServerType.MASTER, messagingScheme, address);
+        CompletableFuture<Integer> asyncConsumerMaster = brokerService.startAsyncConsumer(ServerType.MASTER, messagingScheme, address, address);
         Assertions.assertTrue(serverSetup.killMasterServer(10), "Master Server should stop.");
-        Assertions.assertTrue(serverSetup.isServerUp(ServerType.SLAVE, 20, 1), "Slave Server should be running.");
-        int messagesReceived = brokerService.startConsumer(messagingScheme, address, address);
+        Assertions.assertTrue(serverSetup.isServerUp(ServerType.SLAVE, 10, 10), "Slave Server should be running.");
+        int messagesReceived = brokerService.startConsumer(ServerType.SLAVE, messagingScheme, address, address);
         Assertions.assertTrue(serverSetup.stopSlaveServer(), "Slave Server should stop.");
 
         int messageSent = asyncProducerMaster.get();
@@ -141,16 +141,16 @@ class JMSCommonTest {
 
         String address = Util.getParentMethodNameAsAddress(messagingScheme);
 
-        CompletableFuture<Integer> asyncProducerMaster1 = brokerService.startAsyncProducer(messagingScheme, address);
-        CompletableFuture<Integer> asyncProducerMaster2 = brokerService.startAsyncProducer(messagingScheme, address);
+        CompletableFuture<Integer> asyncProducerMaster1 = brokerService.startAsyncProducer(ServerType.MASTER, messagingScheme, address);
+        CompletableFuture<Integer> asyncProducerMaster2 = brokerService.startAsyncProducer(ServerType.MASTER, messagingScheme, address);
 
         Assertions.assertTrue(serverSetup.killMasterServer(10), "Master Server should stop.");
-        Assertions.assertTrue(serverSetup.isServerUp(ServerType.SLAVE, 20, 1), "Slave Server should be running.");
+        Assertions.assertTrue(serverSetup.isServerUp(ServerType.SLAVE, 10, 10), "Slave Server should be running.");
 
         // Wait for the asynchronous operation to complete
         int totalMessagesSent = asyncProducerMaster1.get() + asyncProducerMaster2.get();  // This blocks until the future completes
 
-        int totalMessagesReceived = brokerService.startConsumer(messagingScheme, address, address);
+        int totalMessagesReceived = brokerService.startConsumer(ServerType.SLAVE, messagingScheme, address, address);
         Assertions.assertTrue(serverSetup.stopSlaveServer(), "Slave Server should stop.");
 
         // Assert that the number of sent and received messages match
@@ -163,13 +163,13 @@ class JMSCommonTest {
 
         String address = Util.getParentMethodNameAsAddress(messagingScheme);
 
-        CompletableFuture<Integer> asyncProducerMaster1 = brokerService.startAsyncProducer(messagingScheme, address);
-        CompletableFuture<Integer> asyncProducerMaster2 = brokerService.startAsyncProducer(messagingScheme, address);
-        CompletableFuture<Integer> asyncConsumerMaster = brokerService.startAsyncConsumer(messagingScheme, address, address);
+        CompletableFuture<Integer> asyncProducerMaster1 = brokerService.startAsyncProducer(ServerType.MASTER, messagingScheme, address);
+        CompletableFuture<Integer> asyncProducerMaster2 = brokerService.startAsyncProducer(ServerType.MASTER, messagingScheme, address);
+        CompletableFuture<Integer> asyncConsumerMaster = brokerService.startAsyncConsumer(ServerType.MASTER, messagingScheme, address, address);
 
         Assertions.assertTrue(serverSetup.killMasterServer(10), "Master Server should stop.");
-        Assertions.assertTrue(serverSetup.isServerUp(ServerType.SLAVE, 20, 1), "Slave Server should be running.");
-        int consumerSlave = brokerService.startConsumer(messagingScheme, address, address);
+        Assertions.assertTrue(serverSetup.isServerUp(ServerType.SLAVE, 10, 10), "Slave Server should be running.");
+        int consumerSlave = brokerService.startConsumer(ServerType.SLAVE, messagingScheme, address, address);
 
         Assertions.assertTrue(serverSetup.stopSlaveServer(), "Slave Server should stop.");
 
@@ -184,14 +184,14 @@ class JMSCommonTest {
         Assertions.assertTrue(serverSetup.startSlaveServer(), "Slave Server should start.");
         String address = Util.getParentMethodNameAsAddress(messagingScheme);
 
-        CompletableFuture<Integer> asyncProducerMaster = brokerService.startAsyncProducer(messagingScheme, address);
+        CompletableFuture<Integer> asyncProducerMaster = brokerService.startAsyncProducer(ServerType.MASTER, messagingScheme, address);
 
         Assertions.assertTrue(serverSetup.killMasterServer(10), "Master Server should stop.");
-        Assertions.assertTrue(serverSetup.isServerUp(ServerType.SLAVE, 20, 1), "Slave Server should be running.");
+        Assertions.assertTrue(serverSetup.isServerUp(ServerType.SLAVE, 10, 10), "Slave Server should be running.");
 
-        CompletableFuture<Integer> asyncProducerSlave = brokerService.startAsyncProducer(messagingScheme, address);
+        CompletableFuture<Integer> asyncProducerSlave = brokerService.startAsyncProducer(ServerType.SLAVE, messagingScheme, address);
 
-        CompletableFuture<Integer> asyncmessagesReceivedSlave = brokerService.startAsyncConsumer(messagingScheme, address, address);
+        CompletableFuture<Integer> asyncmessagesReceivedSlave = brokerService.startAsyncConsumer(ServerType.SLAVE, messagingScheme, address, address);
 
         Assertions.assertTrue(serverSetup.stopSlaveServer(10), "Slave Server should stop.");
 
@@ -206,18 +206,18 @@ class JMSCommonTest {
         Assertions.assertTrue(serverSetup.startSlaveServer(), "Slave Server should start.");
         String address = Util.getParentMethodNameAsAddress(messagingScheme);
 
-        CompletableFuture<Integer> asyncProducerMaster1 = brokerService.startAsyncProducer(messagingScheme, address);
+        CompletableFuture<Integer> asyncProducerMaster1 = brokerService.startAsyncProducer(ServerType.MASTER, messagingScheme, address);
 
         Assertions.assertTrue(serverSetup.killMasterServer(10), "Master Server should stop.");
-        Assertions.assertTrue(serverSetup.isServerUp(ServerType.SLAVE, 20, 1), "Slave Server should be running.");
+        Assertions.assertTrue(serverSetup.isServerUp(ServerType.SLAVE, 10, 10), "Slave Server should be running.");
 
-        CompletableFuture<Integer> asyncProducerSlave1 = brokerService.startAsyncProducer(messagingScheme, address);
+        CompletableFuture<Integer> asyncProducerSlave1 = brokerService.startAsyncProducer(ServerType.SLAVE, messagingScheme, address);
 
         Assertions.assertTrue(serverSetup.killSlaveServer(10), "Slave Server should stop.");
 
         Assertions.assertTrue(serverSetup.startMasterServer(), "Master Server should start.");
 
-        int totalMessagesReceived = brokerService.startConsumer(messagingScheme, address, address);
+        int totalMessagesReceived = brokerService.startConsumer(ServerType.MASTER, messagingScheme, address, address);
 
         Assertions.assertTrue(serverSetup.stopMasterServer(), "Master Server should stop.");
 
@@ -232,17 +232,17 @@ class JMSCommonTest {
         Assertions.assertTrue(serverSetup.startSlaveServer(), "Slave Server should start.");
         String address = Util.getParentMethodNameAsAddress(messagingScheme);
 
-        CompletableFuture<Integer> asyncProducerMaster1 = brokerService.startAsyncProducer(messagingScheme, address);
+        CompletableFuture<Integer> asyncProducerMaster1 = brokerService.startAsyncProducer(ServerType.MASTER, messagingScheme, address);
         Assertions.assertTrue(serverSetup.killMasterServer(10), "Master Server should stop.");
-        Assertions.assertTrue(serverSetup.isServerUp(ServerType.SLAVE, 20, 1), "Slave Server should be running.");
-        int messagesReceivedfromSlave = brokerService.startConsumer(messagingScheme, address, address);
+        Assertions.assertTrue(serverSetup.isServerUp(ServerType.SLAVE, 10, 10), "Slave Server should be running.");
+        int messagesReceivedfromSlave = brokerService.startConsumer(ServerType.SLAVE, messagingScheme, address, address);
         //Assertions.assertEquals(asyncProducerMaster1.get(), messagesReceivedfromSlave, "Number of sent and received messages should match.");
         validateReceivedMessages(asyncProducerMaster1.get(), messagesReceivedfromSlave);
 
-        CompletableFuture<Integer> asyncProducerSlave1 = brokerService.startAsyncProducer(messagingScheme, address);
+        CompletableFuture<Integer> asyncProducerSlave1 = brokerService.startAsyncProducer(ServerType.SLAVE, messagingScheme, address);
         Assertions.assertTrue(serverSetup.killSlaveServer(10), "Slave Server should stop.");
         Assertions.assertTrue(serverSetup.startMasterServer(), "Master Server should start.");
-        int messagesReceivedFromMaster = brokerService.startConsumer(messagingScheme, address, address);
+        int messagesReceivedFromMaster = brokerService.startConsumer(ServerType.MASTER, messagingScheme, address, address);
 
         Assertions.assertTrue(serverSetup.stopMasterServer(), "Slave Server should stop.");
         int totalMessageSent = asyncProducerSlave1.get();
@@ -256,15 +256,15 @@ class JMSCommonTest {
         Assertions.assertTrue(serverSetup.startSlaveServer(), "Slave Server should start.");
         String address = Util.getParentMethodNameAsAddress(messagingScheme);
 
-        CompletableFuture<Integer> asyncProducerMaster1 = brokerService.startAsyncProducer(messagingScheme, address);
+        CompletableFuture<Integer> asyncProducerMaster1 = brokerService.startAsyncProducer(ServerType.MASTER, messagingScheme, address);
 
         Assertions.assertTrue(serverSetup.killMasterServer(10), "Master Server should stop.");
-        Assertions.assertTrue(serverSetup.isServerUp(ServerType.SLAVE, 20, 1), "Slave Server should be running.");
+        Assertions.assertTrue(serverSetup.isServerUp(ServerType.SLAVE, 10, 10), "Slave Server should be running.");
 
         Assertions.assertTrue(serverSetup.killSlaveServer(), "Slave Server should stop.");
 
         Assertions.assertTrue(serverSetup.startMasterServer(), "Master Server should start.");
-        int totalMessagesReceived = brokerService.startConsumer(messagingScheme, address, address);
+        int totalMessagesReceived = brokerService.startConsumer(ServerType.MASTER, messagingScheme, address, address);
 
         Assertions.assertTrue(serverSetup.killMasterServer(), "Master Server should stop.");
 
@@ -278,16 +278,16 @@ class JMSCommonTest {
         Assertions.assertTrue(serverSetup.startSlaveServer(), "Slave Server should start.");
         String address = Util.getParentMethodNameAsAddress(messagingScheme);
 
-        CompletableFuture<Integer> asyncProducerMaster1 = brokerService.startAsyncProducer(messagingScheme, address);
+        CompletableFuture<Integer> asyncProducerMaster1 = brokerService.startAsyncProducer(ServerType.MASTER, messagingScheme, address);
 
         Assertions.assertTrue(serverSetup.killMasterServer(10), "Master Server should stop.");
-        Assertions.assertTrue(serverSetup.isServerUp(ServerType.SLAVE, 20, 1), "Slave Server should be running.");
+        Assertions.assertTrue(serverSetup.isServerUp(ServerType.SLAVE, 10, 10), "Slave Server should be running.");
 
-        CompletableFuture<Integer> asyncConsumerSlave = brokerService.startAsyncConsumer(messagingScheme, address, address);
+        CompletableFuture<Integer> asyncConsumerSlave = brokerService.startAsyncConsumer(ServerType.SLAVE, messagingScheme, address, address);
 
         Assertions.assertTrue(serverSetup.startMasterServer(), "Master Server should start.");
 
-        int messagesReceived = brokerService.startConsumer(messagingScheme, address, address);
+        int messagesReceived = brokerService.startConsumer(ServerType.MASTER, messagingScheme, address, address);
 
         Assertions.assertTrue(serverSetup.killMasterServer(), "Master Server should stop.");
 
@@ -304,15 +304,15 @@ class JMSCommonTest {
         String address = Util.getParentMethodNameAsAddress(messagingScheme);
 
         Assertions.assertTrue(serverSetup.killMasterServer(), "Master Server should stop.");
-        Assertions.assertTrue(serverSetup.isServerUp(ServerType.SLAVE, 20, 1), "Slave Server should be running.");
+        Assertions.assertTrue(serverSetup.isServerUp(ServerType.SLAVE, 10, 10), "Slave Server should be running.");
 
-        CompletableFuture<Integer> asyncProducerSlave1 = brokerService.startAsyncProducer(messagingScheme, address);
+        CompletableFuture<Integer> asyncProducerSlave1 = brokerService.startAsyncProducer(ServerType.SLAVE, messagingScheme, address);
 
-        CompletableFuture<Integer> asyncConsumerSlave = brokerService.startAsyncConsumer(messagingScheme, address, address);
+        CompletableFuture<Integer> asyncConsumerSlave = brokerService.startAsyncConsumer(ServerType.SLAVE, messagingScheme, address, address);
 
         Assertions.assertTrue(serverSetup.startMasterServer(10), "Master Server should start.");
 
-        int messagesReceivedfromMaster = brokerService.startConsumer(messagingScheme, address, address);
+        int messagesReceivedfromMaster = brokerService.startConsumer(ServerType.MASTER, messagingScheme, address, address);
 
         Assertions.assertTrue(serverSetup.killMasterServer(), "Master Server should stop.");
 
@@ -327,23 +327,23 @@ class JMSCommonTest {
         Assertions.assertTrue(serverSetup.startSlaveServer(), "Slave Server should start.");
         String address = Util.getParentMethodNameAsAddress(messagingScheme);
 
-        CompletableFuture<Integer> asyncProducerMaster1 = brokerService.startAsyncProducer(messagingScheme, address);
+        CompletableFuture<Integer> asyncProducerMaster1 = brokerService.startAsyncProducer(ServerType.MASTER, messagingScheme, address);
 
         Assertions.assertTrue(serverSetup.killMasterServer(10), "Master Server should stop.");
-        Assertions.assertTrue(serverSetup.isServerUp(ServerType.SLAVE, 30, 1), "Slave Server should be running.");
+        Assertions.assertTrue(serverSetup.isServerUp(ServerType.SLAVE, 10, 10), "Slave Server should be running.");
 
-        CompletableFuture<Integer> asyncProducerSlave1 = brokerService.startAsyncProducer(messagingScheme, address);
+        CompletableFuture<Integer> asyncProducerSlave1 = brokerService.startAsyncProducer(ServerType.SLAVE, messagingScheme, address);
 
         Assertions.assertTrue(serverSetup.startMasterServer(15), "Master Server should start.");
 
-        CompletableFuture<Integer> asyncProducerMaster2 = brokerService.startAsyncProducer(messagingScheme, address);
-        ;
+        CompletableFuture<Integer> asyncProducerMaster2 = brokerService.startAsyncProducer(ServerType.MASTER, messagingScheme, address);
+
 
         Assertions.assertTrue(serverSetup.killMasterServer(10), "Master Server should stop.");
-        Assertions.assertTrue(serverSetup.isServerUp(ServerType.SLAVE, 30, 1), "Slave Server should be running.");
+        Assertions.assertTrue(serverSetup.isServerUp(ServerType.SLAVE, 10, 10), "Slave Server should be running.");
 
-        int messagesReceivedfromSlave = brokerService.startConsumer(messagingScheme, address, address);
-        ;
+        int messagesReceivedfromSlave = brokerService.startConsumer(ServerType.SLAVE, messagingScheme, address, address);
+
 
         Assertions.assertTrue(serverSetup.stopSlaveServer(), "Master Server should stop.");
 

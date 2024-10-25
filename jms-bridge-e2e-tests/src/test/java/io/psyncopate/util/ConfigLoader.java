@@ -12,7 +12,11 @@ public class ConfigLoader {
     @Getter
     private final String stopCommand;
     @Getter
-    private final String configFile;
+    private final String masterConfigFile;
+    @Getter
+    private final String slaveConfigFile;
+    @Getter
+    private final String remoteConfigFile;
     @Getter
     private final String brokerXMLFile;
     @Getter
@@ -70,7 +74,9 @@ public class ConfigLoader {
 
         this.startCommand = properties.getProperty("startCommand");
         this.stopCommand = properties.getProperty("stopCommand");
-        this.configFile = properties.getProperty("configFile");
+        this.masterConfigFile = properties.getProperty("master.configFile");
+        this.slaveConfigFile = properties.getProperty("slave.configFile");
+        this.remoteConfigFile = properties.getProperty("remote.configFile");
 
         this.queueName = properties.getProperty("queueName");
         this.topicName = properties.getProperty("topicName");

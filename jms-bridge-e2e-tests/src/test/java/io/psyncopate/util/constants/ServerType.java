@@ -2,8 +2,8 @@ package io.psyncopate.util.constants;
 
 public enum ServerType {
     MASTER("Master"),
-    SLAVE("Slave");
-
+    SLAVE("Slave"),
+    KAFKA("Kafka");
     private final String value;
 
     ServerType(String value) {

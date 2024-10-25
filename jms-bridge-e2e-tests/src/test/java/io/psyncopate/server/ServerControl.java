@@ -40,6 +40,13 @@ import static io.psyncopate.util.Util.steps;
 
 public abstract class ServerControl {
 
+    private final String scriptBasePath;
+    private final ConfigLoader configLoader;
+    protected ServerControl(String scriptBasePath, ConfigLoader configLoader){
+        this.scriptBasePath = scriptBasePath;
+        this.configLoader = configLoader;
+    }
+
     private static final Logger logger = LogManager.getLogger(ServerControl.class);
 
     public abstract boolean startServer(boolean isMaster);
@@ -173,12 +180,17 @@ public abstract class ServerControl {
         return mergedMethods;
     }
 
-    public abstract void updateBrokerXMLFile();
+    public void uploadUnchangedBrokerXMLFile(boolean isMaster){
+            String brokerFilePath = getAbsolutePath(scriptBasePath + stripEtc(configLoader.getBrokerXMLFile()));
+            uploadFileBashExecutor(brokerFilePath, configLoader.getBrokerXMLFile(), isMaster);
+    }
+    public void uploadUnchangedConfigFile(boolean isMaster){
+        String configFilePath = getAbsolutePath(scriptBasePath + (isMaster ? configLoader.getMasterConfigFile() : configLoader.getSlaveConfigFile()));
+        uploadFileBashExecutor(configFilePath, configLoader.getRemoteConfigFile(), isMaster);
+    }
 
-    public abstract void updateConfigFile();
-
-    protected void doUpdateBrokerXMLFile(String basePath, ConfigLoader configLoader) {
-        String brokerFilePath = getAbsolutePath(basePath + stripEtc(configLoader.getBrokerXMLFile()));
+    public void updateBrokerXMLFile(boolean isMaster) {
+        String brokerFilePath = getAbsolutePath(stripEtc(configLoader.getBrokerXMLFile()));
         Method[] JMSQueueTestMethods = getTestMethods(JMSQueueTest.class);
         Method[] JMSTopicTestMethods = getTestMethods(JMSTopicTest.class);
         Method[] KafkaJMSTopicTestMethods = getTestMethods(KafkaJMSTopicTest.class);
@@ -227,7 +239,7 @@ public abstract class ServerControl {
             if (isJaasEnabled || isSslEnabled) {
                 String findingElement = "security-enabled";
                 //String contentToBeChange = "tcp://0.0.0.0:61616?isSslEnabled=true;keyStorePath=/home/xplocode/OM/Documents/JMSBridgePackages/jms-bridge-server-SSL/etc/jms-bridge/server-keystore.jks;keyStorePassword=securepass1";
-                contentToBeChange = "tcp://0.0.0.0:61616?isSslEnabled=true;keyStorePath=" + getAbsolutePath(basePath + stripEtc(configLoader.getTrustStoreCertificateName())) + ";" + "keyStorePassword=" + configLoader.getTrustStorePassword();
+                contentToBeChange = "tcp://0.0.0.0:61616?isSslEnabled=true;keyStorePath=" + getAbsolutePath(scriptBasePath + stripEtc(configLoader.getTrustStoreCertificateName())) + ";" + "keyStorePassword=" + configLoader.getTrustStorePassword();
                 NodeList updateContent = document.getElementsByTagName(findingElement);
                 Element updateElement;
                 // Update the security enabled as true
@@ -265,7 +277,7 @@ public abstract class ServerControl {
             DOMSource source = new DOMSource(document);
             StreamResult result = new StreamResult(xmlFile);
             transformer.transform(source, result);
-            uploadFileBashExecutor(tempFilePath, configLoader.getBrokerXMLFile());
+            uploadFileBashExecutor(tempFilePath, configLoader.getBrokerXMLFile(), isMaster);
         } catch (TransformerException | IOException | ParserConfigurationException | SAXException e) {
             logger.error("Error transforming the document: " + e.getMessage(), e);
         }
@@ -276,11 +288,12 @@ public abstract class ServerControl {
         }
     }
 
-    protected abstract void uploadFileBashExecutor(String fileToUpload, String fileToBeReplacedInRemote);
+    protected abstract void uploadFileBashExecutor(String fileToUpload, String fileToBeReplacedInRemote, boolean isMaster);
 
     // Method to update the Kafka topic 'match' in the .conf file
-    protected void doUpdateConfigFile(String basePath, ConfigLoader configLoader) {
-        String configFilePath = getAbsolutePath(basePath + stripEtc(configLoader.getConfigFile()));
+    public void updateConfigFile( boolean isMaster) {
+
+        String configFilePath = getAbsolutePath(scriptBasePath + (isMaster ? configLoader.getMasterConfigFile() : configLoader.getSlaveConfigFile()));
         String tempFilePath = configFilePath + "_temp";
 
         logger.debug("Config file path: {} ", configFilePath);
@@ -310,7 +323,7 @@ public abstract class ServerControl {
                 for (; i < lineSize; i++) {
                     String line = lines.get(i).trim();
                     if (line.startsWith(keyToUpdate)) {
-                        lines.set(i, keyToUpdate + " = \"" + newValue + "*\"");
+                        lines.set(i, keyToUpdate + " = \"" + newValue + ".*\"");
                         logger.debug("Updating line: {}", lines.get(i));
                         break;
                     }
@@ -331,7 +344,7 @@ public abstract class ServerControl {
             return;
         }
         if (Files.exists(tempPath)) {
-            uploadFileBashExecutor(tempFilePath, configLoader.getConfigFile());
+            uploadFileBashExecutor(tempFilePath, configLoader.getRemoteConfigFile(), isMaster);
             try {
                 Files.delete(tempPath);
             } catch (IOException e) {
@@ -342,7 +355,7 @@ public abstract class ServerControl {
 
 
     public boolean isServerUp(ServerType serverType, int retryIntervalInSeconds, int maxRetries) {
-        maxRetries = maxRetries < 1 ? 1 : 3;
+        maxRetries = Math.max(maxRetries, 1);
         Pair<String, Integer> hostPort = getHostPortPairFromConfig(serverType);
         boolean isSuccess = false;
         for (int i = 0; i < maxRetries; i++) {
@@ -383,14 +396,16 @@ public abstract class ServerControl {
 
     /**
      * Kills jms bridge instances if running - in case previous test was aborted / didnt cleanup
+     *
      * @return script execution success / failure
      */
-    public abstract boolean resetInstances() ;
+    public abstract boolean resetInstances();
 
     /**
      * Resets kafka container state and streams state directories
+     *
      * @return script execution success / failure
      */
-    public abstract boolean resetKafkaAndLocalState() ;
+    public abstract boolean resetKafkaAndLocalState();
 
 }
