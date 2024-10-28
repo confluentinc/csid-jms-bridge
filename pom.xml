@@ -30,7 +30,12 @@
             </repository>
         -->
     </repositories>
-
+    <pluginRepositories>
+        <pluginRepository>
+            <id>cflt</id>
+            <url>https://packages.confluent.io/maven/</url>
+        </pluginRepository>
+    </pluginRepositories>
     <!--  <repositories>-->
     <!--    <repository>-->
     <!--      <id>confluent-codeartifact-central</id>-->

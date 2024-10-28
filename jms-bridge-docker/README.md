@@ -11,13 +11,16 @@ To build a new image with local changes:
     docker login
     ```
 
-1. Build docker images from local changes.
+2. Build docker images from local changes.
     ```
     mvn clean
     mvn -Pdocker package -DskipTests -Dspotbugs.skip -Dcheckstyle.skip  -Ddockerfile.skip=false -Dskip.docker.build=false -Ddocker.platforms=linux/amd64 -Ddocker.upstream-tag=latest-ubi8 -Ddocker.tag=local.build  -Ddocker.upstream-registry=''
     ```
    Change `docker.upstream-tag` if you want to depend on anything other than the latest master upstream, e.g. 5.4.x-latest.
-1. Check the image was built:
+
+   #### Note: For testing purposes only - when building without access to Confluent private maven repositories - if failure encountered when executing `exec-maven-plugin:3.1.0:java (create-licenses-for-docker)` - like `Caused by: java.lang.IllegalAccessException: no such method: io.confluent.licenses.LicenseFinder.main` - you may need to skip license injection by adding `-Ddocker.skip-license=true` to the above command. This is for local / test builds only and should not be used for PoC or Production builds. 
+
+3. Check the image was built:
     ```
     docker image ls | grep local.build
     ```
