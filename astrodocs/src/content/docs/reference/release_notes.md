@@ -11,6 +11,21 @@ Note that as this release is now in the Confluent Partner GitHub org, the releas
 
 ---
 
+## v. 3.3.6
+
+### Fixes
+
+* Update epoch markers on assignment - fix #41 #47 by @rkolesnev in https://github.com/confluent-partners/csid-jms-bridge/pull/50
+* Fix journal load / reload stability fixes #52 by @rkolesnev in https://github.com/confluent-partners/csid-jms-bridge/pull/53
+* Fix message ordering for #33 by @rkolesnev in https://github.com/confluent-partners/csid-jms-bridge/pull/54
+
+### Minor changes
+* read partner id from manifest with fallback to properties file by @rkolesnev in https://github.com/confluent-partners/csid-jms-bridge/pull/56
+* add e2e test suite from Psyncopate adapted for local execution by @rkolesnev in https://github.com/confluent-partners/csid-jms-bridge/pull/51
+* docs: Build astro docs, add release notes for 3.3.5, save point for 3.3.5 logs by @eddyv in https://github.com/confluent-partners/csid-jms-bridge/pull/46
+
+**Full Changelog**: https://github.com/confluent-partners/csid-jms-bridge/compare/v3.3.5...v3.3.6
+
 ## v. 3.3.5
 
 ### Fixes

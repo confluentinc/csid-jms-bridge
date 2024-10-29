@@ -78,6 +78,8 @@ It will require the JMS-Bridge to be configured with information about:
 A message may only be routed to a single kafka topic and it will be derived from the first route that matches.
 The order of the routing will be maintained from how it is ordered in the configuration.
 
+Due to asynchronous nature of Kafka Streams runtime - messages can be re-produced to Kafka Topics after JMS Bridge node crash - causing duplication on Kafka Topics only - see [JMS Kafka divert](/concepts/jms_kafka_divert/) for more information.
+
 ### Converting Messages
 
 All JMS headers will be converted to corresponding Kafka message headers using a standard convention.

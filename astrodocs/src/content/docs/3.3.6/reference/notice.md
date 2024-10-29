@@ -1,0 +1,9 @@
+---
+title: Legal Notice
+description: Legal Notice
+slug: 3.3.6/reference/notice
+---
+
+Subject to the terms of this Exhibit and the applicable Order, Confluent grants to Customer a limited, perpetual, royalty free, non-exclusive, non-sublicensable, non-transferable license to install, use, and modify Confluent’s CP e2e JMS Bridge accelerator software (“Accelerator Software”), solely for Customer’s internal business operations. Customer shall not, and shall not permit or encourage any third party to: (a) use the Accelerator Software for third-party training, software-as-a-service, time-sharing or service bureau use or any other external business purpose, (b) disassemble, decompile or reverse engineer any portions of the Accelerator Software that are not provided in source code format, or otherwise attempt to gain access to the source code to such Accelerator Software. The foregoing restriction is inapplicable to the extent prohibited by applicable law. Customer acknowledges that Confluent retains all proprietary rights, title and interest, including all intellectual property rights, in and to the Accelerator Software and any changes and other modifications thereto, and as between the parties all such rights shall vest in Confluent. Confluent reserves all rights not expressly granted herein. No rights are granted by implication. The Accelerator Software will not be supported by Confluent and no updates, upgrade, bug fixes, patches, new version will be provided. The Accelerator Software will be delivered only through an electronic transfer. Confluent provides the Accelerator Software free-of-charge and assumes no warranty or any kind of responsibility for any fit of purpose, specifications, requirements or compatibility requested or intended by Customer. Customer acknowledges that the Accelerator Software was properly reviewed before being installed and used and is provided by Confluent as-is.
+
+**Last updated August 2020**
