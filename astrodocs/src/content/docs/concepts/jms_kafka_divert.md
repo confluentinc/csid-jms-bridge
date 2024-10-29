@@ -7,7 +7,7 @@ head:
     content: ":root { --sl-content-width: 100% !important; }"
 ---
 
-## JMS Producer to Kafka Topic Divert Processing on Crash Flow
+## JMS Destination to Kafka Topic Egress - Processing on Crash Flow
 
 Following flow highlights limitation that asynchronous processing of divert in Kafka Streams based message journal can have upon crash of JMS Bridge node.
 Kafka Streams processing state is saved periodically (known as Commit) and upon crash, the state is restored from the last commit point. Due to this, messages can be re-produced to Kafka Topics after JMS Bridge node crash - causing duplication on Kafka Topics only.
@@ -75,4 +75,53 @@ sequenceDiagram
     Kafka Divert Processor->>Kafka Topic: Kafka Produce 4 <br/>(original)
     Message Journal->>Kafka Divert Processor: Apply Divert 4* <br/>(retry)
     Kafka Divert Processor->>Kafka Topic: Kafka Produce 4* <br/>(retry)
+```
+
+## Kafka Topic to JMS Destination Ingress - Processing on Crash Flow
+
+Following flow highlights limitation that asynchronous processing of divert in Kafka Streams based message journal can have upon crash of JMS Bridge node.
+Kafka Streams processing state is saved periodically (known as Commit) and upon crash, the state is restored from the last commit point. Due to this, messages can be re-produced to Kafka Topics after JMS Bridge node crash - causing duplication on Kafka Topics only.
+
+Sequence diagram below illustrates a flow where:
+- JMS Bridge Ingress Kafka Consumer polls Kafka Topic for records to route into JMS
+- Records Batch is returned from Kafka Topic containing records 1,2,3
+- For each record in the batch - record processed into JMS Destination (and Message Journal)
+- Kafka Offsets committed for the record batch
+- Kafka Polled for more records
+- Seconds Records Batch is returned from Kafka Topic containing records 4,5,6
+- For each record in the batch - record processed into JMS Destination (and Message Journal)
+- JMS Bridge node crashes part way through processing record batch - so 4,5 are processed but 6 is not yet and offsets not committed
+- Standby JMS Bridge takes over (or node is restarted)
+- Ingress Kafka Consumer resubscribes to Kafka Topic and resumes from last committed offset (3)
+- Kafka Polled for more records
+- Third Records Batch is returned from Kafka Topic containing records 4,5,6,7
+- Messages 2,3 are re-processed and diverted to Kafka again (causing duplicates on Kafka Topic)
+- For each record in the batch - record processed into JMS Destination (and Message Journal)
+- Records 4,5 are duplicated as they were re-consumed.
+The number of re-consumed messages will depend on exact timing of a crash and record batch sizing.
+```mermaid
+sequenceDiagram
+    participant Kafka
+    participant Kafka Consumer
+    participant Message Journal
+    Note over Kafka Consumer, Message Journal: Internal to JMS Bridge
+    Kafka Consumer->>+Kafka:Poll
+    Kafka-->>-Kafka Consumer:Records Batch 1 (1,2,3)
+    loop per message <br/> in batch
+        Kafka Consumer->>Message Journal: ingest 1,2,3
+    end
+    Kafka Consumer->>Kafka:Commit Offsets (Async) (3)
+    Kafka Consumer->>+Kafka:Poll
+    Kafka-->>-Kafka Consumer:Records Batch 2 (4,5,6)
+    loop per message <br/> in batch
+        Kafka Consumer->>Message Journal: ingest 4,5
+    Note over Kafka Consumer, Message Journal: Node Crash <br/> after 4,5 ingested
+    end
+    Note over Kafka Consumer, Message Journal: Failover - consume state <br/> loaded from last <br/> Offset Commit (Rec 3)
+    Kafka Consumer->>+Kafka:Poll
+    Kafka-->>-Kafka Consumer:Records Batch 3 (Rec 4,5,6,7)
+    loop per message <br/> in batch
+        Kafka Consumer->>Message Journal: ingest 4,5,6,7
+    end
+    Kafka Consumer->>Kafka:Commit Offsets (Async)
 ```
