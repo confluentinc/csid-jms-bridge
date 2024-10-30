@@ -2,6 +2,7 @@ package io.psyncopate;
 
 import io.psyncopate.service.BrokerService;
 import io.psyncopate.util.JBTestWatcher;
+import io.psyncopate.util.Util;
 import io.psyncopate.util.constants.MessagingScheme;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -92,6 +93,7 @@ public class JMSQueueTest {
     @Order(7)
     @DisplayName("Queue Master failover with producer restart and full message consumption.")
     void failoverWithResumedProductionAndConsumeForQueue() throws Exception {
+        Util.isDownloadLog = true;
         jmsCommonTest.failoverWithResumedProductionAndConsume(MessagingScheme.JMS_ANYCAST);
     }
 
@@ -135,6 +137,7 @@ public class JMSQueueTest {
     @Order(13)
     @DisplayName("Queue Master and slave failovers with producer restarts and full message consumption.")
     void tripleFailoverWithProducerRestartsAndFinalConsumptionForQueue() throws Exception {
+        Util.isDownloadLog = true;
         jmsCommonTest.tripleFailoverWithProducerRestartsAndFinalConsumption(MessagingScheme.JMS_ANYCAST);
     }
 }

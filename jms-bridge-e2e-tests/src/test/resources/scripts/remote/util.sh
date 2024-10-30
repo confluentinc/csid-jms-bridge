@@ -79,6 +79,7 @@ function check_jms_server {
     elif [ "$MODE" = "standby" ]; then
         local backupRetryCounter=1
         for ((backupRetryCounter = 1; backupRetryCounter <= MAX_RETRIES; backupRetryCounter++)); do
+          sleep $RETRY_INTERVAL
             if ssh -i "$PEM_FILE" "$USER"@"$SERVER_NAME" "lsof -i:$APP_PORT | grep -q 'ESTABLISHED'"; then
                 log "DEBUG" "Backup server has ESTABLISHED connections on port $APP_PORT."
                 if ssh -i "$PEM_FILE" "$USER"@"$SERVER_NAME" "grep -q 'backup announced' $REMOTE_LOG_FILE_PATH"; then
@@ -91,7 +92,7 @@ function check_jms_server {
                 log "DEBUG" "Backup server not yet in standby mode. Retry $backupRetryCounter/$MAX_RETRIES..."
             fi
 
-            sleep $RETRY_INTERVAL
+
         done
         log "INFO" "Backup server did not enter standby mode within the expected time."
         return 1

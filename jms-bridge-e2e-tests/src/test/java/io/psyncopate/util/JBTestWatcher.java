@@ -27,7 +27,7 @@ public class JBTestWatcher implements TestWatcher, BeforeEachCallback, AfterEach
     @Override
     public void beforeEach(ExtensionContext context) {
         steps.setLength(0);
-        GlobalSetup.getServerSetup().resetInstances();
+        //GlobalSetup.getServerSetup().resetInstances();
 
         String methodName = context.getTestMethod().map(Method::getName).orElse("Unknown Method");
         String className = context.getTestClass().map(Class::getName).orElse("Unknown Class");
@@ -40,7 +40,7 @@ public class JBTestWatcher implements TestWatcher, BeforeEachCallback, AfterEach
         String className = context.getRequiredTestClass().getSimpleName();
         logger.info("Test class name: {}", className);
         resetServerState(); //graceful shutdown of JMSBridge servers
-        GlobalSetup.getServerSetup().resetKafkaAndLocalState(); // reset of KafkaStreams state and Kafka state
+        //GlobalSetup.getServerSetup().resetKafkaAndLocalState(); // reset of KafkaStreams state and Kafka state
         String methodName = context.getTestMethod().map(Method::getName).orElse("Unknown Method");
         String classFullName = context.getTestClass().map(Class::getName).orElse("Unknown Class");
         logger.info("Finished test: {} in class: {}", methodName, classFullName);
@@ -79,9 +79,7 @@ public class JBTestWatcher implements TestWatcher, BeforeEachCallback, AfterEach
             Util.downloadLog(testCaseName, true);
         } else if (message.contains("Slave Server should start")) {
             Util.downloadLog(testCaseName, false);
-        } else if (message.contains("Number of sent and received messages should match")) {
-        	
-        } else if (message.contains("Number of received messages should not be zero")){
+        } else if (message.contains("Expected value :")){
             Util.downloadLog(testCaseName, true);
             Util.downloadLog(testCaseName, false);
         }

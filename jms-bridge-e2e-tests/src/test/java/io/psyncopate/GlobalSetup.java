@@ -11,10 +11,11 @@ import io.psyncopate.util.constants.Constants;
 import lombok.NonNull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.junit.jupiter.api.extension.AfterAllCallback;
 import org.junit.jupiter.api.extension.BeforeAllCallback;
 import org.junit.jupiter.api.extension.ExtensionContext;
 
-public class GlobalSetup implements BeforeAllCallback {
+public class GlobalSetup implements BeforeAllCallback, AfterAllCallback {
     private static final Logger logger = LogManager.getLogger(GlobalSetup.class);
     private static boolean isInitialized = false;
     private static ServerSetup serverSetupInstance;
@@ -50,8 +51,20 @@ public class GlobalSetup implements BeforeAllCallback {
             }
             serverSetupInstance= new ServerSetup(serverControl, executionMode);
             isInitialized = true;
+
+            GlobalSetup.getServerSetup().resetInstances();
         } else {
             logger.info("Global setup already initialized, skipping...");
+        }
+    }
+
+    @Override
+    public void afterAll(ExtensionContext context) {
+        if (isInitialized) {
+            logger.info("Global tearing down configurations.");
+            GlobalSetup.getServerSetup().resetKafkaAndLocalState(); // reset of KafkaStreams state and Kafka state
+        } else {
+            logger.info("Global setup not initialized yet.");
         }
     }
 }

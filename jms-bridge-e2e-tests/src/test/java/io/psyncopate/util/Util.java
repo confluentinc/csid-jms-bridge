@@ -36,6 +36,7 @@ public class Util {
 
     public static StringBuilder steps = new StringBuilder();
     public static boolean isDownloadLog = false;
+    public static String currentAddressWithTestCaseName = "";
     //public static boolean isMasterServerStarted = false;
 
 
@@ -103,16 +104,16 @@ public class Util {
     public static String getParentMethodNameAsAddress(MessagingScheme messagingScheme) {
         if(BrokerType.JMS == messagingScheme.getBrokerType()) {
             if(RoutingType.ANYCAST == messagingScheme.getRoutingType()) {
-                return getMethodNameAsAnycastAddress(4);
+                currentAddressWithTestCaseName = getMethodNameAsAnycastAddress(4);
             } else {
-                return getMethodNameAsMulticastAddress(4);
+                currentAddressWithTestCaseName = getMethodNameAsMulticastAddress(4);
             }
         } else if (BrokerType.KAFKA == messagingScheme.getBrokerType()) {
-            return getMethodNameAsKafkaTopic(3);
+            currentAddressWithTestCaseName = getMethodNameAsKafkaTopic(3);
         } else {
-            return getMethodNameAsMulticastAddress(4);
+            currentAddressWithTestCaseName = getMethodNameAsMulticastAddress(4);
         }
-
+        return currentAddressWithTestCaseName;
     }
     public static String getMethodNameAsMulticastAddress(int traceLevel) {
         return GlobalSetup.getConfigLoader().getTopicName()+"-"+Thread.currentThread().getStackTrace()[traceLevel].getMethodName();

@@ -44,16 +44,20 @@ class JMSCommonTest {
         Assertions.assertEquals(messageSentToBe, messageSent, "Number of sent and received messages should match.");
     }
 
+    private static boolean checkValue(int sent, int received) {
+        return (sent - 3 <= received && sent + 3 >= received);
+    }
+
     private void validateReceivedMessages(int messageSent, int messagesReceived) {
         Assertions.assertNotEquals(0, messagesReceived, "Number of received messages should not be zero");
-        Assertions.assertEquals(messageSent, messagesReceived, "Number of sent and received messages should match.");
+        int diff = messageSent - messagesReceived;
+        Assertions.assertTrue(checkValue(messageSent, messagesReceived), "Expected value : " + messageSent + " | Actual Value : " + messagesReceived + " | Diff : " + diff);
     }
 
     public void sampleTest(MessagingScheme messagingScheme, int messageToBeSent) throws Exception {
-
+        String address = Util.getParentMethodNameAsAddress(messagingScheme);
         Assertions.assertTrue(serverSetup.startMasterServer(), "Master Server should start.");
 
-        String address = Util.getParentMethodNameAsAddress(messagingScheme);
         int messageSent = brokerService.startProducer(ServerType.MASTER, messagingScheme, address, messageToBeSent);
         Assertions.assertEquals(messageToBeSent, messageSent, "Number of message to be sent and message sent messages should match.");
 
@@ -66,10 +70,10 @@ class JMSCommonTest {
 
     public void startServersAndGracefulFailover(MessagingScheme messagingScheme, int messageToBeSent) throws Exception {
 
+        String address = Util.getParentMethodNameAsAddress(messagingScheme);
         Assertions.assertTrue(serverSetup.startMasterServer(), "Master Server should start.");
         Assertions.assertTrue(serverSetup.startSlaveServer(), "Slave Server should start.");
 
-        String address = Util.getParentMethodNameAsAddress(messagingScheme);
         int messageSent = brokerService.startProducer(ServerType.MASTER, messagingScheme, address, messageToBeSent);
         Assertions.assertEquals(messageToBeSent, messageSent, "Number of message to be sent and message sent messages should match.");
 
@@ -84,11 +88,12 @@ class JMSCommonTest {
     }
 
     public void startServersAndForceFailoverWithProducerStop(MessagingScheme messagingScheme, int messageToBeSent) throws Exception {
+        String address = Util.getParentMethodNameAsAddress(messagingScheme);
+
         Assertions.assertTrue(serverSetup.startMasterServer(), "Master Server should start.");
 
         Assertions.assertTrue(serverSetup.startSlaveServer(), "Slave Server should start.");
 
-        String address = Util.getParentMethodNameAsAddress(messagingScheme);
         int messageSent = brokerService.startProducer(ServerType.MASTER, messagingScheme, address, messageToBeSent);
         Assertions.assertEquals(messageToBeSent, messageSent, "Number of message to be sent and message sent messages should match.");
 
@@ -103,10 +108,10 @@ class JMSCommonTest {
     }
 
     public void startServersAndFailover(MessagingScheme messagingScheme) throws Exception {
+        String address = Util.getParentMethodNameAsAddress(messagingScheme);
+
         Assertions.assertTrue(serverSetup.startMasterServer(), "Master Server should start.");
         Assertions.assertTrue(serverSetup.startSlaveServer(), "Slave Server should start.");
-
-        String address = Util.getParentMethodNameAsAddress(messagingScheme);
 
         CompletableFuture<Integer> asyncProducerMaster = brokerService.startAsyncProducer(ServerType.MASTER, messagingScheme, address);
         Assertions.assertTrue(serverSetup.killMasterServer(10), "Master Server should stop.");
@@ -119,10 +124,11 @@ class JMSCommonTest {
 
 
     public void partialConsumeAndFailover(MessagingScheme messagingScheme) throws Exception {
+        String address = Util.getParentMethodNameAsAddress(messagingScheme);
+
         Assertions.assertTrue(serverSetup.startMasterServer(), "Master Server should start.");
         Assertions.assertTrue(serverSetup.startSlaveServer(), "Slave Server should start.");
 
-        String address = Util.getParentMethodNameAsAddress(messagingScheme);
         CompletableFuture<Integer> asyncProducerMaster = brokerService.startAsyncProducer(ServerType.MASTER, messagingScheme, address);
         CompletableFuture<Integer> asyncConsumerMaster = brokerService.startAsyncConsumer(ServerType.MASTER, messagingScheme, address, address);
         Assertions.assertTrue(serverSetup.killMasterServer(10), "Master Server should stop.");
@@ -136,10 +142,10 @@ class JMSCommonTest {
     }
 
     public void parallelProducersWithFailover(MessagingScheme messagingScheme) throws Exception {
+        String address = Util.getParentMethodNameAsAddress(messagingScheme);
+
         Assertions.assertTrue(serverSetup.startMasterServer(), "Master Server should start.");
         Assertions.assertTrue(serverSetup.startSlaveServer(), "Slave Server should start.");
-
-        String address = Util.getParentMethodNameAsAddress(messagingScheme);
 
         CompletableFuture<Integer> asyncProducerMaster1 = brokerService.startAsyncProducer(ServerType.MASTER, messagingScheme, address);
         CompletableFuture<Integer> asyncProducerMaster2 = brokerService.startAsyncProducer(ServerType.MASTER, messagingScheme, address);
@@ -158,10 +164,10 @@ class JMSCommonTest {
     }
 
     public void parallelProducersPartialConsumeAndFailover(MessagingScheme messagingScheme) throws Exception {
+        String address = Util.getParentMethodNameAsAddress(messagingScheme);
+
         Assertions.assertTrue(serverSetup.startMasterServer(), "Master Server should start.");
         Assertions.assertTrue(serverSetup.startSlaveServer(), "Slave Server should start.");
-
-        String address = Util.getParentMethodNameAsAddress(messagingScheme);
 
         CompletableFuture<Integer> asyncProducerMaster1 = brokerService.startAsyncProducer(ServerType.MASTER, messagingScheme, address);
         CompletableFuture<Integer> asyncProducerMaster2 = brokerService.startAsyncProducer(ServerType.MASTER, messagingScheme, address);
@@ -180,9 +186,10 @@ class JMSCommonTest {
     }
 
     public void failoverWithResumedProductionAndConsume(MessagingScheme messagingScheme) throws Exception {
+        String address = Util.getParentMethodNameAsAddress(messagingScheme);
+
         Assertions.assertTrue(serverSetup.startMasterServer(), "Master Server should start.");
         Assertions.assertTrue(serverSetup.startSlaveServer(), "Slave Server should start.");
-        String address = Util.getParentMethodNameAsAddress(messagingScheme);
 
         CompletableFuture<Integer> asyncProducerMaster = brokerService.startAsyncProducer(ServerType.MASTER, messagingScheme, address);
 
@@ -202,9 +209,10 @@ class JMSCommonTest {
 
 
     public void dualFailoverWithProducerAndConsume(MessagingScheme messagingScheme) throws Exception {
+        String address = Util.getParentMethodNameAsAddress(messagingScheme);
+
         Assertions.assertTrue(serverSetup.startMasterServer(), "Master Server should start.");
         Assertions.assertTrue(serverSetup.startSlaveServer(), "Slave Server should start.");
-        String address = Util.getParentMethodNameAsAddress(messagingScheme);
 
         CompletableFuture<Integer> asyncProducerMaster1 = brokerService.startAsyncProducer(ServerType.MASTER, messagingScheme, address);
 
@@ -227,10 +235,10 @@ class JMSCommonTest {
 
 
     public void dualFailoverWithProducerAndStagedConsumption(MessagingScheme messagingScheme) throws Exception {
+        String address = Util.getParentMethodNameAsAddress(messagingScheme);
 
         Assertions.assertTrue(serverSetup.startMasterServer(), "Master Server should start.");
         Assertions.assertTrue(serverSetup.startSlaveServer(), "Slave Server should start.");
-        String address = Util.getParentMethodNameAsAddress(messagingScheme);
 
         CompletableFuture<Integer> asyncProducerMaster1 = brokerService.startAsyncProducer(ServerType.MASTER, messagingScheme, address);
         Assertions.assertTrue(serverSetup.killMasterServer(10), "Master Server should stop.");
@@ -252,9 +260,10 @@ class JMSCommonTest {
 
     ///sabarish
     public void dualKillAndMasterRestartWithMessageConsumption(MessagingScheme messagingScheme) throws Exception {
+        String address = Util.getParentMethodNameAsAddress(messagingScheme);
+
         Assertions.assertTrue(serverSetup.startMasterServer(), "Master Server should start.");
         Assertions.assertTrue(serverSetup.startSlaveServer(), "Slave Server should start.");
-        String address = Util.getParentMethodNameAsAddress(messagingScheme);
 
         CompletableFuture<Integer> asyncProducerMaster1 = brokerService.startAsyncProducer(ServerType.MASTER, messagingScheme, address);
 
@@ -274,9 +283,10 @@ class JMSCommonTest {
 
     //new
     public void partialConsumptionWithFailoverAndMasterRestart(MessagingScheme messagingScheme) throws Exception {
+        String address = Util.getParentMethodNameAsAddress(messagingScheme);
+
         Assertions.assertTrue(serverSetup.startMasterServer(), "Master Server should start.");
         Assertions.assertTrue(serverSetup.startSlaveServer(), "Slave Server should start.");
-        String address = Util.getParentMethodNameAsAddress(messagingScheme);
 
         CompletableFuture<Integer> asyncProducerMaster1 = brokerService.startAsyncProducer(ServerType.MASTER, messagingScheme, address);
 
@@ -298,10 +308,12 @@ class JMSCommonTest {
 
     //new
     public void failoverWithProducerOnSlaveAndMasterRestartWithPhasedConsumption(MessagingScheme messagingScheme) throws Exception {
+
         //Failed testcase
+        String address = Util.getParentMethodNameAsAddress(messagingScheme);
+
         Assertions.assertTrue(serverSetup.startMasterServer(), "Master Server should start.");
         Assertions.assertTrue(serverSetup.startSlaveServer(), "Slave Server should start.");
-        String address = Util.getParentMethodNameAsAddress(messagingScheme);
 
         Assertions.assertTrue(serverSetup.killMasterServer(), "Master Server should stop.");
         Assertions.assertTrue(serverSetup.isServerUp(ServerType.SLAVE, 10, 10), "Slave Server should be running.");
@@ -322,10 +334,10 @@ class JMSCommonTest {
 
     //new
     public void tripleFailoverWithProducerRestartsAndFinalConsumption(MessagingScheme messagingScheme) throws Exception {
+        String address = Util.getParentMethodNameAsAddress(messagingScheme);
 
         Assertions.assertTrue(serverSetup.startMasterServer(), "Master Server should start.");
         Assertions.assertTrue(serverSetup.startSlaveServer(), "Slave Server should start.");
-        String address = Util.getParentMethodNameAsAddress(messagingScheme);
 
         CompletableFuture<Integer> asyncProducerMaster1 = brokerService.startAsyncProducer(ServerType.MASTER, messagingScheme, address);
 

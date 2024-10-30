@@ -65,9 +65,9 @@ public class ServerSetup {
         boolean isSuccess = serverControl.stopServer(true, false);
         if (isSuccess) {
             Util.addSteps(steps, "Stopped Master Server");
-            if (Util.isDownloadLog) {
-                serverControl.downloadLog(Util.getCurrentMethodNameByLevel(3), true);
-            }
+        }
+        if (Util.isDownloadLog) {
+            serverControl.downloadLog(Util.currentAddressWithTestCaseName, true);
         }
         return isSuccess;
     }
@@ -77,9 +77,9 @@ public class ServerSetup {
         boolean isSuccess = serverControl.stopServer(false, false);
         if (isSuccess) {
             Util.addSteps(steps, "Stopped Slave Server");
-            if (Util.isDownloadLog) {
-                serverControl.downloadLog(Util.getCurrentMethodNameByLevel(3), false);
-            }
+        }
+        if (Util.isDownloadLog) {
+            serverControl.downloadLog(Util.currentAddressWithTestCaseName, false);
         }
         return isSuccess;
     }
@@ -98,6 +98,9 @@ public class ServerSetup {
         if (isSuccess) {
             Util.addSteps(steps, "Killed Slave Server");
         }
+        if(Util.isDownloadLog) {
+            serverControl.downloadLog(Util.currentAddressWithTestCaseName, false);
+        }
         return isSuccess;
     }
 
@@ -114,6 +117,9 @@ public class ServerSetup {
         boolean isSuccess = serverControl.stopServer(true, true);
         if (isSuccess) {
             Util.addSteps(steps, "Killed Master Server");
+        }
+        if(Util.isDownloadLog) {
+            serverControl.downloadLog(Util.currentAddressWithTestCaseName, true);
         }
         return isSuccess;
     }

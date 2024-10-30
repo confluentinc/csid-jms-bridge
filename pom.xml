@@ -61,9 +61,9 @@
         <module>jms-bridge-docker</module>
         <module>jms-bridge-perf</module>
         <module>jms-bridge-server</module>
-        <!--Enable to run e2e tests
+        <!--Enable to run e2e tests -->
         <module>jms-bridge-e2e-tests</module>
-        -->
+
         <!-- DISABLE FOR NOW
         <module>jms-bridge-tests</module>
         <module>jms-bridge-integration-tests</module>
