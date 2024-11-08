@@ -1,16 +1,13 @@
 package io.psyncopate;
 
 import io.psyncopate.service.BrokerService;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import io.psyncopate.util.JBTestWatcher;
 import io.psyncopate.util.constants.MessagingScheme;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.RegisterExtension;
-
-import java.io.IOException;
-//@Disabled
 @ExtendWith(GlobalSetup.class)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class JMSTopicTest {
@@ -128,5 +125,39 @@ public class JMSTopicTest {
     @DisplayName("Topic Master and slave failovers with producer restarts and full message consumption.")
     void tripleFailoverWithProducerRestartsAndFinalConsumptionForTopic() throws Exception {
         jmsCommonTest.tripleFailoverWithProducerRestartsAndFinalConsumption(MessagingScheme.JMS_MULTICAST);
+    }
+
+    @Test
+    @DisplayName("With local transaction produce to Master, commit, failover to Slave, and consume from Slave.")
+    void verifyLocalTransactionProduceFailoverConsume() throws Exception {
+        jmsCommonTest.verifyLocalTransactionProduceFailover(MessagingScheme.JMS_MULTICAST);
+    }
+
+    @Test
+    @DisplayName("With local transaction produce to Master, commit, consume from Master")
+    void verifyLocalTransactionProduceOnMaster() throws Exception {
+        jmsCommonTest.verifyLocalTransactionProduceOnMaster(MessagingScheme.JMS_MULTICAST);
+    }
+
+    @Test
+    @DisplayName("Produce to Master, verify consume in transaction from Master")
+    void verifyLocalTransactionConsumeOnMaster() throws Exception {
+        jmsCommonTest.verifyLocalTransactionConsumeOnMaster(MessagingScheme.JMS_MULTICAST);
+    }
+
+    @Test
+    @DisplayName("With local transaction produce to Master, dont commit, failover, verify nothing to consume from Slave")
+    public void verifyLocalTransactionProduceOnMasterRollbackOnFailover() throws Exception {
+        jmsCommonTest.verifyLocalTransactionProduceOnMasterRollbackOnFailover(MessagingScheme.JMS_MULTICAST);
+    }
+    @Test
+    @DisplayName("Produce to Master, consume in transaction, don't commit, failover, consume again on Slave")
+    public void verifyLocalTransactionConsumeOnMasterRollbackOnFailover() throws Exception{
+        jmsCommonTest.verifyLocalTransactionConsumeOnMasterRollbackOnFailover(MessagingScheme.JMS_MULTICAST);
+    }
+    @Test
+    @DisplayName("Produce to master, consume in transaction, commit, failover, verify that messages are cannot be consumed again (as 1st consume committed / acked)")
+    public void verifyLocalTransactionConsumeOnMasterCommitOnFailover() throws Exception{
+        jmsCommonTest.verifyLocalTransactionConsumeOnMasterCommitOnFailover(MessagingScheme.JMS_MULTICAST);
     }
 }

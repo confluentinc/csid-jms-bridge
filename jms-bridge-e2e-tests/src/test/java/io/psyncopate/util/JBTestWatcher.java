@@ -3,7 +3,6 @@ package io.psyncopate.util;
 import io.psyncopate.GlobalSetup;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import io.psyncopate.server.ServerSetup;
 import org.junit.jupiter.api.extension.AfterEachCallback;
 import org.junit.jupiter.api.extension.BeforeEachCallback;
 import org.junit.jupiter.api.extension.ExtensionContext;

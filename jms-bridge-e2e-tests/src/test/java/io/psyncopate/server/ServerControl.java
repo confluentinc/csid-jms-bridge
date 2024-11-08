@@ -190,7 +190,7 @@ public abstract class ServerControl {
     }
 
     public void updateBrokerXMLFile(boolean isMaster) {
-        String brokerFilePath = getAbsolutePath(stripEtc(configLoader.getBrokerXMLFile()));
+        String brokerFilePath = getAbsolutePath(scriptBasePath + stripEtc(configLoader.getBrokerXMLFile()));
         Method[] JMSQueueTestMethods = getTestMethods(JMSQueueTest.class);
         Method[] JMSTopicTestMethods = getTestMethods(JMSTopicTest.class);
         Method[] KafkaJMSTopicTestMethods = getTestMethods(KafkaJMSTopicTest.class);

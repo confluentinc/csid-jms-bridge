@@ -1,19 +1,20 @@
 package io.psyncopate.server;
 
-import io.psyncopate.util.ConfigLoader;
-import io.psyncopate.util.constants.Constants;
-import lombok.RequiredArgsConstructor;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import io.psyncopate.client.JMSClient;
 import io.psyncopate.client.KafkaJmsClient;
+import io.psyncopate.util.ConfigLoader;
 import io.psyncopate.util.Util;
+import io.psyncopate.util.constants.Constants;
 import io.psyncopate.util.constants.RoutingType;
 import io.psyncopate.util.constants.ServerType;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import javax.jms.JMSException;
+import javax.jms.Session;
 import java.util.HashMap;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static io.psyncopate.util.Util.steps;
 
@@ -137,6 +138,11 @@ public class ServerSetup {
         return sentMessagesCount;
     }
 
+    public Session createSession(ServerType serverType, boolean transacted, int acknowledgeMode) throws JMSException {
+        JMSClient jmsClient = new JMSClient();
+        return jmsClient.createSessionWithDefaultConnection(serverType, transacted, acknowledgeMode);
+    }
+
     public int startKafkaProducer(HashMap<String, String> server, String destination, int messageToBeSent) throws JMSException {
 
         Util.addSteps(steps, "Started Kafka Producer");
@@ -148,7 +154,20 @@ public class ServerSetup {
         return sentMessagesCount;
     }
 
-    public CompletableFuture<Integer> startJmsProducerAsync(ServerType serverType, String destination, int messageCountToBeSent, RoutingType routingType) {
+    public CompletableFuture<Integer> startKafkaProducerAsync(HashMap<String, String> server, String destination, int messageToBeSent, AtomicBoolean stopFlag) {
+
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                return KafkaJmsClient.kafkaProducer(server, destination, messageToBeSent, stopFlag);
+            } catch (RuntimeException e) {
+                logger.error("Failed to send messages asynchronously: {}", e.getMessage());
+                return 0;
+            }
+        });
+    }
+
+    public CompletableFuture<Integer> startJmsProducerAsync(ServerType serverType, String destination,
+                                                            int messageCountToBeSent, RoutingType routingType) {
         return CompletableFuture.supplyAsync(() -> {
             try {
                 return startJmsProducer(serverType, destination, routingType, messageCountToBeSent);
@@ -159,7 +178,8 @@ public class ServerSetup {
         });
     }
 
-    public CompletableFuture<Integer> startJmsProducerAsync(ServerType serverType, String destination, RoutingType routingType) {
+    public CompletableFuture<Integer> startJmsProducerAsync(ServerType serverType, String destination, RoutingType
+            routingType) {
         return CompletableFuture.supplyAsync(() -> {
             try {
                 return startJmsProducer(serverType, destination, routingType, -1);
@@ -181,7 +201,8 @@ public class ServerSetup {
         return consumedMessagesCount;
     }
 
-    public int startJmsConsumer(ServerType serverType, String destination, RoutingType routingType, int messageCount, Long sleepInMillis) throws JMSException, InterruptedException {
+    public int startJmsConsumer(ServerType serverType, String destination, RoutingType routingType,
+                                int messageCount, Long sleepInMillis) throws JMSException, InterruptedException {
         JMSClient jmsClient = new JMSClient();
         if (messageCount == -1) {
             Util.addSteps(steps, "Started JMS Consumer to consume all messages");
@@ -193,7 +214,8 @@ public class ServerSetup {
         return consumedMessagesCount;
     }
 
-    public CompletableFuture<Integer> startJmsConsumerAsync(ServerType serverType, String destination, RoutingType routingType, int totalMessage, Long sleepInMillis) {
+    public CompletableFuture<Integer> startJmsConsumerAsync(ServerType serverType, String destination, RoutingType
+            routingType, int totalMessage, Long sleepInMillis) {
         return CompletableFuture.supplyAsync(() -> {
             try {
                 return startJmsConsumer(serverType, destination, routingType, totalMessage, sleepInMillis);
@@ -204,7 +226,8 @@ public class ServerSetup {
         });
     }
 
-    public CompletableFuture<Integer> startJmsConsumerAsync(ServerType serverType, String destination, RoutingType routingType, Long sleepInMillis) {
+    public CompletableFuture<Integer> startJmsConsumerAsync(ServerType serverType, String destination, RoutingType
+            routingType, Long sleepInMillis) {
         return CompletableFuture.supplyAsync(() -> {
             try {
                 return startJmsConsumer(serverType, destination, routingType, sleepInMillis);
@@ -215,11 +238,13 @@ public class ServerSetup {
         });
     }
 
-    public int startJmsConsumer(ServerType serverType, String destination, RoutingType routingType, Long sleepInMillis) throws JMSException, InterruptedException {
+    public int startJmsConsumer(ServerType serverType, String destination, RoutingType routingType, Long
+            sleepInMillis) throws JMSException, InterruptedException {
         return startJmsConsumer(serverType, destination, routingType, -1, sleepInMillis);
     }
 
-    public int startJmsConsumer(ServerType serverType, String destination, RoutingType routingType) throws JMSException, InterruptedException {
+    public int startJmsConsumer(ServerType serverType, String destination, RoutingType routingType) throws
+            JMSException, InterruptedException {
         return startJmsConsumer(serverType, destination, routingType, -1, 0L);
     }
 

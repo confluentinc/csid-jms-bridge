@@ -17,12 +17,20 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+
+import static io.psyncopate.util.Util.sleepQuietly;
 
 public class KafkaJmsClient {
     private static final Logger logger = LogManager.getLogger(KafkaJmsClient.class);
 
     public static int kafkaProducer(HashMap<String, String> server, String destination, int messageCountToBeSent) {
+        return kafkaProducer(server, destination, messageCountToBeSent);
+    }
+
+    public static int kafkaProducer(HashMap<String, String> server, String destination, int messageCountToBeSent, AtomicBoolean stopFlag) {
         Properties properties = new Properties();
         properties.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, server.get(Constants.HOST) + ":" + server.get(Constants.APP_PORT));
         properties.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());
@@ -31,7 +39,11 @@ public class KafkaJmsClient {
         Producer<String, String> producer = new KafkaProducer<>(properties);
 
         int sentMessageCount = 0;
+        AtomicInteger messageCountAckedAsSent = new AtomicInteger(0);
         for (; (messageCountToBeSent == -1 || sentMessageCount < messageCountToBeSent); sentMessageCount++) {
+            if (stopFlag.get()) {
+                break;
+            }
             String message = "Hello Development Team " + sentMessageCount;
 
             // Create a ProducerRecord with the destination topic, key (optional), and message
@@ -40,16 +52,18 @@ public class KafkaJmsClient {
             // Send the message asynchronously
             producer.send(record, (metadata, exception) -> {
                 if (exception == null) {
+                    messageCountAckedAsSent.incrementAndGet();
                     logger.debug("Message {} sent successfully: {}  to topic {} at offset {}", record.key(), record.value(), record.topic(), metadata.offset());
                 } else {
                     logger.debug("Error sending message: " + exception.getMessage());
                 }
             });
+            sleepQuietly(5);
         }
 
         // Ensure the producer is closed properly to free resources
         producer.close();
-        return sentMessageCount;
+        return messageCountAckedAsSent.get();
     }
 
 
@@ -120,27 +134,4 @@ public class KafkaJmsClient {
 
         return consumedMessageCount;
     }
-
-
-//    public static void kafkaConsumer(HashMap<String, String> server, String destination) {
-//        Properties properties = new Properties();
-//        properties.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, server.get(Constants.HOST) + ":" + server.get(Constants.APP_PORT));  // Updated to use ConsumerConfig
-//        properties.put(ConsumerConfig.GROUP_ID_CONFIG, "quick-start1");
-//        properties.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
-//        properties.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
-//        properties.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
-//
-//        Consumer<String, String> consumer = new org.apache.kafka.clients.consumer.KafkaConsumer<>(properties);
-//        consumer.subscribe(Collections.singletonList(destination));
-//        System.out.println("Kafka Receiver Start : ");
-//
-//        while (true) {
-//            ConsumerRecords<String, String> records = consumer.poll(Duration.ofMillis(100L));
-//            records.forEach(record -> {
-//                System.out.println("Consuming");
-//                System.out.printf("Received message: key=%s, value=%s, partition=%d, offset=%d%n",
-//                        record.key(), record.value(), record.partition(), record.offset());
-//            });
-//        }
-//    }
 }

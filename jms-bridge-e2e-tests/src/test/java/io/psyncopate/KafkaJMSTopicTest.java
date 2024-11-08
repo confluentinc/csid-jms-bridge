@@ -14,6 +14,7 @@ import org.junit.jupiter.api.extension.RegisterExtension;
 
 import java.io.IOException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @ExtendWith(GlobalSetup.class)
 public class KafkaJMSTopicTest {
@@ -68,7 +69,37 @@ public class KafkaJMSTopicTest {
         Assertions.assertEquals(jmsMessagesReceived, kafkaMessagesReceived, "Number of jms Received and kafka received messages should match.");
         Assertions.assertEquals(totalMessageSent, jmsMessagesReceived, "Number of sent and JMS received messages should match.");
         Assertions.assertEquals(totalMessageSent, kafkaMessagesReceived, "Number of sent and Kafka received messages should match.");
+    }
 
+    @Test
+    @DisplayName("Produce to Kafka, failover, consume on JMS.")
+    void messagesConsumedOnJmsProducedOnKafkaWithFailover() throws Exception {
+        String address = Util.getCurrentMethodNameAsKafkaTopic();
+        String jmsAddress = address;
+        String kafkaTopic = address;
+        brokerService.ensureKafkaTopicExists(kafkaTopic);
+
+        Assertions.assertTrue(serverSetup.startMasterServer(), "Master Server should start.");
+        Assertions.assertTrue(serverSetup.startSlaveServer(), "Slave Server should start.");
+        AtomicBoolean producerStopFlag = new AtomicBoolean(false);
+        CompletableFuture<Integer> kafkaMessageSentFuture = brokerService.startAsyncKafkaProducer(kafkaTopic, producerStopFlag);
+        new Thread(() -> {
+            Util.sleepQuietly(8000);
+            producerStopFlag.set(true);
+        }).start();
+
+        Assertions.assertTrue(serverSetup.killMasterServer(3), "Master Server killed.");
+        producerStopFlag.set(true);
+        int kafkaMessagesSent = kafkaMessageSentFuture.get();
+        Assertions.assertTrue(serverSetup.isServerUp(ServerType.SLAVE, 10, 10), "Slave Server should be running.");
+        int kafkaMessagesReceived = brokerService.startConsumer(ServerType.KAFKA, MessagingScheme.KAFKA_TOPIC, kafkaTopic);
+        int jmsMessagesReceived = brokerService.startConsumer(ServerType.SLAVE, MessagingScheme.JMS_MULTICAST, jmsAddress, address);
+        Assertions.assertTrue(serverSetup.stopSlaveServer(), "Slave Server should stop.");
+
+        // Assert that the number of sent and received messages match
+        Assertions.assertEquals(jmsMessagesReceived, kafkaMessagesReceived, "Number of jms Received and kafka received messages should match.");
+        Assertions.assertEquals(kafkaMessagesSent, jmsMessagesReceived, "Number of sent and JMS received messages should match.");
+        Assertions.assertEquals(kafkaMessagesSent, kafkaMessagesReceived, "Number of sent and Kafka received messages should match.");
     }
 
     @Test
@@ -84,7 +115,7 @@ public class KafkaJMSTopicTest {
 
         int messageToBeSent = 50;
         int kafkaMessageSent = brokerService.startProducer(ServerType.KAFKA, MessagingScheme.KAFKA_TOPIC, kafkaTopic, messageToBeSent);
-        CompletableFuture<Integer> asyncJMSProducerMaster = brokerService.startAsyncProducer(ServerType.MASTER, MessagingScheme.JMS_MULTICAST, jmsAddress);
+        CompletableFuture<Integer> asyncJMSProducerMaster = brokerService.startAsyncJmsProducer(ServerType.MASTER, MessagingScheme.JMS_MULTICAST, jmsAddress);
         CompletableFuture<Integer> asyncJMSConsumerMaster = brokerService.startAsyncConsumer(ServerType.MASTER, MessagingScheme.JMS_MULTICAST, jmsAddress, kafkaTopic);
         Assertions.assertTrue(serverSetup.killMasterServer(3), "Master Server should be force killed.");
         Assertions.assertTrue(serverSetup.isServerUp(ServerType.SLAVE, 10, 10), "Slave Server should be running.");
@@ -103,7 +134,6 @@ public class KafkaJMSTopicTest {
         Assertions.assertEquals(totalJmsMessageReceived, totalKafkaMessageReceived, "Number of jms Received and kafka received messages should match.");
         Assertions.assertEquals(totalMessageSent, totalJmsMessageReceived, "Number of sent and JMS received messages should match.");
         Assertions.assertEquals(totalMessageSent, totalKafkaMessageReceived, "Number of sent and Kafka received messages should match.");
-
     }
 
     @Test
@@ -119,7 +149,7 @@ public class KafkaJMSTopicTest {
 
         int messageToBeSent = 50;
         int kafkaMessageSent = brokerService.startProducer(ServerType.KAFKA, MessagingScheme.KAFKA_TOPIC, kafkaTopic, messageToBeSent);
-        CompletableFuture<Integer> asyncProducerMaster = brokerService.startAsyncProducer(ServerType.MASTER, MessagingScheme.JMS_MULTICAST, jmsAddress);
+        CompletableFuture<Integer> asyncProducerMaster = brokerService.startAsyncJmsProducer(ServerType.MASTER, MessagingScheme.JMS_MULTICAST, jmsAddress);
         Assertions.assertTrue(serverSetup.killMasterServer(), "Master Server should kill.");
         Assertions.assertTrue(serverSetup.isServerUp(ServerType.SLAVE, 10, 10), "Slave Server should be running.");
         Assertions.assertTrue(serverSetup.killSlaveServer(), "Slave Server should Kill.");
@@ -136,7 +166,6 @@ public class KafkaJMSTopicTest {
         Assertions.assertEquals(jmsMessagesReceived, kafkaMessagesReceived, "Number of jms Received and kafka received messages should match.");
         Assertions.assertEquals(totalMessageSent, jmsMessagesReceived, "Number of sent and JMS received messages should match.");
         Assertions.assertEquals(totalMessageSent, kafkaMessagesReceived, "Number of sent and Kafka received messages should match.");
-
     }
 //    @Test
 //    @DisplayName("Kafka Master failover with forced kill after producer is stopped, switch to slave, then consume messages.")

@@ -15,6 +15,7 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @RequiredArgsConstructor
 public class BrokerService {
@@ -79,20 +80,22 @@ public class BrokerService {
         return -1;
     }
 
+    public CompletableFuture<Integer> startAsyncKafkaProducer(String address, AtomicBoolean stopFlag) {
+        return serverSetup.startKafkaProducerAsync(getKafkaHostPort(), address, -1, stopFlag);
+    }
 
-    public CompletableFuture<Integer> startAsyncProducer(ServerType serverType, MessagingScheme messagingScheme, String address) throws JMSException {
+    public CompletableFuture<Integer> startAsyncJmsProducer(ServerType serverType, MessagingScheme messagingScheme, String address) {
 
         if (BrokerType.JMS == messagingScheme.getBrokerType()) {
             return serverSetup.startJmsProducerAsync(serverType, address, messagingScheme.getRoutingType());
+        } else if (BrokerType.KAFKA == messagingScheme.getBrokerType()) {
+            throw new IllegalArgumentException("Kafka serverType should not be used with startAsyncJmsProducer");
         }
-//        else if (BrokerType.KAFKA == messagingScheme.getBrokerType()) {
-//            return CompletableFuture.completedFuture(0);
-//        }
         return CompletableFuture.completedFuture(-1);
     }
 
 
-    public CompletableFuture<Integer> startAsyncConsumer(ServerType serverType, MessagingScheme messagingScheme, String... address) throws JMSException {
+    public CompletableFuture<Integer> startAsyncConsumer(ServerType serverType, MessagingScheme messagingScheme, String... address) {
 
         if (BrokerType.JMS == messagingScheme.getBrokerType()) {
             String destination = address[0];

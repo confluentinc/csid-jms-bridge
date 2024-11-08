@@ -9,8 +9,6 @@ import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.RegisterExtension;
 
-import java.io.IOException;
-
 @ExtendWith(GlobalSetup.class)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
@@ -24,7 +22,7 @@ public class JMSQueueTest {
     JMSCommonTest jmsCommonTest;
 
     @BeforeAll
-    public static void setup()  {
+    public static void setup() {
         //reset bridge conf to original
         GlobalSetup.getServerSetup().uploadUnchangedConfigFile(true);
         GlobalSetup.getServerSetup().uploadUnchangedConfigFile(false);
@@ -137,4 +135,46 @@ public class JMSQueueTest {
     void tripleFailoverWithProducerRestartsAndFinalConsumptionForQueue() throws Exception {
         jmsCommonTest.tripleFailoverWithProducerRestartsAndFinalConsumption(MessagingScheme.JMS_ANYCAST);
     }
+
+    @Test
+    @Order(14)
+    @DisplayName("With local transaction produce to Master, commit, failover to Slave, and consume from Slave.")
+    void verifyLocalTransactionProduceFailoverConsume() throws Exception {
+        jmsCommonTest.verifyLocalTransactionProduceFailover(MessagingScheme.JMS_ANYCAST);
+    }
+
+    @Test
+    @Order(15)
+    @DisplayName("With local transaction produce to Master, commit, consume from Master")
+    void verifyLocalTransactionProduceOnMaster() throws Exception {
+        jmsCommonTest.verifyLocalTransactionProduceOnMaster(MessagingScheme.JMS_ANYCAST);
+    }
+
+    @Test
+    @Order(16)
+    @DisplayName("Produce to Master, verify consume in transaction from Master")
+    void verifyLocalTransactionConsumeOnMaster() throws Exception {
+        jmsCommonTest.verifyLocalTransactionConsumeOnMaster(MessagingScheme.JMS_ANYCAST);
+    }
+
+    @Test
+    @Order(17)
+    @DisplayName("With local transaction produce to Master, dont commit, failover, verify nothing to consume from Slave")
+    public void verifyLocalTransactionProduceOnMasterRollbackOnFailover() throws Exception {
+        jmsCommonTest.verifyLocalTransactionProduceOnMasterRollbackOnFailover(MessagingScheme.JMS_ANYCAST);
+    }
+
+    @Test
+    @Order(18)
+    @DisplayName("Produce to Master, consume in transaction, don't commit, failover, consume again Slave")
+    public void verifyLocalTransactionConsumeOnMasterRollbackOnFailover() throws Exception{
+        jmsCommonTest.verifyLocalTransactionConsumeOnMasterRollbackOnFailover(MessagingScheme.JMS_ANYCAST);
+    }
+    @Test
+    @Order(19)
+    @DisplayName("Produce to master, consume in transaction, commit, failover, verify that messages are cannot be consumed again (as 1st consume committed / acked)")
+    public void verifyLocalTransactionConsumeOnMasterCommitOnFailover() throws Exception{
+        jmsCommonTest.verifyLocalTransactionConsumeOnMasterCommitOnFailover(MessagingScheme.JMS_ANYCAST);
+    }
+
 }
