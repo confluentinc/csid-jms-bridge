@@ -174,24 +174,26 @@ public class KafkaJournalProcessor implements StateListener {
   }
 
   public synchronized void stop() {
-    if (journalState.validTransition(KJournalState.STOPPED)) {
+    if (journalState.validTransition(KJournalState.STOPPING)) {
       loadComplete = false;
+
+      SLOG.info(b -> b
+              .event("StopJournal")
+              .markSuccess()
+              .putTokens("currentState", journalState)
+              .putTokens("nextState", KJournalState.STOPPING));
+      journalState = KJournalState.STOPPING;
+
       if (streams != null) {
         streams.close();
       }
-      SLOG.info(b -> b
-          .event("StopJournal")
-          .markSuccess()
-          .putTokens("currentState", journalState)
-          .putTokens("nextState", KJournalState.STOPPED));
-      journalState = KJournalState.STOPPED;
 
     } else {
       SLOG.error(b -> b
           .event("StopJournal")
           .markFailure()
           .putTokens("currentState", journalState)
-          .putTokens("nextState", KJournalState.STOPPED)
+          .putTokens("nextState", KJournalState.STOPPING)
           .message("Invalid state transition"));
     }
   }
@@ -399,6 +401,8 @@ public class KafkaJournalProcessor implements StateListener {
         state = KJournalState.ASSIGNING;
         break;
       case PENDING_SHUTDOWN:
+        state = STOPPING;
+        break;
       case NOT_RUNNING:
         state = KJournalState.STOPPED;
         break;

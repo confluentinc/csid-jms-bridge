@@ -167,14 +167,28 @@ public class JMSQueueTest {
     @Test
     @Order(18)
     @DisplayName("Produce to Master, consume in transaction, don't commit, failover, consume again Slave")
-    public void verifyLocalTransactionConsumeOnMasterRollbackOnFailover() throws Exception{
+    public void verifyLocalTransactionConsumeOnMasterRollbackOnFailover() throws Exception {
         jmsCommonTest.verifyLocalTransactionConsumeOnMasterRollbackOnFailover(MessagingScheme.JMS_ANYCAST);
     }
+
     @Test
     @Order(19)
     @DisplayName("Produce to master, consume in transaction, commit, failover, verify that messages are cannot be consumed again (as 1st consume committed / acked)")
-    public void verifyLocalTransactionConsumeOnMasterCommitOnFailover() throws Exception{
+    public void verifyLocalTransactionConsumeOnMasterCommitOnFailover() throws Exception {
         jmsCommonTest.verifyLocalTransactionConsumeOnMasterCommitOnFailover(MessagingScheme.JMS_ANYCAST);
     }
 
+    @Test
+    @Order(20)
+    @DisplayName("Verify highest used message ID persisted and read back on graceful failover and failback")
+    public void verifyMessageIdPersistedAndReadBackOnGracefulFailoverAndFailback() throws Exception {
+        jmsCommonTest.verifyMessageIdPersistedAndReadBackOnGracefulFailoverAndFailback(MessagingScheme.JMS_ANYCAST);
+    }
+
+    @Test
+    @Order(21)
+    @DisplayName("Verify highest used message ID is not persisted on abrupt (killed) shutdown and is bumped by Integer max")
+    public void verifyMessageIdIsIncreasedCorrectlyOnKillFailoverAndFailback() throws Exception {
+        jmsCommonTest.verifyMessageIdIsIncreasedCorrectlyOnKillFailoverAndFailback(MessagingScheme.JMS_ANYCAST);
+    }
 }

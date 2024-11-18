@@ -12,11 +12,12 @@ import java.util.List;
 import java.util.Set;
 
 public enum KJournalState {
-  CREATED(false, asList("STARTED", "STOPPED", "FAILED")),
-  STARTED(false, asList("ASSIGNING", "STOPPED", "FAILED")),
-  ASSIGNING(true, asList("LOADING", "RUNNING", "STOPPED", "FAILED")),
-  LOADING(true, asList("ASSIGNING", "RUNNING", "STOPPED", "FAILED")),
-  RUNNING(true, asList("ASSIGNING", "LOADING", "STOPPED", "FAILED")),
+  CREATED(false, asList("STARTED", "STOPPED", "STOPPING", "FAILED")),
+  STARTED(false, asList("ASSIGNING", "STOPPED", "STOPPING", "FAILED")),
+  ASSIGNING(true, asList("LOADING", "RUNNING", "STOPPING", "STOPPED", "FAILED")),
+  LOADING(true, asList("ASSIGNING", "RUNNING", "STOPPING", "STOPPED", "FAILED")),
+  RUNNING(true, asList("ASSIGNING", "LOADING", "STOPPING", "STOPPED", "FAILED")),
+  STOPPING(false, asList("FAILED", "STARTED", "STOPPING")),
   STOPPED(false, asList("FAILED", "STARTED")),
   FAILED(false, Collections.emptyList());
 

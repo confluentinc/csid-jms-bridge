@@ -160,4 +160,16 @@ public class JMSTopicTest {
     public void verifyLocalTransactionConsumeOnMasterCommitOnFailover() throws Exception{
         jmsCommonTest.verifyLocalTransactionConsumeOnMasterCommitOnFailover(MessagingScheme.JMS_MULTICAST);
     }
+
+    @Test
+    @DisplayName("Verify highest used message ID persisted and read back on graceful failover and failback")
+    public void verifyMessageIdPersistedAndReadBackOnGracefulFailoverAndFailback() throws Exception {
+        jmsCommonTest.verifyMessageIdPersistedAndReadBackOnGracefulFailoverAndFailback(MessagingScheme.JMS_MULTICAST);
+    }
+
+    @Test
+    @DisplayName("Verify highest used message ID is not persisted on abrupt (killed) shutdown and is bumped by Integer max")
+    public void verifyMessageIdIsIncreasedCorrectlyOnKillFailoverAndFailback() throws Exception {
+        jmsCommonTest.verifyMessageIdIsIncreasedCorrectlyOnKillFailoverAndFailback(MessagingScheme.JMS_MULTICAST);
+    }
 }

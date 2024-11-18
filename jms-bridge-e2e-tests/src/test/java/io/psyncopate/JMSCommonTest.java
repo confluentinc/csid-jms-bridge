@@ -8,6 +8,7 @@ import io.psyncopate.util.Util;
 import io.psyncopate.util.constants.MessagingScheme;
 import io.psyncopate.util.constants.RoutingType;
 import io.psyncopate.util.constants.ServerType;
+import org.apache.activemq.artemis.jms.client.ActiveMQTextMessage;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.assertj.core.data.Offset;
@@ -371,7 +372,7 @@ class JMSCommonTest {
 
         //Produce and commit messages to Master
         try (Session session = serverSetup.createSession(ServerType.MASTER, true, Session.SESSION_TRANSACTED)) {
-            Destination destination = RoutingType.ANYCAST.equals(messagingScheme.getRoutingType()) ? session.createQueue(address) : session.createTopic(address);
+            Destination destination = getProducerDestination(messagingScheme, session, address);
             try (MessageProducer producer = session.createProducer(destination)) {
                 jmsClient.produceMessages(producer, session, numberOfMessagesToProduce);
                 int received = brokerService.startConsumer(ServerType.MASTER, messagingScheme, -1, address, address);
@@ -407,11 +408,11 @@ class JMSCommonTest {
         int receivedFromMaster = 0;
         //Produce and commit messages to Master
         try (Session session = serverSetup.createSession(ServerType.MASTER, true, Session.SESSION_TRANSACTED)) {
-            Destination destination = RoutingType.ANYCAST.equals(messagingScheme.getRoutingType()) ? session.createQueue(address) : session.createTopic(address);
+            Destination destination = getProducerDestination(messagingScheme, session, address);
             try (MessageProducer producer = session.createProducer(destination)) {
                 jmsClient.produceMessages(producer, session, numberOfMessagesToProduce);
                 try (Session consumerSession = serverSetup.createSession(ServerType.MASTER, false, Session.AUTO_ACKNOWLEDGE)) {
-                    Destination consumerDestination = RoutingType.ANYCAST.equals(messagingScheme.getRoutingType()) ? consumerSession.createQueue(address) : consumerSession.createTopic(address + "::" + address);
+                    Destination consumerDestination = getConsumerDestinationForScheme(messagingScheme, consumerSession, address);
                     try (MessageConsumer consumer = consumerSession.createConsumer(consumerDestination)) {
                         while (true) {
                             Message msg = consumer.receive(3000);
@@ -440,6 +441,11 @@ class JMSCommonTest {
             } // producer close
         } // session close
         validateReceivedMessages(numberOfMessagesToProduce, receivedFromMaster);
+    }
+
+    private Destination getProducerDestination(MessagingScheme messagingScheme, Session session, String address) throws JMSException {
+        Destination destination = RoutingType.ANYCAST.equals(messagingScheme.getRoutingType()) ? session.createQueue(address) : session.createTopic(address);
+        return destination;
     }
 
     /**
@@ -476,7 +482,7 @@ class JMSCommonTest {
 
         //Consume with Transaction from Master but dont commit
         try (Session session = serverSetup.createSession(ServerType.MASTER, true, Session.SESSION_TRANSACTED)) {
-            Destination destination = RoutingType.ANYCAST.equals(messagingScheme.getRoutingType()) ? session.createQueue(address) : session.createTopic(address);
+            Destination destination = getConsumerDestinationForScheme(messagingScheme, session, address);
             try (MessageConsumer consumer = session.createConsumer(destination)) {
 
 
@@ -494,7 +500,7 @@ class JMSCommonTest {
 
         //Consume with Transaction from Master and commit
         try (Session session = serverSetup.createSession(ServerType.MASTER, true, Session.SESSION_TRANSACTED)) {
-            Destination destination = RoutingType.ANYCAST.equals(messagingScheme.getRoutingType()) ? session.createQueue(address) : session.createTopic(address);
+            Destination destination = getConsumerDestinationForScheme(messagingScheme, session, address);
             try (MessageConsumer consumer = session.createConsumer(destination)) {
 
                 numberReceived = 0;
@@ -531,11 +537,11 @@ class JMSCommonTest {
         //Consume with Transaction from Master but dont commit
 
         try (Session session2 = serverSetup.createSession(ServerType.MASTER, true, Session.SESSION_TRANSACTED)) {
-            Destination destination2 = RoutingType.ANYCAST.equals(messagingScheme.getRoutingType()) ? session2.createQueue(address) : session2.createTopic(address);
+            Destination destination2 = getConsumerDestinationForScheme(messagingScheme, session2, address);
 
             try (MessageConsumer consumer2 = session2.createConsumer(destination2)) {
                 try (Session session1 = serverSetup.createSession(ServerType.MASTER, true, Session.SESSION_TRANSACTED)) {
-                    Destination destination1 = RoutingType.ANYCAST.equals(messagingScheme.getRoutingType()) ? session1.createQueue(address) : session1.createTopic(address);
+                    Destination destination1 = getConsumerDestinationForScheme(messagingScheme, session1, address);
                     try (MessageConsumer consumer1 = session1.createConsumer(destination1)) {
                         //Produce non-transacted to Master
                         numProduced = jmsClient.produceMessages(ServerType.MASTER, address, messagingScheme.getRoutingType(), numberOfMessagesToProduce);
@@ -585,7 +591,7 @@ class JMSCommonTest {
 
         //Produce to Master with Transaction but dont commit
         try (Session session = serverSetup.createSession(ServerType.MASTER, true, Session.SESSION_TRANSACTED)) {
-            Destination destination = RoutingType.ANYCAST.equals(messagingScheme.getRoutingType()) ? session.createQueue(address) : session.createTopic(address);
+            Destination destination = getProducerDestination(messagingScheme, session, address);
             try (MessageProducer producer = session.createProducer(destination)) {
                 jmsClient.produceMessages(producer, session, numberOfMessagesToProduce);
             } // producer close
@@ -626,7 +632,7 @@ class JMSCommonTest {
 
         //Consume in transaction from Master but dont commit
         try (Session session = jmsClient.createSessionWithDefaultConnection(ServerType.MASTER, true, Session.SESSION_TRANSACTED, clientId)) {
-            Destination destination = RoutingType.ANYCAST.equals(messagingScheme.getRoutingType()) ? session.createQueue(address) : session.createTopic(address);
+            Destination destination = getConsumerDestinationForScheme(messagingScheme, session, address);
 
             int numberReceived = 0;
             int numProduced;
@@ -653,7 +659,7 @@ class JMSCommonTest {
         int numberReceived = 0;
         //should consume again from Slave as 1st consume from master was not committed
         try (Session session = jmsClient.createSessionWithDefaultConnection(ServerType.SLAVE, false, Session.AUTO_ACKNOWLEDGE, clientId)) {
-            Destination destination = RoutingType.ANYCAST.equals(messagingScheme.getRoutingType()) ? session.createQueue(address) : session.createTopic(address);
+            Destination destination = getConsumerDestinationForScheme(messagingScheme, session, address);
 
             try (TopicSubscriber topicSubscriber = session.createDurableSubscriber((Topic) destination, "test-subscriber")) {
                 while (true) {
@@ -681,7 +687,7 @@ class JMSCommonTest {
 
         //Consume in transaction from Master but dont commit
         try (Session session = serverSetup.createSession(ServerType.MASTER, true, Session.SESSION_TRANSACTED)) {
-            Destination destination = RoutingType.ANYCAST.equals(messagingScheme.getRoutingType()) ? session.createQueue(address) : session.createTopic(address);
+            Destination destination = getConsumerDestinationForScheme(messagingScheme, session, address);
             int numberReceived = 0;
             try (MessageConsumer consumer = session.createConsumer(destination)) {
                 while (true) {
@@ -731,9 +737,9 @@ class JMSCommonTest {
 
 
         //Consume in transaction from Master but dont commit
-        try(Connection connection = jmsClient.getConnection(ServerType.MASTER, clientId)) {
-            try (Session session = connection.createSession( true, Session.SESSION_TRANSACTED)) {
-                Destination destination = RoutingType.ANYCAST.equals(messagingScheme.getRoutingType()) ? session.createQueue(address) : session.createTopic(address);
+        try (Connection connection = jmsClient.getConnection(ServerType.MASTER, clientId)) {
+            try (Session session = connection.createSession(true, Session.SESSION_TRANSACTED)) {
+                Destination destination = getConsumerDestinationForScheme(messagingScheme, session, address);
 
                 int numberReceived = 0;
                 int numProduced;
@@ -757,7 +763,7 @@ class JMSCommonTest {
         //Verify nothing to consume on Master after the previous consumer / subscriber commit - this time non-transacted session
         try (Session session = jmsClient.createSessionWithDefaultConnection(ServerType.MASTER, false, Session.AUTO_ACKNOWLEDGE, clientId)) {
             int numberReceived = 0;
-            Destination destination = RoutingType.ANYCAST.equals(messagingScheme.getRoutingType()) ? session.createQueue(address) : session.createTopic(address);
+            Destination destination = getConsumerDestinationForScheme(messagingScheme, session, address);
 
             try (TopicSubscriber topicSubscriber = session.createDurableSubscriber((Topic) destination, "test-subscriber")) {
                 while (true) {
@@ -779,7 +785,7 @@ class JMSCommonTest {
         int numberReceived = 0;
         //should consume again from Slave as 1st consume from master was not committed
         try (Session session = jmsClient.createSessionWithDefaultConnection(ServerType.SLAVE, false, Session.AUTO_ACKNOWLEDGE, clientId)) {
-            Destination destination = RoutingType.ANYCAST.equals(messagingScheme.getRoutingType()) ? session.createQueue(address) : session.createTopic(address);
+            Destination destination = getConsumerDestinationForScheme(messagingScheme, session, address);
 
             try (TopicSubscriber topicSubscriber = session.createDurableSubscriber((Topic) destination, "test-subscriber")) {
                 while (true) {
@@ -807,7 +813,7 @@ class JMSCommonTest {
 
         //Consume in transaction from Master and commit
         try (Session session = serverSetup.createSession(ServerType.MASTER, true, Session.SESSION_TRANSACTED)) {
-            Destination destination = RoutingType.ANYCAST.equals(messagingScheme.getRoutingType()) ? session.createQueue(address) : session.createTopic(address);
+            Destination destination = getConsumerDestinationForScheme(messagingScheme, session, address);
             int numberReceived = 0;
             try (MessageConsumer consumer = session.createConsumer(destination)) {
                 while (true) {
@@ -834,5 +840,120 @@ class JMSCommonTest {
         //should consume nothing from Slave as consumed and committed on Master
         int receivedFromSlave = jmsClient.consumeMessages(ServerType.SLAVE, address, messagingScheme.getRoutingType(), -1, 0L);
         assertThat(receivedFromSlave).as("Shouldn't consume any messages as consumer on Master committed transaction.").isEqualTo(0);
+    }
+
+    /**
+     * Test highest used message id is not persisted and subsequently bumped by Integer Max abrupt (kill) fail-over and fail-back
+     * Produce to Master to get some msgIds, kill Master, failover to Slave, produce to Slave, kill Slave, start Master - produce to Master
+     * consume to verify that highest message Id is above Int max * 2, but below Int max * 3 (as two abrupt kills - on Master and on Slave).
+     * Msg Id is bumped by Int max if it was not persisted to store and read back correctly.
+     *
+     * @param messagingScheme
+     * @throws Exception
+     */
+    public void verifyMessageIdIsIncreasedCorrectlyOnKillFailoverAndFailback(MessagingScheme messagingScheme) throws Exception {
+        Assertions.assertTrue(serverSetup.startMasterServer(), "Master Server should start.");
+        Assertions.assertTrue(serverSetup.startSlaveServer(), "Slave Server should start.");
+        int numberOfMessagesToSend = 20;
+        String address = Util.getParentMethodNameAsAddress(messagingScheme);
+
+        //Produce to master and failover
+        int numberOfMessagesProduced = brokerService.startProducer(ServerType.MASTER, messagingScheme, address, numberOfMessagesToSend);
+        Assertions.assertEquals(numberOfMessagesToSend, numberOfMessagesProduced, "Number of message to be sent and message sent messages should match.");
+
+        Assertions.assertTrue(serverSetup.killMasterServer(), "Master Server should stop (killed).");
+        Assertions.assertTrue(serverSetup.isServerUp(ServerType.SLAVE, 10, 10), "Slave Server should be running.");
+
+        //Produce to slave and failback
+        numberOfMessagesProduced += brokerService.startProducer(ServerType.SLAVE, messagingScheme, address, numberOfMessagesToSend);
+        Assertions.assertTrue(serverSetup.killSlaveServer(), "Slave Server should stop (killed).");
+        Assertions.assertTrue(serverSetup.startMasterServer(), "Master Server should start.");
+        Assertions.assertTrue(serverSetup.isServerUp(ServerType.MASTER, 10, 10), "Master Server should be running.");
+
+        //Produce to Master now after the failover and failback - this is to generate messages with fresh message ids
+        //if message ids where persisted and read back in fine - then we still should be in low message ids range (below Integer Max).
+        numberOfMessagesProduced += brokerService.startProducer(ServerType.MASTER, messagingScheme, address, numberOfMessagesToSend);
+        Assertions.assertEquals(numberOfMessagesToSend * 3, numberOfMessagesProduced, "Number of messages actually sent should match number to send * 3 - as we produced 3 times.");
+
+        long highestSeenMsgIdOnMaster = 0;
+        int numberReceivedFromMaster = 0;
+        try (Session session = serverSetup.createSession(ServerType.MASTER, false, Session.AUTO_ACKNOWLEDGE)) {
+            Destination destination = getConsumerDestinationForScheme(messagingScheme, session, address);
+            try (MessageConsumer consumer = session.createConsumer(destination)) {
+                while (true) {
+                    Message msg = consumer.receive(500);
+                    if (msg != null) {
+                        numberReceivedFromMaster++;
+                        long msgId = ((ActiveMQTextMessage) msg).getCoreMessage().getMessageID();
+                        if (highestSeenMsgIdOnMaster < msgId) {
+                            highestSeenMsgIdOnMaster = msgId;
+                        }
+                    } else {
+                        break;
+                    }
+                }
+            }
+        }
+        assertThat(numberReceivedFromMaster).as("Should consume all messages produced").isEqualTo(numberOfMessagesProduced);
+        assertThat(highestSeenMsgIdOnMaster).as("Highest seen message id as consumed on Master should be below Integer.MAX but above one seen on Slave.").isBetween(((long) Integer.MAX_VALUE) * 2, ((long) Integer.MAX_VALUE) * 3);
+    }
+
+    private Destination getConsumerDestinationForScheme(MessagingScheme messagingScheme, Session session, String address) throws JMSException {
+        return RoutingType.ANYCAST.equals(messagingScheme.getRoutingType()) ? session.createQueue(address) : session.createTopic(address + "::" + address);
+    }
+
+    /**
+     * Test highest used message id is persisted and read back on fail-over and fail-back
+     * Produce to Master to get some msgIds, failover to Slave, produce to Slave, fail-back to Master - produce to Master
+     * consume to verify that highest message Id is below Int max.
+     * Msg Id is bumped by Int max if it was not persisted to store and read back correctly.
+     *
+     * @param messagingScheme
+     * @throws Exception
+     */
+    public void verifyMessageIdPersistedAndReadBackOnGracefulFailoverAndFailback(MessagingScheme messagingScheme) throws Exception {
+        Assertions.assertTrue(serverSetup.startMasterServer(), "Master Server should start.");
+        Assertions.assertTrue(serverSetup.startSlaveServer(), "Slave Server should start.");
+        int numberOfMessagesToSend = 20;
+        String address = Util.getParentMethodNameAsAddress(messagingScheme);
+
+        //Produce to master and failover
+        int numberOfMessagesProduced = brokerService.startProducer(ServerType.MASTER, messagingScheme, address, numberOfMessagesToSend);
+        Assertions.assertEquals(numberOfMessagesToSend, numberOfMessagesProduced, "Number of message to be sent and message sent messages should match.");
+
+        Assertions.assertTrue(serverSetup.stopMasterServer(), "Master Server should stop.");
+        Assertions.assertTrue(serverSetup.isServerUp(ServerType.SLAVE, 10, 10), "Slave Server should be running.");
+
+        //Produce to slave and failback
+        numberOfMessagesProduced += brokerService.startProducer(ServerType.SLAVE, messagingScheme, address, numberOfMessagesToSend);
+        Assertions.assertTrue(serverSetup.startMasterServer(), "Master Server should start.");
+        Assertions.assertTrue(serverSetup.isServerUp(ServerType.MASTER, 10, 10), "Master Server should be running.");
+
+        //Produce to Master now after the failover and failback - this is to generate messages with fresh message ids
+        //if message ids where persisted and read back in fine - then we still should be in low message ids range (below Integer Max).
+        numberOfMessagesProduced += brokerService.startProducer(ServerType.MASTER, messagingScheme, address, numberOfMessagesToSend);
+        Assertions.assertEquals(numberOfMessagesToSend * 3, numberOfMessagesProduced, "Number of messages actually sent should match number to send * 3 - as we produced 3 times.");
+
+        long highestSeenMsgIdOnMaster = 0;
+        int numberReceivedFromMaster = 0;
+        try (Session session = serverSetup.createSession(ServerType.MASTER, false, Session.AUTO_ACKNOWLEDGE)) {
+            Destination destination = getConsumerDestinationForScheme(messagingScheme, session, address);
+            try (MessageConsumer consumer = session.createConsumer(destination)) {
+                while (true) {
+                    Message msg = consumer.receive(500);
+                    if (msg != null) {
+                        numberReceivedFromMaster++;
+                        long msgId = ((ActiveMQTextMessage) msg).getCoreMessage().getMessageID();
+                        if (highestSeenMsgIdOnMaster < msgId) {
+                            highestSeenMsgIdOnMaster = msgId;
+                        }
+                    } else {
+                        break;
+                    }
+                }
+            }
+        }
+        assertThat(numberReceivedFromMaster).as("Should consume all messages produced").isEqualTo(numberOfMessagesProduced);
+        assertThat(highestSeenMsgIdOnMaster).as("Highest seen message id as consumed on Master should be below Integer.MAX but above one seen on Slave.").isBetween(1L, (long) Integer.MAX_VALUE);
     }
 }
