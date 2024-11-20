@@ -191,4 +191,44 @@ public class JMSQueueTest {
     public void verifyMessageIdIsIncreasedCorrectlyOnKillFailoverAndFailback() throws Exception {
         jmsCommonTest.verifyMessageIdIsIncreasedCorrectlyOnKillFailoverAndFailback(MessagingScheme.JMS_ANYCAST);
     }
+
+    @Test
+    @Order(22)
+    @DisplayName("With JTA transaction produce to Master, commit, consume from Master")
+    void verifyJTATransactionProduceAndCommitOnMaster() throws Exception {
+        jmsCommonTest.verifyJTATransactionProduceAndCommitOnMaster(MessagingScheme.JMS_ANYCAST);
+    }
+
+    @Test
+    @Order(23)
+    @DisplayName("With JTA transaction produce to Master, prepare, failover, commit, consume from Slave")
+    void verifyJTATransactionProduceOnMasterCommitAfterFailover() throws Exception {
+        jmsCommonTest.verifyJTATransactionProduceOnMasterCommitAfterFailover(MessagingScheme.JMS_ANYCAST);
+    }
+    @Test
+    @Order(24)
+    @DisplayName("With JTA transaction produce to Master, prepare, failover, failback, commit, consume from Master")
+    void verifyJTATransactionProduceOnMasterCommitAfterFailoverAndFailback() throws Exception {
+        jmsCommonTest.verifyJTATransactionProduceOnMasterCommitAfterFailoverAndFailback(MessagingScheme.JMS_ANYCAST);
+    }
+
+    @Test
+    @Order(22)
+    @DisplayName("With JTA transaction produce to Master, rollback, consume from Master")
+    void verifyJTATransactionProduceAndRollbackOnMaster() throws Exception {
+        jmsCommonTest.verifyJTATransactionProduceAndRollbackOnMaster(MessagingScheme.JMS_ANYCAST);
+    }
+
+    @Test
+    @Order(23)
+    @DisplayName("With JTA transaction produce to Master, prepare, failover, rollback, consume from Slave")
+    void verifyJTATransactionProduceOnMasterRollbackAfterFailover() throws Exception {
+        jmsCommonTest.verifyJTATransactionProduceOnMasterRollbackAfterFailover(MessagingScheme.JMS_ANYCAST);
+    }
+    @Test
+    @Order(24)
+    @DisplayName("With JTA transaction produce to Master, prepare, failover, failback, rollback, consume from Master")
+    void verifyJTATransactionProduceOnMasterRollbackAfterFailoverAndFailback() throws Exception {
+        jmsCommonTest.verifyJTATransactionProduceOnMasterRollbackAfterFailoverAndFailback(MessagingScheme.JMS_ANYCAST);
+    }
 }

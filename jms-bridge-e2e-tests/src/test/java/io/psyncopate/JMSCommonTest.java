@@ -8,7 +8,10 @@ import io.psyncopate.util.Util;
 import io.psyncopate.util.constants.MessagingScheme;
 import io.psyncopate.util.constants.RoutingType;
 import io.psyncopate.util.constants.ServerType;
+import org.apache.activemq.artemis.core.transaction.impl.XidImpl;
 import org.apache.activemq.artemis.jms.client.ActiveMQTextMessage;
+import org.apache.activemq.artemis.jms.client.ActiveMQXAConnectionFactory;
+import org.apache.activemq.artemis.utils.UUIDGenerator;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.assertj.core.data.Offset;
@@ -18,6 +21,8 @@ import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.extension.RegisterExtension;
 
 import javax.jms.*;
+import javax.transaction.xa.XAResource;
+import javax.transaction.xa.Xid;
 import java.io.IOException;
 import java.util.concurrent.CompletableFuture;
 
@@ -52,7 +57,7 @@ class JMSCommonTest {
     }
 
     private void validateReceivedMessages(int messageSent, int messagesReceived) {
-        assertThat(messageSent).as("Number of sent and received messages should match with a difference of up to 3.").isCloseTo(messagesReceived, Offset.offset(3));
+        assertThat(messagesReceived).as("Number of sent and received messages should match with a difference of up to 3.").isCloseTo(messageSent, Offset.offset(3));
     }
 
     public void sampleTest(MessagingScheme messagingScheme, int messageToBeSent) throws Exception {
@@ -955,5 +960,411 @@ class JMSCommonTest {
         }
         assertThat(numberReceivedFromMaster).as("Should consume all messages produced").isEqualTo(numberOfMessagesProduced);
         assertThat(highestSeenMsgIdOnMaster).as("Highest seen message id as consumed on Master should be below Integer.MAX but above one seen on Slave.").isBetween(1L, (long) Integer.MAX_VALUE);
+    }
+
+    /**
+     * JTA - Transacted produce to master, verify that no messages to consume (as not committed), commit, consume. Verify that all produced messages are consumed
+     * <p>
+     * Applicable to Queues and Topics
+     *
+     * @param messagingScheme
+     * @throws Exception
+     */
+    public void verifyJTATransactionProduceAndCommitOnMaster(MessagingScheme messagingScheme) throws Exception {
+        String address = Util.getParentMethodNameAsAddress(messagingScheme);
+        int numberOfMessagesToProduce = 50;
+        JMSClient jmsClient = new JMSClient();
+        Assertions.assertTrue(serverSetup.startMasterServer(), "Master Server should start.");
+        Assertions.assertTrue(serverSetup.startSlaveServer(), "Slave Server should start.");
+        int receivedFromMaster = 0;
+        //Produce and commit messages to Master
+        String connUrl = jmsClient.getConnectionUrl(ServerType.MASTER);
+        Xid xid = newXID();
+        try (ActiveMQXAConnectionFactory connectionFactory = new ActiveMQXAConnectionFactory(connUrl)) {
+            XAConnection connection = connectionFactory.createXAConnection();
+            try (XASession xaSession = connection.createXASession()) {
+                Destination destination = getProducerDestination(messagingScheme, xaSession, address);
+                xaSession.getXAResource().start(xid, XAResource.TMNOFLAGS);
+                try (MessageProducer producer = xaSession.createProducer(destination)) {
+                    jmsClient.produceMessages(producer, xaSession, numberOfMessagesToProduce);
+                    try (Session consumerSession = serverSetup.createSession(ServerType.MASTER, false, Session.AUTO_ACKNOWLEDGE)) {
+                        Destination consumerDestination = getConsumerDestinationForScheme(messagingScheme, consumerSession, address);
+                        try (MessageConsumer consumer = consumerSession.createConsumer(consumerDestination)) {
+                            while (true) {
+                                Message msg = consumer.receive(3000);
+                                if (msg != null) {
+                                    receivedFromMaster++;
+                                } else {
+                                    break;
+                                }
+                            }
+
+                            logger.debug("Consumed {} messages, before Producer session commit", receivedFromMaster);
+                            assertThat(receivedFromMaster).as("Shouldn't consume any messages as producer session was not committed yet.").isEqualTo(0);
+                            xaSession.getXAResource().end(xid, XAResource.TMSUCCESS);
+                            xaSession.getXAResource().commit(xid, true);
+                            while (true) {
+                                Message msg = consumer.receive(3000);
+                                if (msg != null) {
+                                    receivedFromMaster++;
+                                } else {
+                                    break;
+                                }
+                            }
+                            logger.debug("Consumed {} messages, after Producer session commit", receivedFromMaster);
+                        }// consumer close
+                    }//consumer session close
+
+                } // producer close
+            } // session close
+            validateReceivedMessages(numberOfMessagesToProduce, receivedFromMaster);
+        }
+    }
+
+    /**
+     * JTA Transacted produce to master, verify that no messages to consume (as not committed), commit, start new JTA transaction,
+     * produce to master again, end transaction, prepare commit, failover, commit, consume verify that all messages consumed -
+     * ensures that in progress (prepared but not committed) transaction is carried over on failover.
+     *
+     * @param messagingScheme
+     * @throws Exception
+     */
+    public void verifyJTATransactionProduceOnMasterCommitAfterFailover(MessagingScheme messagingScheme) throws Exception {
+        String address = Util.getParentMethodNameAsAddress(messagingScheme);
+        int numberOfMessagesToProduce = 50;
+        JMSClient jmsClient = new JMSClient();
+        Assertions.assertTrue(serverSetup.startMasterServer(), "Master Server should start.");
+        Assertions.assertTrue(serverSetup.startSlaveServer(), "Slave Server should start.");
+        int receivedFromMaster = 0;
+        //Produce and commit messages to Master
+        String connUrl = jmsClient.getHAConnectionUrl();
+        Xid xid = newXID();
+        ActiveMQXAConnectionFactory connectionFactory = new ActiveMQXAConnectionFactory(connUrl);
+        XAConnection connection = connectionFactory.createXAConnection();
+        XASession xaSession = connection.createXASession();
+        Destination destination = getProducerDestination(messagingScheme, xaSession, address);
+        xaSession.getXAResource().start(xid, XAResource.TMNOFLAGS);
+        MessageProducer producer = xaSession.createProducer(destination);
+        jmsClient.produceMessages(producer, xaSession, numberOfMessagesToProduce);
+
+        Session consumerSession = serverSetup.createSession(ServerType.MASTER, false, Session.AUTO_ACKNOWLEDGE);
+        Destination consumerDestination = getConsumerDestinationForScheme(messagingScheme, consumerSession, address);
+        MessageConsumer consumer = consumerSession.createConsumer(consumerDestination);
+        while (true) {
+            Message msg = consumer.receive(3000);
+            if (msg != null) {
+                receivedFromMaster++;
+            } else {
+                break;
+            }
+        }
+
+        logger.debug("Consumed {} messages, before Producer session commit", receivedFromMaster);
+        assertThat(receivedFromMaster).as("Shouldn't consume any messages as producer session was not committed yet.").isEqualTo(0);
+        // need to commit first transaction (or produce non-transactional) to the queue - so that queue is not empty on fail-over
+        // as empty queues are auto-deleted on journal load if they have no durable subscribers etc.
+        // it doesn't look like a bug on JMSBridge side as that is logic in the AMQ code handling data loaded from journal on startup
+        xaSession.getXAResource().end(xid, XAResource.TMSUCCESS);
+        xaSession.getXAResource().prepare(xid);
+        xaSession.getXAResource().commit(xid, false);
+
+        //Now start another XA transaction and produce some more messages
+        xaSession.getXAResource().start(xid, XAResource.TMNOFLAGS);
+        jmsClient.produceMessages(producer, xaSession, numberOfMessagesToProduce);
+        //End the transaction and prepare the commit
+        xaSession.getXAResource().end(xid, XAResource.TMSUCCESS);
+        xaSession.getXAResource().prepare(xid);
+        //cause a failover by killing master with pending commit (prepared but not rolled back or committed transaction)
+        Assertions.assertTrue(serverSetup.killMasterServer(), "Master Server should stop (kill).");
+        Assertions.assertTrue(serverSetup.isServerUp(ServerType.SLAVE, 10, 10), "Slave Server should be running.");
+
+        //now after failover - commit the prepared transaction (2-phase as prepare was used)
+        xaSession.getXAResource().commit(xid, false);
+        //and finally, consume and verify that we got messages from both transactions - so 2 x numberOfMessagesToProduce
+        int receivedFromSlave = jmsClient.consumeMessages(ServerType.SLAVE, address, messagingScheme.getRoutingType(), -1, 0L);
+
+        validateReceivedMessages(numberOfMessagesToProduce * 2 , receivedFromSlave);
+    }
+
+    /**
+     * JTA Transacted produce to master, verify that no messages to consume (as not committed), commit, start new JTA transaction,
+     * produce to master again, end transaction, prepare commit, failover, commit, consume verify that all messages consumed -
+     * ensures that in progress (prepared but not committed) transaction is carried over on failover.
+     *
+     * @param messagingScheme
+     * @throws Exception
+     */
+    public void verifyJTATransactionProduceOnMasterCommitAfterFailoverAndFailback(MessagingScheme messagingScheme) throws Exception {
+        String address = Util.getParentMethodNameAsAddress(messagingScheme);
+        int numberOfMessagesToProduce = 50;
+        JMSClient jmsClient = new JMSClient();
+        Assertions.assertTrue(serverSetup.startMasterServer(), "Master Server should start.");
+        Assertions.assertTrue(serverSetup.startSlaveServer(), "Slave Server should start.");
+        int receivedFromMaster = 0;
+        //Produce and commit messages to Master
+        String connUrl = jmsClient.getHAConnectionUrl();
+        Xid xid = newXID();
+        ActiveMQXAConnectionFactory connectionFactory = new ActiveMQXAConnectionFactory(connUrl);
+        XAConnection connection = connectionFactory.createXAConnection();
+        XASession xaSession = connection.createXASession();
+        Destination destination = getProducerDestination(messagingScheme, xaSession, address);
+        xaSession.getXAResource().start(xid, XAResource.TMNOFLAGS);
+        MessageProducer producer = xaSession.createProducer(destination);
+        jmsClient.produceMessages(producer, xaSession, numberOfMessagesToProduce);
+
+        Session consumerSession = serverSetup.createSession(ServerType.MASTER, false, Session.AUTO_ACKNOWLEDGE);
+        Destination consumerDestination = getConsumerDestinationForScheme(messagingScheme, consumerSession, address);
+        MessageConsumer consumer = consumerSession.createConsumer(consumerDestination);
+        while (true) {
+            Message msg = consumer.receive(3000);
+            if (msg != null) {
+                receivedFromMaster++;
+            } else {
+                break;
+            }
+        }
+
+        logger.debug("Consumed {} messages, before Producer session commit", receivedFromMaster);
+        assertThat(receivedFromMaster).as("Shouldn't consume any messages as producer session was not committed yet.").isEqualTo(0);
+        // need to commit first transaction (or produce non-transactional) to the queue - so that queue is not empty on fail-over
+        // as empty queues are auto-deleted on journal load if they have no durable subscribers etc.
+        // it doesn't look like a bug on JMSBridge side as that is logic in the AMQ code handling data loaded from journal on startup
+        xaSession.getXAResource().end(xid, XAResource.TMSUCCESS);
+        xaSession.getXAResource().prepare(xid);
+        xaSession.getXAResource().commit(xid, false);
+
+        Assertions.assertTrue(serverSetup.killMasterServer(), "Master Server should stop (kill).");
+        Assertions.assertTrue(serverSetup.isServerUp(ServerType.SLAVE, 10, 10), "Slave Server should be running.");
+        //Now start another XA transaction and produce some more messages to Slave
+        xaSession.getXAResource().start(xid, XAResource.TMNOFLAGS);
+        jmsClient.produceMessages(producer, xaSession, numberOfMessagesToProduce);
+        //End the transaction and prepare the commit
+        xaSession.getXAResource().end(xid, XAResource.TMSUCCESS);
+        xaSession.getXAResource().prepare(xid);
+
+        //cause a failback by starting master with pending commit (prepared but not rolled back or committed transaction)
+
+        Assertions.assertTrue(serverSetup.startMasterServer(), "Master Server should start.");
+        Assertions.assertTrue(serverSetup.isServerUp(ServerType.MASTER, 10, 10), "Slave Server should be running.");
+
+        //now after fail-back - commit the prepared transaction (2-phase as prepare was used)
+        xaSession.getXAResource().commit(xid, false);
+        //and finally, consume and verify that we got messages from both transactions - so 2 x numberOfMessagesToProduce
+        int receivedFromMasterAfterFailback = jmsClient.consumeMessages(ServerType.MASTER, address, messagingScheme.getRoutingType(), -1, 0L);
+
+        validateReceivedMessages(numberOfMessagesToProduce * 2 , receivedFromMasterAfterFailback);
+    }
+
+    /**
+     * JTA - Transacted produce to master, verify that no messages to consume (as not committed), commit, produce again, rollback, consume.
+     * Verify that only one block of messages is consumed
+     * <p>
+     * Applicable to Queues and Topics
+     *
+     * @param messagingScheme
+     * @throws Exception
+     */
+    public void verifyJTATransactionProduceAndRollbackOnMaster(MessagingScheme messagingScheme) throws Exception {
+        String address = Util.getParentMethodNameAsAddress(messagingScheme);
+        int numberOfMessagesToProduce = 50;
+        JMSClient jmsClient = new JMSClient();
+        Assertions.assertTrue(serverSetup.startMasterServer(), "Master Server should start.");
+        Assertions.assertTrue(serverSetup.startSlaveServer(), "Slave Server should start.");
+        int receivedFromMaster = 0;
+        //Produce and commit messages to Master
+        String connUrl = jmsClient.getConnectionUrl(ServerType.MASTER);
+        Xid xid = newXID();
+        try (ActiveMQXAConnectionFactory connectionFactory = new ActiveMQXAConnectionFactory(connUrl)) {
+            XAConnection connection = connectionFactory.createXAConnection();
+            try (XASession xaSession = connection.createXASession()) {
+                Destination destination = getProducerDestination(messagingScheme, xaSession, address);
+                xaSession.getXAResource().start(xid, XAResource.TMNOFLAGS);
+                try (MessageProducer producer = xaSession.createProducer(destination)) {
+                    jmsClient.produceMessages(producer, xaSession, numberOfMessagesToProduce);
+                    try (Session consumerSession = serverSetup.createSession(ServerType.MASTER, false, Session.AUTO_ACKNOWLEDGE)) {
+                        Destination consumerDestination = getConsumerDestinationForScheme(messagingScheme, consumerSession, address);
+                        try (MessageConsumer consumer = consumerSession.createConsumer(consumerDestination)) {
+                            while (true) {
+                                Message msg = consumer.receive(3000);
+                                if (msg != null) {
+                                    receivedFromMaster++;
+                                } else {
+                                    break;
+                                }
+                            }
+
+                            logger.debug("Consumed {} messages, before Producer session commit", receivedFromMaster);
+                            assertThat(receivedFromMaster).as("Shouldn't consume any messages as producer session was not committed yet.").isEqualTo(0);
+                            xaSession.getXAResource().end(xid, XAResource.TMSUCCESS);
+                            xaSession.getXAResource().commit(xid, true);
+
+                            //start new XA transaction
+                            xaSession.getXAResource().start(xid, XAResource.TMNOFLAGS);
+                            // produce again
+                            jmsClient.produceMessages(producer, xaSession, numberOfMessagesToProduce);
+
+                            // prepare
+                            xaSession.getXAResource().end(xid, XAResource.TMSUCCESS);
+                            xaSession.getXAResource().prepare(xid);
+                            // rollback
+                            xaSession.getXAResource().rollback(xid);
+                            while (true) {
+                                Message msg = consumer.receive(3000);
+                                if (msg != null) {
+                                    receivedFromMaster++;
+                                } else {
+                                    break;
+                                }
+                            }
+                            logger.debug("Consumed {} messages, after Producer session commit", receivedFromMaster);
+                        }// consumer close
+                    }//consumer session close
+
+                } // producer close
+            } // session close
+            validateReceivedMessages(numberOfMessagesToProduce, receivedFromMaster);
+        }
+    }
+
+    /**
+     * JTA Transacted produce to master, verify that no messages to consume (as not committed), commit, start new JTA transaction,
+     * produce to master again, end transaction, prepare commit, failover, rollback, consume verify that only one block of messages consumed -
+     * ensures that in progress (prepared but not committed) transaction carried over on failover is rolled back correctly.
+     *
+     * @param messagingScheme
+     * @throws Exception
+     */
+    public void verifyJTATransactionProduceOnMasterRollbackAfterFailover(MessagingScheme messagingScheme) throws Exception {
+        String address = Util.getParentMethodNameAsAddress(messagingScheme);
+        int numberOfMessagesToProduce = 50;
+        JMSClient jmsClient = new JMSClient();
+        Assertions.assertTrue(serverSetup.startMasterServer(), "Master Server should start.");
+        Assertions.assertTrue(serverSetup.startSlaveServer(), "Slave Server should start.");
+        int receivedFromMaster = 0;
+        //Produce and commit messages to Master
+        String connUrl = jmsClient.getHAConnectionUrl();
+        Xid xid = newXID();
+        ActiveMQXAConnectionFactory connectionFactory = new ActiveMQXAConnectionFactory(connUrl);
+        XAConnection connection = connectionFactory.createXAConnection();
+        XASession xaSession = connection.createXASession();
+        Destination destination = getProducerDestination(messagingScheme, xaSession, address);
+        xaSession.getXAResource().start(xid, XAResource.TMNOFLAGS);
+        MessageProducer producer = xaSession.createProducer(destination);
+        jmsClient.produceMessages(producer, xaSession, numberOfMessagesToProduce);
+
+        Session consumerSession = serverSetup.createSession(ServerType.MASTER, false, Session.AUTO_ACKNOWLEDGE);
+        Destination consumerDestination = getConsumerDestinationForScheme(messagingScheme, consumerSession, address);
+        MessageConsumer consumer = consumerSession.createConsumer(consumerDestination);
+        while (true) {
+            Message msg = consumer.receive(3000);
+            if (msg != null) {
+                receivedFromMaster++;
+            } else {
+                break;
+            }
+        }
+
+        logger.debug("Consumed {} messages, before Producer session commit", receivedFromMaster);
+        assertThat(receivedFromMaster).as("Shouldn't consume any messages as producer session was not committed yet.").isEqualTo(0);
+        // need to commit first transaction (or produce non-transactional) to the queue - so that queue is not empty on fail-over
+        // as empty queues are auto-deleted on journal load if they have no durable subscribers etc.
+        // it doesn't look like a bug on JMSBridge side as that is logic in the AMQ code handling data loaded from journal on startup
+        xaSession.getXAResource().end(xid, XAResource.TMSUCCESS);
+        xaSession.getXAResource().prepare(xid);
+        xaSession.getXAResource().commit(xid, false);
+
+        //Now start another XA transaction and produce some more messages
+        xaSession.getXAResource().start(xid, XAResource.TMNOFLAGS);
+        jmsClient.produceMessages(producer, xaSession, numberOfMessagesToProduce);
+        //End the transaction and prepare the commit
+        xaSession.getXAResource().end(xid, XAResource.TMSUCCESS);
+        xaSession.getXAResource().prepare(xid);
+        //cause a failover by killing master with pending commit (prepared but not rolled back or committed transaction)
+        Assertions.assertTrue(serverSetup.killMasterServer(), "Master Server should stop (kill).");
+        Assertions.assertTrue(serverSetup.isServerUp(ServerType.SLAVE, 10, 10), "Slave Server should be running.");
+
+        //now after failover - rollback the prepared transaction
+        xaSession.getXAResource().rollback(xid);
+        //and finally, consume and verify that we got messages from one transaction - so just single block of numberOfMessagesToProduce
+        int receivedFromSlave = jmsClient.consumeMessages(ServerType.SLAVE, address, messagingScheme.getRoutingType(), -1, 0L);
+
+        validateReceivedMessages(numberOfMessagesToProduce , receivedFromSlave);
+    }
+
+    /**
+     * JTA Transacted produce to master, verify that no messages to consume (as not committed), commit, start new JTA transaction,
+     * produce to master again, end transaction, prepare commit, failover, rollback, consume, verify that only one block of messages consumed
+     * ensures that in progress (prepared but not committed) transaction is carried over on failover and is rolled back correctly.
+     *
+     * @param messagingScheme
+     * @throws Exception
+     */
+    public void verifyJTATransactionProduceOnMasterRollbackAfterFailoverAndFailback(MessagingScheme messagingScheme) throws Exception {
+        String address = Util.getParentMethodNameAsAddress(messagingScheme);
+        int numberOfMessagesToProduce = 50;
+        JMSClient jmsClient = new JMSClient();
+        Assertions.assertTrue(serverSetup.startMasterServer(), "Master Server should start.");
+        Assertions.assertTrue(serverSetup.startSlaveServer(), "Slave Server should start.");
+        int receivedFromMaster = 0;
+        //Produce and commit messages to Master
+        String connUrl = jmsClient.getHAConnectionUrl();
+        Xid xid = newXID();
+        ActiveMQXAConnectionFactory connectionFactory = new ActiveMQXAConnectionFactory(connUrl);
+        XAConnection connection = connectionFactory.createXAConnection();
+        XASession xaSession = connection.createXASession();
+        Destination destination = getProducerDestination(messagingScheme, xaSession, address);
+        xaSession.getXAResource().start(xid, XAResource.TMNOFLAGS);
+        MessageProducer producer = xaSession.createProducer(destination);
+        jmsClient.produceMessages(producer, xaSession, numberOfMessagesToProduce);
+
+        Session consumerSession = serverSetup.createSession(ServerType.MASTER, false, Session.AUTO_ACKNOWLEDGE);
+        Destination consumerDestination = getConsumerDestinationForScheme(messagingScheme, consumerSession, address);
+        MessageConsumer consumer = consumerSession.createConsumer(consumerDestination);
+        while (true) {
+            Message msg = consumer.receive(3000);
+            if (msg != null) {
+                receivedFromMaster++;
+            } else {
+                break;
+            }
+        }
+
+        logger.debug("Consumed {} messages, before Producer session commit", receivedFromMaster);
+        assertThat(receivedFromMaster).as("Shouldn't consume any messages as producer session was not committed yet.").isEqualTo(0);
+        // need to commit first transaction (or produce non-transactional) to the queue - so that queue is not empty on fail-over
+        // as empty queues are auto-deleted on journal load if they have no durable subscribers etc.
+        // it doesn't look like a bug on JMSBridge side as that is logic in the AMQ code handling data loaded from journal on startup
+        xaSession.getXAResource().end(xid, XAResource.TMSUCCESS);
+        xaSession.getXAResource().prepare(xid);
+        xaSession.getXAResource().commit(xid, false);
+
+        Assertions.assertTrue(serverSetup.killMasterServer(), "Master Server should stop (kill).");
+        Assertions.assertTrue(serverSetup.isServerUp(ServerType.SLAVE, 10, 10), "Slave Server should be running.");
+        //Now start another XA transaction and produce some more messages to Slave
+        xaSession.getXAResource().start(xid, XAResource.TMNOFLAGS);
+        jmsClient.produceMessages(producer, xaSession, numberOfMessagesToProduce);
+        //End the transaction and prepare the commit
+        xaSession.getXAResource().end(xid, XAResource.TMSUCCESS);
+        xaSession.getXAResource().prepare(xid);
+
+        //cause a failback by starting master with pending commit (prepared but not rolled back or committed transaction)
+
+        Assertions.assertTrue(serverSetup.startMasterServer(), "Master Server should start.");
+        Assertions.assertTrue(serverSetup.isServerUp(ServerType.MASTER, 10, 10), "Slave Server should be running.");
+
+        //now after fail-back - rollback the prepared transaction
+        xaSession.getXAResource().rollback(xid);
+        //and finally, consume and verify that we got messages from one transaction - so just one block of numberOfMessagesToProduce
+        int receivedFromMasterAfterFailback = jmsClient.consumeMessages(ServerType.MASTER, address, messagingScheme.getRoutingType(), -1, 0L);
+
+        validateReceivedMessages(numberOfMessagesToProduce, receivedFromMasterAfterFailback);
+    }
+
+    private XidImpl newXID() {
+        return newXID(UUIDGenerator.getInstance().generateStringUUID().getBytes());
+    }
+
+    private XidImpl newXID(byte[] bytes) {
+        return new XidImpl("amqp".getBytes(), 1, bytes);
     }
 }

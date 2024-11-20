@@ -249,7 +249,7 @@ public class KafkaJournalLoader {
             }
 
             if (prepared) {
-                SLOG.warn(b -> b
+                SLOG.debug(b -> b
                         .name(journalName)
                         .event("PreparedTransactionLoaded")
                         .addJournalEntry(txRefEntry));

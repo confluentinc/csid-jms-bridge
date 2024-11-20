@@ -10,6 +10,7 @@ import org.apache.activemq.artemis.api.core.management.ResourceNames;
 import org.apache.activemq.artemis.api.jms.ActiveMQJMSClient;
 import org.apache.activemq.artemis.api.jms.management.JMSManagementHelper;
 import org.apache.activemq.artemis.jms.client.ActiveMQConnectionFactory;
+import org.apache.activemq.artemis.jms.client.ActiveMQXAConnectionFactory;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -23,13 +24,15 @@ public class JMSClient {
     private static final Logger logger = LogManager.getLogger(JMSClient.class);
 
 
-    private String getConnectionUrl(ServerType serverType) {
+    public String getConnectionUrl(ServerType serverType) {
         if (serverType == null) {
             return "(" + prepareUrl(true) + "," + prepareUrl(false) + ")";
         }
         return prepareUrl(serverType == ServerType.MASTER);
     }
-
+    public String getHAConnectionUrl() {
+            return "(" + prepareUrl(true) + "," + prepareUrl(false) + ")?ha=true;reconnectAttempts=-1;retryInterval=1000;retryIntervalMultiplier=1.0;maxRetryInterval=5000;failoverOnInitialConnection=true;";
+    }
 
     private static String prepareUrl(boolean isMaster) {
         ConfigLoader configLoader = GlobalSetup.getConfigLoader();
