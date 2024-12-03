@@ -78,9 +78,9 @@ It will require the JMS-Bridge to be configured with information about:
 A message may only be routed to a single kafka topic and it will be derived from the first route that matches.
 The order of the routing will be maintained from how it is ordered in the configuration.
 
-Due to asynchronous nature of Kafka Streams runtime - messages can be re-produced to Kafka Topics after JMS Bridge node crash - causing duplication on Kafka Topics only - see [JMS -> Kafka egress](/concepts/jms_kafka_divert/) for more information.
+Due to asynchronous nature of Kafka Streams runtime - messages can be re-produced to Kafka Topics after JMS Bridge node crash - causing duplication on Kafka Topics only - see [JMS -> Kafka egress](concepts/jms_kafka_divert/) for more information.
 
-Similarly on Kafka to JMS routing - messages can get duplicated if node crashes in the window between processing messages consumed from Kafka into the message journal and committing the offsets back to Kafka as consumed - see [Kafka -> JMS ingress](/concepts/jms_kafka_divert/#kafka-topic-to-jms-destination-ingress---processing-on-crash-flow).
+Similarly on Kafka to JMS routing - messages can get duplicated if node crashes in the window between processing messages consumed from Kafka into the message journal and committing the offsets back to Kafka as consumed - see [Kafka -> JMS ingress](concepts/jms_kafka_divert/#kafka-topic-to-jms-destination-ingress---processing-on-crash-flow).
 
 ### Converting Messages
 

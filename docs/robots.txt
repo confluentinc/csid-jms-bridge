@@ -1,3 +1,3 @@
 User-agent: *
 Disallow: /
-Sitemap: https://congenial-dollop-j5lkkqp.pages.github.io/sitemap-index.xml
+Sitemap: https://confluent-partners.github.io/csid-jms-bridge/sitemap-index.xml
