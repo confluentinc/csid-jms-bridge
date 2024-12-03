@@ -69,6 +69,6 @@ export default defineConfig({
                 disallow: ['/']
             }]
         }), tailwind()],
-    site: 'https://congenial-dollop-j5lkkqp.pages.github.io/',
-    base: '/'
+    site: 'https://confluent-partners.github.io/csid-jms-bridge/',
+    base: '/csid-jms-bridge'
 })
