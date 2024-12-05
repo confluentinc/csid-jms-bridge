@@ -27,3 +27,11 @@ Easing this transition is the goal of the JMS-Bridge. By providing a fully compl
     - client jar update
 - Quickly start innovating using Kafka and the Confluent Platform
   \*Allow ample time to either migrate legacy JMS applications or allow them to naturally fade away
+
+## Get in touch
+
+If you’re interested in learning more, have any questions, or want to explore how this solution can fit your needs, feel free to get in touch. We’re here to provide detailed insights, clarify any doubts, and help you make the most of our tools and offerings. 
+
+Reach out today to start the conversation—we’d love to hear from you!
+
+Email: accelerators@confluent
