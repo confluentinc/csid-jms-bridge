@@ -60,7 +60,7 @@ Note that if manifest entry for Partner-Id is already present - it will be repla
 ```
     path/to/code/csid-jms-bridge/.semaphore/scripts/update-partner-id.sh path/to/zipfile/jms-bridge-server-3.1.0-package.zip 123456789
 ```
-- Optionally verify that Manifest entry was added / updated by using `print-manifest-id.sh` script in the `.semaphore/scripts` folder
+- Optionally verify that Manifest entry was added / updated by using `print-partner-id.sh` script in the `.semaphore/scripts` folder
 ```
-    .semaphore/scripts/print-manifest-id.sh path/to/zipfile/jms-bridge-server-3.1.0-package.zip
+    .semaphore/scripts/print-partner-id.sh path/to/zipfile/jms-bridge-server-3.1.0-package.zip
 ```
