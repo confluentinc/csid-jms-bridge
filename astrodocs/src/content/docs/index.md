@@ -27,3 +27,16 @@ Easing this transition is the goal of the JMS-Bridge. By providing a fully compl
     - client jar update
 - Quickly start innovating using Kafka and the Confluent Platform
   \*Allow ample time to either migrate legacy JMS applications or allow them to naturally fade away
+
+## Built on Artemis MQ
+
+The JMS-Bridge is built on [Artemis MQ](https://activemq.apache.org/components/artemis/documentation/latest/messaging-concepts.html#messaging-concepts), a robust and high-performance messaging system that serves as the foundation for its JMS 2.0 compliant implementation. By leveraging Artemis MQ, the JMS-Bridge inherits advanced features such as efficient [message routing](https://activemq.apache.org/components/artemis/documentation/latest/address-model.html), client failover capabilities, and [flexible message persistence](https://activemq.apache.org/components/artemis/documentation/latest/persistence.html). These features ensure that the bridge can reliably handle enterprise-grade workloads while maintaining seamless integration with Confluent.
+
+Key differences and enhancements include:
+
+
+Failover Support: Moving the Artemis MQ’s built-in failover mechanisms from shared store to Kafka based implementation, the JMS-Bridge ensures high availability and resilience, allowing seamless recovery from node or connection failures without data loss without complexity of SAN / shared storage architecture.
+
+Protocol Compatibility: While based on Artemis MQ, the JMS-Bridge introduces tight coupling with Kafka, ensuring bi-directional data flow. This enables legacy JMS applications to interact directly with Kafka topics as if they were native JMS destinations.
+
+By combining the proven messaging capabilities of Artemis MQ with the scalability and flexibility of Kafka, the JMS-Bridge offers a robust solution for bridging legacy JMS systems to Confluent. This architecture not only accelerates migration efforts but also provides a reliable and performant integration layer.

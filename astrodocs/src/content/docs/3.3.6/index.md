@@ -28,3 +28,4 @@ Easing this transition is the goal of the JMS-Bridge. By providing a fully compl
   * client jar update
 * Quickly start innovating using Kafka and the Confluent Platform
   \*Allow ample time to either migrate legacy JMS applications or allow them to naturally fade away
+
