@@ -11,6 +11,15 @@ Note that as this release is now in the Confluent Partner GitHub org, the releas
 
 ---
 
+## v. 3.3.7
+
+### Minor changes
+* Fixed dependencies for CVEs found
+
+**Full Changelog**: https://github.com/confluent-partners/csid-jms-bridge/compare/v3.3.6...v3.3.7
+
+---
+
 ## v. 3.3.6
 
 ### Fixes

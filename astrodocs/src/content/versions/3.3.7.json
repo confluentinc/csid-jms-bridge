@@ -1,0 +1,37 @@
+{
+  "sidebar": [
+    {
+      "label": "Home",
+      "items": [
+        {
+          "label": "Introduction",
+          "link": "/"
+        }
+      ]
+    },
+    {
+      "label": "Core Concepts",
+      "autogenerate": {
+        "directory": "concepts"
+      }
+    },
+    {
+      "label": "Guides",
+      "autogenerate": {
+        "directory": "guides"
+      }
+    },
+    {
+      "label": "Tutorials",
+      "autogenerate": {
+        "directory": "tutorials"
+      }
+    },
+    {
+      "label": "Reference",
+      "autogenerate": {
+        "directory": "reference"
+      }
+    }
+  ]
+}
