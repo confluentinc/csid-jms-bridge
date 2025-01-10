@@ -64,3 +64,17 @@ Note that if manifest entry for Partner-Id is already present - it will be repla
 ```
     .semaphore/scripts/print-manifest-id.sh path/to/zipfile/jms-bridge-server-3.1.0-package.zip
 ```
+
+### Updating the documentation for a release
+
+1. Add a JS file for the release in `astrodocs/src/content/versions`
+2. Update `astrodocs/src/content/docs/reference/release_notes.md`
+3. Run:
+```shell
+cd astrodocs
+npm i
+# if required, also run:
+npx playwright install
+npm run gh-pages
+```
+4. Push to a branch and merge to main 
