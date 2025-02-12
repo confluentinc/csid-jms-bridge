@@ -4,15 +4,5 @@
 
 name: csid-jms-bridge
 lang: java
-lang_version: 17
-github:
-    enable: true
-    repo_name: confluent-partners/csid-jms-bridge
 semaphore:
     enable: true
-make:
-  enable: true
-  update_makefile: false
-  enable_updates: true
-git:
-  enable: true
