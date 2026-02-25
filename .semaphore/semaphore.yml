@@ -28,7 +28,6 @@ global_job_config:
       - sem-version java unknown
       - checkout
       - make show-args
-      - . vault-setup
       - make init-ci
   epilogue:
     always:
