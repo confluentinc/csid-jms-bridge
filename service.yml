@@ -5,4 +5,9 @@
 name: csid-jms-bridge
 lang: java
 semaphore:
-    enable: true
+  enable: true
+  managed_sections:
+    - version
+    - name
+    - agent
+    - global_job_config
